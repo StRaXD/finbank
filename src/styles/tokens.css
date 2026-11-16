@@ -33,6 +33,10 @@
   /* Surfaces. */
   --color-white: #FFFFFF;
   --color-card: var(--color-white);
+  /* "Continue with Google" / disabled button fill, sampled from Login and Components-1 PNGs. */
+  --color-google: #E4E7EB;
+  /* Semantic fill for disabled controls; currently matches the Google button grey. */
+  --color-disabled: var(--color-google);
   --color-sidebar: var(--color-ink);
 
   /* On dark surfaces (sidebar). */
@@ -74,5 +78,10 @@
 
   /* Card surface. Shadow is estimated from the screen PNGs (no Figma source). */
   --radius-card: 8px;
+
+  /* Control radii (Components-1.png, 101. Login.png). */
+  --radius-button: 4px;
+  --radius-input: 8px;
+  --radius-checkbox: 2px;
   --shadow-card: 0 20px 25px rgb(118 118 118 / 10%);
 }

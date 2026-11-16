@@ -30,4 +30,15 @@ describe('App token specimen', () => {
     expect(white).toHaveAttribute('src', wordmarkWhite)
     expect(wordmarkTeal).not.toBe(wordmarkWhite)
   })
+
+  it('renders the components specimen with every primitive', () => {
+    render(<App />)
+    const section = within(screen.getByTestId('specimen-components'))
+    expect(section.getAllByRole('button', { name: 'Login' })).toHaveLength(2)
+    expect(section.getAllByRole('button', { name: 'Continue with Google' })).toHaveLength(2)
+    expect(section.getByLabelText('Email Address')).toBeInTheDocument()
+    expect(section.getByLabelText('Password')).toHaveAttribute('type', 'password')
+    expect(section.getByLabelText('Keep me signed in')).toBeChecked()
+    expect(section.getByRole('status')).toHaveTextContent('Profile updated')
+  })
 })

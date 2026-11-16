@@ -1,6 +1,11 @@
 // Story 1.2 token specimen. Story 1.6 replaces this with the router.
 import wordmarkTeal from '../assets/brands/wordmark-teal.svg'
 import wordmarkWhite from '../assets/brands/wordmark-white.svg'
+import { Button } from '../ui/Button.tsx'
+import { Checkbox } from '../ui/Checkbox.tsx'
+import { FormStatus } from '../ui/FormStatus.tsx'
+import { PasswordInput } from '../ui/PasswordInput.tsx'
+import { TextInput } from '../ui/TextInput.tsx'
 
 const weights = [
   { label: 'Regular', className: 'font-normal' },
@@ -116,6 +121,71 @@ function App() {
             <p className="w-full rounded-card bg-on-dark-hover px-4 py-3 text-16 text-on-dark">
               Hover / Logout background
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="components-heading" data-testid="specimen-components" className="flex flex-col gap-8">
+        <h2 id="components-heading" className="text-20 font-semibold">
+          Components
+        </h2>
+
+        <div className="grid grid-cols-2 gap-12">
+          <div className="flex w-96 flex-col gap-3">
+            <h3 className="text-16 font-semibold text-muted">Buttons</h3>
+            <Button fullWidth>Login</Button>
+            <Button fullWidth disabled>
+              Login
+            </Button>
+            <Button variant="google" fullWidth>
+              Continue with Google
+            </Button>
+            <Button variant="google" fullWidth disabled>
+              Continue with Google
+            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button>Add Accounts</Button>
+              <Button size="sm" trailingIcon="chevronRight">
+                Details
+              </Button>
+              <Button variant="outline" size="sm" trailingIcon="pencil">
+                Adjust
+              </Button>
+              <Button variant="outline" disabled>
+                Disabled
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-6">
+              <Button variant="text">Create an account</Button>
+              <Button variant="text" size="sm">
+                Forgot Password?
+              </Button>
+              <Button variant="text" disabled>
+                Disabled link
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex w-96 flex-col gap-4">
+            <h3 className="text-16 font-semibold text-muted">Inputs</h3>
+            <TextInput label="Email Address" type="email" placeholder="johndoe@email.com" />
+            <TextInput label="Email (filled)" type="email" defaultValue="hello@example.com" placeholder="johndoe@email.com" />
+            <TextInput label="Email (error)" type="email" defaultValue="hello@" error="Enter a valid email address" />
+            <PasswordInput label="Password" placeholder="••••••••••••••" />
+            <PasswordInput label="Password (error)" error="Password is required" />
+            <TextInput label="Email (disabled)" type="email" disabled defaultValue="hello@example.com" />
+            <PasswordInput label="Password (disabled)" disabled defaultValue="secret-password" />
+            <TextInput label="Full name (borderless)" variant="borderless" defaultValue="Tanzir Rahman" />
+            <TextInput label="Full name (borderless, error)" variant="borderless" error="Name is required" />
+            <Checkbox label="Keep me signed in" defaultChecked />
+            <Checkbox label="Unchecked" />
+            <Checkbox label="Disabled checked" defaultChecked disabled />
+            <Checkbox label="Disabled unchecked" disabled />
+            <Checkbox label="Accept terms" error="You must accept the terms" />
+            <div className="flex items-center gap-4">
+              <Button>Update Profile</Button>
+              <FormStatus message="Profile updated" />
+            </div>
           </div>
         </div>
       </section>

@@ -69,7 +69,12 @@ describe('tokens.css', () => {
     ['--color-focus-ring', 'var(--color-primary)'],
     ['--focus-ring-width', '2px'],
     ['--focus-ring-offset', '2px'],
+    ['--color-google', hex('E4E7EB')],
+    ['--color-disabled', 'var(--color-google)'],
     ['--radius-card', '8px'],
+    ['--radius-button', '4px'],
+    ['--radius-input', '8px'],
+    ['--radius-checkbox', '2px'],
     ['--shadow-card', `0 20px 25px ${fn('rgb', '118 118 118 / 10%')}`],
   ])('%s is %s', (name, value) => {
     expect(norm(theme.get(name))).toBe(norm(value))

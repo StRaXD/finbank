@@ -72,6 +72,16 @@ describe('built CSS', () => {
     expect(focus).toContain('outline-offset:var(--focus-ring-offset)')
   })
 
+  it.each([
+    ['.bg-google', 'background-color:var(--color-google)'],
+    ['.bg-disabled', 'background-color:var(--color-disabled)'],
+    ['.rounded-button', 'border-radius:var(--radius-button)'],
+    ['.rounded-input', 'border-radius:var(--radius-input)'],
+    ['.rounded-checkbox', 'border-radius:var(--radius-checkbox)'],
+  ])('emits %s backed by its token', (selector, declaration) => {
+    expect(ruleBody(selector)).toContain(declaration)
+  })
+
   it('self-hosts Inter Variable', () => {
     expect(css).toMatch(/@font-face\{[^}]*font-family:\s*["']?Inter Variable["']?[^}]*\.woff2/)
     expect(assets.some((f) => /^inter-.*\.woff2$/.test(f))).toBe(true)
