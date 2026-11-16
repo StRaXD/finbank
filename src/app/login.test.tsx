@@ -33,6 +33,8 @@ describe('Login screen', () => {
     expect(screen.getByText('or sign in with')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'FINEbank.IO' })).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    // The design shows only the wordmark, so Login's h1 stays visually hidden.
+    expect(screen.getByRole('heading', { level: 1, name: 'Log in' })).toHaveClass('sr-only')
   })
 
   it('links to Forgot Password and Signup', async () => {

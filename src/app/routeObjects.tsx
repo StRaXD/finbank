@@ -2,7 +2,7 @@
 // router from the same objects.
 import { lazy, Suspense } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
-import { LoginPage, type AuthPaths } from '../features/auth/index.ts'
+import { ForgotPasswordPage, LoginPage, SignupPage, type AuthPaths } from '../features/auth/index.ts'
 import { AppLayout } from './AppLayout.tsx'
 import { PageBusy } from './PageBusy.tsx'
 import { PlaceholderPage } from './PlaceholderPage.tsx'
@@ -39,9 +39,8 @@ export const routeObjects: RouteObject[] = [
     element: <RedirectIfSession />,
     children: [
       { path: routes.login, element: <LoginPage paths={authPaths} /> },
-      // Story 1.7 replaces these placeholders with the real forms.
-      { path: routes.signup, element: <PlaceholderPage title="Sign up" /> },
-      { path: routes.forgotPassword, element: <PlaceholderPage title="Forgot Password" /> },
+      { path: routes.signup, element: <SignupPage paths={authPaths} /> },
+      { path: routes.forgotPassword, element: <ForgotPasswordPage paths={authPaths} /> },
     ],
   },
   {

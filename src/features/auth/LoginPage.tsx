@@ -9,16 +9,15 @@ import { Button } from '../../ui/Button.tsx'
 import { Checkbox } from '../../ui/Checkbox.tsx'
 import { PasswordInput } from '../../ui/PasswordInput.tsx'
 import { TextInput } from '../../ui/TextInput.tsx'
+import { alertMessage, applyApiError } from './applyApiError.ts'
 import { AuthLayout } from './components/AuthLayout.tsx'
 import { OrDivider } from './components/OrDivider.tsx'
+import { linkClass } from './linkClass.ts'
 import type { AuthPaths } from './paths.ts'
 import { loginSchema, type LoginValues } from './schemas.ts'
 
-const linkClass = 'rounded-button font-semibold text-primary hover:underline'
-
-function isFormField(key: string): key is 'email' | 'password' {
-  return key === 'email' || key === 'password'
-}
+// email/password errors go to their inputs; anything else goes to the alert above the Login button.
+const loginFields = ['email', 'password'] as const
 
 /**
  * Sign-in screen. On success the session query is seeded with the new session and the
@@ -40,22 +39,7 @@ export function LoginPage({ paths }: { paths: AuthPaths }) {
 
   const busy = login.isPending || google.isPending || isSubmitting
 
-  // email/password errors go to their inputs; other field messages (or `message` when none
-  // map) go to the alert above the Login button.
-  const showSubmitError = (error: ApiError) => {
-    const unmapped: string[] = []
-    let mapped = 0
-    for (const [key, message] of Object.entries(error.fieldErrors ?? {})) {
-      if (isFormField(key)) {
-        setError(key, { message })
-        mapped++
-      } else {
-        unmapped.push(message)
-      }
-    }
-    if (unmapped.length > 0) setError('root.server', { message: unmapped.join(' ') })
-    else if (mapped === 0) setError('root.server', { message: error.message })
-  }
+  const showSubmitError = (error: ApiError) => applyApiError(error, loginFields, setError)
 
   const submitLogin = handleSubmit((values) => {
     login.mutate(values, { onError: showSubmitError })
@@ -74,7 +58,7 @@ export function LoginPage({ paths }: { paths: AuthPaths }) {
     if (busy) return
     clearErrors()
     google.mutate(undefined, {
-      onError: (error) => setError('root.server', { message: error.message }),
+      onError: (error) => setError('root.server', { message: alertMessage(error) }),
     })
   }
 
