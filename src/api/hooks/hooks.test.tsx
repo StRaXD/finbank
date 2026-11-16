@@ -66,7 +66,7 @@ describe('query hooks', () => {
 })
 
 describe('mutation hooks', () => {
-  it('useLogin clears the cache and the session re-reads as signed in', async () => {
+  it('useLogin clears the cache and the session is seeded as signed in', async () => {
     const { wrapper, queryClient } = setup()
     const { result } = renderHook(
       () => ({ session: useSession(), context: useSessionContext(), login: useLogin() }),
@@ -79,8 +79,10 @@ describe('mutation hooks', () => {
       result.current.login.mutateAsync({ email: 'a@b.co', password: 'pw', persistent: true }),
     )
 
-    expect(result.current.session.data).toEqual({ userId: 'usr_1', persistent: true })
-    expect(result.current.context.data).toEqual({ userId: 'usr_1', persistent: true })
+    // The session is seeded in the cache at once; observers re-render on the next notify tick.
+    expect(queryClient.getQueryData(qk.session())).toEqual({ userId: 'usr_1', persistent: true })
+    await waitFor(() => expect(result.current.session.data).toEqual({ userId: 'usr_1', persistent: true }))
+    await waitFor(() => expect(result.current.context.data).toEqual({ userId: 'usr_1', persistent: true }))
     expect(queryClient.getQueryData(qk.today())).toBeUndefined()
   })
 
@@ -95,7 +97,7 @@ describe('mutation hooks', () => {
     )
     await waitFor(() => expect(result.current.session.data).toBeNull())
     await act(() => (result.current.mutation.mutateAsync as (i: unknown) => Promise<unknown>)(input))
-    expect(result.current.session.data).toEqual({ userId: 'usr_1', persistent: true })
+    await waitFor(() => expect(result.current.session.data).toEqual({ userId: 'usr_1', persistent: true }))
   })
 
   it('useLogout gives a null session and an empty cache', async () => {
@@ -110,8 +112,9 @@ describe('mutation hooks', () => {
 
     await act(() => result.current.logout.mutateAsync())
 
-    expect(result.current.session.data).toBeNull()
-    // Only the mounted session query remains, re-read as signed out.
+    expect(queryClient.getQueryData(qk.session())).toBeNull()
+    await waitFor(() => expect(result.current.session.data).toBeNull())
+    // Only the mounted session query remains, seeded as signed out.
     const keys = queryClient.getQueryCache().getAll().map((q) => q.queryKey)
     expect(keys).toEqual([qk.session()])
   })

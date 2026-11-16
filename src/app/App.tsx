@@ -1,4 +1,4 @@
-// Story 1.2 token specimen. Story 1.6 replaces this with the router.
+// Stories 1.2/1.3 token and component specimen, served only in dev at `routes.specimen`.
 import wordmarkTeal from '../assets/brands/wordmark-teal.svg'
 import wordmarkWhite from '../assets/brands/wordmark-white.svg'
 import { Button } from '../ui/Button.tsx'

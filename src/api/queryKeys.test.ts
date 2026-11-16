@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import { applyInvalidation, invalidationMap, qk } from './queryKeys.ts'
 
@@ -31,5 +31,20 @@ describe('invalidationMap', () => {
     client.setQueryData(qk.profile(), { fullName: 'x' })
     await applyInvalidation(client, 'logout')
     expect(client.getQueryCache().getAll()).toHaveLength(0)
+  })
+
+  it('seeds the session instead of resetting it when given one', async () => {
+    const client = new QueryClient()
+    client.setQueryData(qk.today(), '2023-05-19')
+    client.setQueryData(qk.session(), null)
+    const observer = new QueryObserver(client, { queryKey: qk.session(), queryFn: () => null, staleTime: Infinity })
+    const statuses: string[] = []
+    const unsubscribe = observer.subscribe((result) => statuses.push(result.status))
+    await applyInvalidation(client, 'login', { session: { userId: 'usr_1', persistent: true } })
+    unsubscribe()
+    expect(client.getQueryData(qk.session())).toEqual({ userId: 'usr_1', persistent: true })
+    expect(client.getQueryData(qk.today())).toBeUndefined()
+    expect(statuses).not.toHaveLength(0)
+    expect(statuses).not.toContain('pending')
   })
 })

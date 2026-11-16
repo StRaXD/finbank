@@ -1,5 +1,6 @@
 // Hierarchical query keys and the single invalidation map (AD-7).
-import type { QueryClient } from '@tanstack/react-query'
+import { hashKey, type QueryClient } from '@tanstack/react-query'
+import type { Session } from './types.ts'
 
 const root = ['finbank'] as const
 
@@ -29,17 +30,27 @@ export type InvalidatingMutation = keyof typeof invalidationMap
  * and refetches it, resolving once those refetches settle. Afterwards the query cache holds only
  * the mounted queries, re-read under the new identity (e.g. the session). The mutation cache is
  * not touched: credential-carrying mutations set `gcTime: 0` instead.
+ *
+ * With `options.session` (identity changes), the session query is seeded with it instead of being
+ * reset, so it never passes through `pending` and the route guards never blank the page.
  */
 export async function applyInvalidation(
   queryClient: QueryClient,
   mutation: InvalidatingMutation,
+  options?: { session: Session | null },
 ): Promise<void> {
   // Widened on purpose: today every entry is 'all', later epics add key lists.
   const target = invalidationMap[mutation] as InvalidationTarget
   if (target === 'all') {
     await queryClient.cancelQueries()
     queryClient.removeQueries({ type: 'inactive' })
-    await queryClient.resetQueries()
+    if (!options) {
+      await queryClient.resetQueries()
+      return
+    }
+    const sessionHash = hashKey(qk.session())
+    queryClient.setQueryData(qk.session(), options.session)
+    await queryClient.resetQueries({ predicate: (query) => query.queryHash !== sessionHash })
     return
   }
   await Promise.all(target.map((queryKey) => queryClient.invalidateQueries({ queryKey })))

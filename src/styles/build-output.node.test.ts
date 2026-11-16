@@ -11,19 +11,33 @@ const repoRoot = resolve(import.meta.dirname, '..', '..')
 
 let outDir: string
 let css = ''
+let js = ''
 let assets: string[] = []
 
 beforeAll(async () => {
   outDir = mkdtempSync(join(tmpdir(), 'finbank-build-'))
-  await build({
-    root: repoRoot,
-    configFile: join(repoRoot, 'vite.config.ts'),
-    logLevel: 'silent',
-    build: { outDir, emptyOutDir: true },
-  })
+  // Vitest sets NODE_ENV=test, which would make `import.meta.env.DEV` true in this build.
+  // Build as production, exactly like `npm run build`.
+  const nodeEnv = process.env.NODE_ENV
+  process.env.NODE_ENV = 'production'
+  try {
+    await build({
+      root: repoRoot,
+      configFile: join(repoRoot, 'vite.config.ts'),
+      logLevel: 'silent',
+      mode: 'production',
+      build: { outDir, emptyOutDir: true },
+    })
+  } finally {
+    process.env.NODE_ENV = nodeEnv
+  }
   assets = readdirSync(join(outDir, 'assets'))
   css = assets
     .filter((f) => f.endsWith('.css'))
+    .map((f) => readFileSync(join(outDir, 'assets', f), 'utf8'))
+    .join('\n')
+  js = assets
+    .filter((f) => f.endsWith('.js'))
     .map((f) => readFileSync(join(outDir, 'assets', f), 'utf8'))
     .join('\n')
 }, 120_000)
@@ -80,6 +94,12 @@ describe('built CSS', () => {
     ['.rounded-checkbox', 'border-radius:var(--radius-checkbox)'],
   ])('emits %s backed by its token', (selector, declaration) => {
     expect(ruleBody(selector)).toContain(declaration)
+  })
+
+  it('ships no dev specimen in the production JS', () => {
+    expect(js.length).toBeGreaterThan(0)
+    expect(js).not.toContain('Finbank design tokens')
+    expect(js).not.toContain('__specimen')
   })
 
   it('self-hosts Inter Variable', () => {
