@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 15:43
-last_updated: 11-16-2026 16:45
+last_updated: 11-16-2026 17:07
 project: Finbank
 project_key: NOKEY
 tracking_system: file-system
@@ -39,7 +39,7 @@ development_status:
   1-1-scaffold-the-project-with-the-agreed-starter-and-tooling: review
   1-2-design-tokens-typography-and-brand-assets: review
   1-3-form-primitives-button-inputs-checkbox-and-form-status: review
-  1-4-money-date-and-formatting-helpers: backlog
+  1-4-money-date-and-formatting-helpers: review
   1-5-data-layer-foundation-port-mock-adapter-and-session: backlog
   1-6-routing-session-guard-and-login-screen: backlog
   1-7-signup-and-forgot-password-screens: backlog

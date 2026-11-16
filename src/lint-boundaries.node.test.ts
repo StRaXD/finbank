@@ -89,6 +89,64 @@ describe('AD-1 import boundaries', () => {
   })
 })
 
+describe('AD-9/AD-10 date, Intl and toFixed ban', () => {
+  const nowCall = 'export const now = new Date()\n'
+  const dateArgs = "export const d = new Date('2023-05-19')\n"
+  const dateParse = "export const t = Date.parse('2023-05-19')\n"
+  const dateNow = 'export const t = Date.now()\n'
+  const intlNumber = "export const f = new Intl.NumberFormat('en-US')\n"
+  const intlDate = 'export const f = Intl.DateTimeFormat\n'
+  const toFixed = 'export const s = (1.5).toFixed(2)\n'
+  const viaGlobalThis = 'export const D = globalThis.Date\n'
+  const viaWindow = 'export const I = window.Intl\n'
+  const viaSelfDate = 'export const D = self.Date\n'
+  const viaSelfIntl = 'export const I = self.Intl\n'
+  const localeString = "export const ls = (1234).toLocaleString('en-US')\n"
+  const localeDate = 'export const fd = (d: { toLocaleDateString(): string }) => d.toLocaleDateString()\n'
+  const localeTime = 'export const ft = (d: { toLocaleTimeString(): string }) => d.toLocaleTimeString()\n'
+
+  it.each([
+    ['a feature calls new Date()', 'src/features/x/A.ts', nowCall, 'no-restricted-globals'],
+    ['a feature builds a Date from a string', 'src/features/x/B.ts', dateArgs, 'no-restricted-globals'],
+    ['a feature calls Date.parse', 'src/features/x/C.ts', dateParse, 'no-restricted-globals'],
+    ['a feature calls Date.now', 'src/features/x/D.ts', dateNow, 'no-restricted-globals'],
+    ['a feature uses Intl.NumberFormat', 'src/features/x/E.ts', intlNumber, 'no-restricted-globals'],
+    ['ui uses Intl.DateTimeFormat', 'src/ui/F.ts', intlDate, 'no-restricted-globals'],
+    ['ui calls toFixed', 'src/ui/G.ts', toFixed, 'no-restricted-properties'],
+    ['api uses new Date()', 'src/api/H.ts', nowCall, 'no-restricted-globals'],
+    ['app uses toFixed', 'src/app/I.ts', toFixed, 'no-restricted-properties'],
+    ['another lib module uses new Date()', 'src/lib/money.ts', nowCall, 'no-restricted-globals'],
+    ['a lib test uses Intl', 'src/lib/format.test.ts', intlNumber, 'no-restricted-globals'],
+    ['a feature reaches Date via globalThis', 'src/features/x/J.ts', viaGlobalThis, 'no-restricted-properties'],
+    ['a feature reaches Intl via window', 'src/features/x/K.ts', viaWindow, 'no-restricted-properties'],
+    ['a feature reaches Date via self', 'src/features/x/M.ts', viaSelfDate, 'no-restricted-properties'],
+    ['a feature reaches Intl via self', 'src/features/x/N.ts', viaSelfIntl, 'no-restricted-properties'],
+    ['ui calls toLocaleString', 'src/ui/O.ts', localeString, 'no-restricted-properties'],
+    ['a feature calls toLocaleDateString', 'src/features/x/P.ts', localeDate, 'no-restricted-properties'],
+    ['a feature calls toLocaleTimeString', 'src/features/x/Q.ts', localeTime, 'no-restricted-properties'],
+  ])('fails when %s', (_name, relPath, source, rule) => {
+    expectFails(lintProbe(relPath, source), rule)
+  })
+
+  it.each([
+    ['lib/dates.ts', 'src/lib/dates.ts', dateArgs + dateParse + nowCall],
+    ['lib/format.ts', 'src/lib/format.ts', intlNumber + toFixed + localeString + localeDate],
+  ])('passes in %s', (_name, relPath, source) => {
+    const r = lintProbe(relPath, source)
+    expect(r.output).not.toContain('no-restricted-')
+    expect(r.status).toBe(0)
+  })
+
+  it('allows Date as a type outside lib', () => {
+    const r = lintProbe(
+      'src/features/x/L.ts',
+      'export function f(d: Date): Date {\n  return d\n}\n',
+    )
+    expect(r.output).not.toContain('no-restricted-')
+    expect(r.status).toBe(0)
+  })
+})
+
 describe('hook and cycle rules', () => {
   it('fails on an import cycle', () => {
     writeProbe('src/lib/cycle/a.ts', "import { b } from './b'\nexport const a = () => b\n")

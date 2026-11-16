@@ -17,6 +17,24 @@
           }
         ]
       }
+    ],
+    "no-restricted-globals": [
+      "error",
+      { "name": "Date", "message": "AD-9: only src/lib/dates.ts and src/lib/format.ts may use Date. Use lib/dates (toIsoDate, isoDateOf) for dates and lib/format for display." },
+      { "name": "Intl", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use Intl. Use lib/format helpers." }
+    ],
+    "no-restricted-properties": [
+      "error",
+      { "property": "toFixed", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use toFixed. Use lib/format helpers." },
+      { "object": "globalThis", "property": "Date", "message": "AD-9: only src/lib/dates.ts and src/lib/format.ts may use Date." },
+      { "object": "globalThis", "property": "Intl", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use Intl." },
+      { "object": "window", "property": "Date", "message": "AD-9: only src/lib/dates.ts and src/lib/format.ts may use Date." },
+      { "object": "window", "property": "Intl", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use Intl." },
+      { "object": "self", "property": "Date", "message": "AD-9: only src/lib/dates.ts and src/lib/format.ts may use Date." },
+      { "object": "self", "property": "Intl", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use Intl." },
+      { "property": "toLocaleString", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use toLocaleString. Use lib/format helpers." },
+      { "property": "toLocaleDateString", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use toLocaleDateString. Use lib/format helpers." },
+      { "property": "toLocaleTimeString", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use toLocaleTimeString. Use lib/format helpers." }
     ]
   },
   "overrides": [
@@ -101,6 +119,13 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "files": ["src/lib/dates.ts", "src/lib/format.ts"],
+      "rules": {
+        "no-restricted-globals": "off",
+        "no-restricted-properties": "off"
       }
     }
   ]
