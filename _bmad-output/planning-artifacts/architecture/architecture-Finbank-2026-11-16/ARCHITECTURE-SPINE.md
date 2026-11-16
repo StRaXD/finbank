@@ -286,7 +286,7 @@ graph TD
 | Errors | Adapters throw only `ApiError { code, message, fieldErrors? }`. UI copy comes from `message`. |
 | Auth | The mock adapter stores the session under the key `finbank:session`, separate from the mock data: in `localStorage` when "Keep me signed in" is checked, in `sessionStorage` when not. Google sign-in calls `loginWithGoogle()`, which is a mock login. |
 | Config | The only env var is `VITE_API_MODE`, plus `VITE_API_BASE_URL` when the mode is `http`. |
-| Icons | UI and category icons come from `lucide-react` through the single map in `src/ui/icons.ts`. `[ASSUMPTION: replace with exported Figma SVGs if NFR-1 review fails]` Brand logos (Google, Mastercard, VISA, Figma, Adobe) are SVGs exported from Figma into `src/assets/brands/`. |
+| Icons | UI and category icons come from `lucide-react` through the single map in `src/ui/icons.ts`. `[ASSUMPTION: replace with closer-matching SVGs if NFR-1 review fails]` Brand logos (Google, Mastercard, VISA, Figma, Adobe) are official brand-asset SVGs, stored in `src/assets/brands/`. The wordmark is rebuilt and matched to the PNGs, because the repo has no Figma source. |
 | Copy | UI strings are inline English. No i18n layer. |
 | Testing | Vitest with jsdom. Unit tests cover `lib/` and the mock adapter: derivations, persistence and `chartColors`. React Testing Library covers forms and modals. No e2e tests in v1. |
 

@@ -407,7 +407,12 @@ So that the app looks like the Figma designs.
 **Given** the UX-DR4 brand assets
 **When** they are added
 **Then** the "FINEbank.IO" wordmark (teal and white variants) and the Google, Mastercard, VISA, Figma and Adobe SVGs exist in `src/assets/brands/`.
-**And** they are exported from Figma.
+**And** the repo has no Figma source, only PNG exports in `design-reference/`, so assets are sourced as follows:
+- The Google, Mastercard, VISA, Figma and Adobe logos come from each company's official brand-asset or press-kit SVGs.
+- The wordmark is rebuilt as an SVG (or styled text) and visually matched to the logo in the `design-reference/` PNGs at 1×.
+- The user avatar is a neutral placeholder image in `src/assets/`.
+
+**And** if Figma access becomes available, assets exported from Figma replace these and need no other change.
 
 ### Story 1.3: Form primitives: Button, inputs, checkbox and form status
 
