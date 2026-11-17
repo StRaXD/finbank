@@ -2,11 +2,13 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowLeftRight,
+  ArrowUpRight,
   Banknote,
   BanknoteArrowUp,
   Bell,
   CarTaxiFront,
   Check,
+  ChevronLeft,
   ChevronRight,
   ChevronsRight,
   Circle,
@@ -34,6 +36,7 @@ export const icons = {
   eye: Eye,
   eyeOff: EyeOff,
   check: Check,
+  chevronLeft: ChevronLeft,
   chevronRight: ChevronRight,
   chevronsRight: ChevronsRight,
   pencil: Pencil,
@@ -52,6 +55,8 @@ export const icons = {
   kebab: EllipsisVertical,
   // Modal close (110.2. Goals.png).
   close: X,
+  // The carousel slide's open-details button (104. Overview.png).
+  arrowUpRight: ArrowUpRight,
 } as const
 
 export type IconName = keyof typeof icons

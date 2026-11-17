@@ -14,15 +14,63 @@ export type AccountCardProps = {
   detailsHref: string
   /** Called by "Remove", with this card's account. */
   onRemove?: (account: Account) => void
+  /** `grid` (default) is the Balances card; `carousel` is the teal Overview slide. */
+  variant?: 'grid' | 'carousel'
 }
 
 const ChevronRight = icons.chevronRight
+const ArrowUpRight = icons.arrowUpRight
+
+/**
+ * One account as the teal Overview carousel slide (measured from 104. Overview.png): "Account
+ * Type" over the type, the `tail4`-masked number, the whole-dollar balance, the network logo and
+ * a white round ↗ link to Account Details.
+ */
+function CarouselAccountCard({ account, detailsHref }: Pick<AccountCardProps, 'account' | 'detailsHref'>) {
+  const titleId = useId()
+  const type = accountTypeLabels[account.type]
+  return (
+    <article
+      aria-labelledby={titleId}
+      data-testid="account-slide"
+      className="flex min-h-24 flex-col justify-between gap-1 rounded-card bg-primary px-4 py-3 text-white"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col">
+          <span className="text-14 text-on-dark-muted">Account Type</span>
+          <h3 id={titleId} className="text-16 font-bold">
+            {type}
+          </h3>
+        </div>
+        {account.network && <NetworkLogo network={account.network} />}
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-14 text-on-dark-soft">{maskAccountNumber(account.accountNumber, 'tail4')}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-16 font-bold">{formatMoney(account.balanceCents, 'whole')}</span>
+          <Link
+            to={detailsHref}
+            aria-label={`Open ${type} account details`}
+            className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white text-primary transition hover:brightness-90 focus-visible:outline-white"
+          >
+            <ArrowUpRight aria-hidden="true" data-icon="arrowUpRight" size={16} />
+          </Link>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+/** One account: the Balances grid card, or (`variant="carousel"`) the Overview slide. */
+export function AccountCard({ variant = 'grid', ...props }: AccountCardProps) {
+  return variant === 'carousel' ? <CarouselAccountCard {...props} /> : <GridAccountCard {...props} />
+}
 
 /**
  * One account on Balances (measured from 105. Balances.png): type and bank over a divider, the
  * `groups`-masked number, the whole-dollar balance, then "Remove" and "Details >".
  */
-export function AccountCard({ account, detailsHref, onRemove }: AccountCardProps) {
+function GridAccountCard({ account, detailsHref, onRemove }: Omit<AccountCardProps, 'variant'>) {
   const titleId = useId()
   return (
     <article

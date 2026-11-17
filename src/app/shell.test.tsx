@@ -94,6 +94,50 @@ describe('app shell', () => {
     expect(sidebar().querySelector('img[alt=""]')).toHaveAttribute('src', avatarPlaceholder)
   })
 
+  it('greets the user by first name in the top bar on Overview only', async () => {
+    const { router } = await openShell(routes.overview)
+    const greeting = await within(header()).findByText('Hello Tanzir')
+    expect(greeting).toHaveClass('text-24', 'font-bold', 'text-ink')
+    // Before the ">>" and the date.
+    const chevrons = header().querySelector('[data-icon="chevronsRight"]')!
+    expect(greeting.compareDocumentPosition(chevrons) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(within(nav()).getByRole('link', { name: 'Balances' }))
+    await screen.findByRole('heading', { level: 1, name: 'Balances' })
+    expect(router.state.location.pathname).toBe(routes.balances)
+    expect(screen.queryByTestId('greeting')).not.toBeInTheDocument()
+    expect(within(header()).getByText('May 19, 2023')).toBeInTheDocument()
+  })
+
+  it('shows no greeting on other routes', async () => {
+    await openShell(routes.balances)
+    await screen.findByText('Tanzir Rahman')
+    expect(screen.queryByTestId('greeting')).not.toBeInTheDocument()
+    expect(within(header()).queryByText(/Hello/)).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['  Ada   Lovelace ', 'Hello Ada'],
+    ['Cher', 'Hello Cher'],
+  ])('uses the first word of the full name %j', async (fullName, expected) => {
+    const api = await signedInApi()
+    const profile: UserProfile = { ...(await api.getProfile()), fullName }
+    renderAt(routes.overview, { ...api, getProfile: () => Promise.resolve(profile) })
+    expect(await within(await screen.findByRole('banner')).findByTestId('greeting')).toHaveTextContent(expected)
+  })
+
+  it('shows no greeting while the profile loads or when the name is empty', async () => {
+    const api = await signedInApi()
+    const { unmount } = renderAt(routes.overview, { ...api, getProfile: () => new Promise(() => {}) })
+    await screen.findByRole('navigation', { name: 'Main' })
+    expect(screen.queryByTestId('greeting')).not.toBeInTheDocument()
+    unmount()
+    const profile: UserProfile = { ...(await api.getProfile()), fullName: '   ' }
+    const { queryClient } = renderAt(routes.overview, { ...api, getProfile: () => Promise.resolve(profile) })
+    await screen.findByRole('navigation', { name: 'Main' })
+    await waitFor(() => expect(queryClient.getQueryState(qk.profile())?.status).toBe('success'))
+    expect(screen.queryByTestId('greeting')).not.toBeInTheDocument()
+  })
+
   it('uses the profile avatar when set, otherwise the placeholder', async () => {
     const api = await signedInApi()
     const profile: UserProfile = { ...(await api.getProfile()), avatarUrl: 'https://example.com/me.png' }
@@ -208,7 +252,7 @@ describe('app shell', () => {
       expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
     for (const el of order) expect(el).not.toHaveAttribute('tabindex', '-1')
-    // No greeting or page title in the shell: the only h1 is the placeholder page's.
+    // The greeting is not a heading: the only h1 is the page's (visually hidden on Overview).
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
 })

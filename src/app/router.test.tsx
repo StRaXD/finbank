@@ -86,6 +86,35 @@ describe('routing and session guard', () => {
     await expect(createTestApi().listAccounts()).resolves.toHaveLength(4)
   })
 
+  it('shows the derived total and every account on Overview, and updates both after a removal on Balances', async () => {
+    const { router } = renderAt(routes.overview, await signedInApi())
+    expect(await screen.findByText('$240,399')).toBeInTheDocument()
+    const carousel = await screen.findByRole('region', { name: 'Accounts' })
+    expect(within(carousel).getAllByRole('button', { name: /^Show slide/ })).toHaveLength(5)
+
+    await act(() => router.navigate(routes.balances))
+    const checking = await screen.findByRole('article', { name: 'Checking' })
+    fireEvent.click(within(checking).getByRole('button', { name: 'Remove' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Remove account?' })).getByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(screen.getAllByTestId('account-card')).toHaveLength(4))
+
+    await act(() => router.navigate(routes.overview))
+    expect(await screen.findByText('$215,343')).toBeInTheDocument()
+    const after = await screen.findByRole('region', { name: 'Accounts' })
+    await waitFor(() => expect(within(after).getAllByRole('button', { name: /^Show slide/ })).toHaveLength(4))
+    const next = within(after).getByRole('button', { name: 'Next' })
+    const names: string[] = []
+    // Capped, so a Next that never disables fails here instead of hanging until the timeout.
+    for (let step = 0; step < 10 && !next.hasAttribute('disabled'); step++) {
+      names.push(within(after).getByRole('heading').textContent ?? '')
+      fireEvent.click(next)
+    }
+    names.push(within(after).getByRole('heading').textContent ?? '')
+    expect(next, 'Next never disabled within 10 slides').toBeDisabled()
+    expect(names).toEqual(['Credit Card', 'Savings', 'Investment', 'Loan'])
+    expect(screen.queryByText('$240,399')).not.toBeInTheDocument()
+  })
+
   it('removes an account from its Account Details, landing on Balances, and drops its transactions', async () => {
     const { router } = renderAt(routes.balances, await signedInApi())
     const checking = await screen.findByRole('article', { name: 'Checking' })

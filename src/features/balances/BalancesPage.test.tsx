@@ -6,6 +6,7 @@ import { ApiProvider } from '../../api/ApiProvider.tsx'
 import type { FinbankApi } from '../../api/port.ts'
 import { ApiError, type Account } from '../../api/types.ts'
 import { BalancesPage } from './BalancesPage.tsx'
+import { AccountCard } from './index.ts'
 
 const accounts: Account[] = [
   {
@@ -314,5 +315,47 @@ describe('BalancesPage', () => {
       }
       expect(await screen.findByText('No accounts yet.')).toBeInTheDocument()
     })
+  })
+})
+
+describe('AccountCard carousel variant', () => {
+  function renderSlide(account: Account) {
+    const router = createMemoryRouter(
+      [
+        { path: '/', element: <AccountCard variant="carousel" account={account} detailsHref={detailsPath(account.id)} /> },
+        { path: '/details/:id', element: <p>details page</p> },
+      ],
+      { initialEntries: ['/'] },
+    )
+    render(<RouterProvider router={router} />)
+    return { router }
+  }
+
+  it('renders the teal slide: type, tail4 number, whole balance, logo and the details link', async () => {
+    const { router } = renderSlide(accounts[0]!)
+    const slide = screen.getByRole('article', { name: 'Credit Card' })
+    expect(slide).toHaveClass('bg-primary', 'text-white')
+    expect(within(slide).getByText('Account Type')).toHaveClass('text-on-dark-muted')
+    expect(within(slide).getByRole('heading', { name: 'Credit Card' })).toHaveClass('font-bold')
+    expect(within(slide).getByText('**** **** **** 2598')).toBeInTheDocument()
+    expect(within(slide).getByText('$12,000')).toHaveClass('font-bold')
+    expect(within(slide).getByRole('img', { name: 'Mastercard' })).toBeInTheDocument()
+    expect(within(slide).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(slide).queryByText('Account Number')).not.toBeInTheDocument()
+    const open = within(slide).getByRole('link', { name: 'Open Credit Card account details' })
+    expect(open).toHaveAttribute('href', '/details/acc_1')
+    expect(open).toHaveClass('rounded-full', 'bg-white')
+    expect(open.querySelector('[data-icon="arrowUpRight"]')).not.toBeNull()
+    fireEvent.click(open)
+    expect(await screen.findByText('details page')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/details/acc_1')
+  })
+
+  it('omits the logo for an account without a network', () => {
+    renderSlide(accounts[2]!)
+    const slide = screen.getByRole('article', { name: 'Savings' })
+    expect(within(slide).queryByRole('img')).not.toBeInTheDocument()
+    expect(within(slide).getByText('**** **** **** 1234')).toBeInTheDocument()
+    expect(within(slide).getByText('$180,000')).toBeInTheDocument()
   })
 })

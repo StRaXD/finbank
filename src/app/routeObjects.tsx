@@ -5,6 +5,7 @@ import { Navigate, type RouteObject } from 'react-router'
 import { ForgotPasswordPage, LoginPage, SignupPage, type AuthPaths } from '../features/auth/index.ts'
 import { AccountDetailsPage, BalancesPage } from '../features/balances/index.ts'
 import { BillsPage } from '../features/bills/index.ts'
+import { OverviewPage } from '../features/overview/index.ts'
 import { TransactionsPage } from '../features/transactions/index.ts'
 import { AppShell } from './AppShell/AppShell.tsx'
 import { PageBusy } from './PageBusy.tsx'
@@ -58,7 +59,7 @@ export const routeObjects: RouteObject[] = [
       {
         element: <AppShell />,
         children: [
-          { path: routes.overview, element: <PlaceholderPage title="Overview" /> },
+          { path: routes.overview, element: <OverviewPage accountDetailsPath={routes.accountDetails} /> },
           { path: routes.balances, element: <BalancesPage accountDetailsPath={routes.accountDetails} /> },
           { path: routePatterns.accountDetails, element: <AccountDetailsPage balancesPath={routes.balances} /> },
           { path: routes.transactions, element: <TransactionsPage /> },
