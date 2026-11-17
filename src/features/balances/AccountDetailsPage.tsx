@@ -56,8 +56,8 @@ function DetailsCard({ account, onRemove }: { account: Account; onRemove: () => 
 
 /**
  * Account Details (106. Account Details.png): one account's details, matching its Balances card,
- * then its paged transaction history. Removing goes back to Balances first (AD-13), so this page
- * never renders a missing account.
+ * then its paged transaction history. Removing stays here until the removal succeeds, then replaces
+ * the route with Balances; a failure keeps the dialog open with the error.
  */
 export function AccountDetailsPage({ balancesPath }: AccountDetailsPageProps) {
   const { accountId = '' } = useParams()
@@ -68,8 +68,11 @@ export function AccountDetailsPage({ balancesPath }: AccountDetailsPageProps) {
     <div className="flex flex-col gap-4">
       <h1 className="text-22 font-normal text-subtle">Account Details</h1>
       <AsyncSection query={account} emptyMessage="Account not found.">
-        {(found) =>
-          found === null ? (
+        {(loaded) => {
+          // While a confirmed removal settles, the refetched account is already null: keep showing
+          // the account being removed behind the dialog until the page navigates away.
+          const found = loaded ?? removing
+          return found === null ? (
             <div className="flex flex-col items-start gap-3">
               <EmptyState message="Account not found." />
               <Link to={balancesPath} className={buttonClassName({ variant: 'text', asLink: true })}>
@@ -84,12 +87,13 @@ export function AccountDetailsPage({ balancesPath }: AccountDetailsPageProps) {
               </Card>
             </div>
           )
-        }
+        }}
       </AsyncSection>
       <RemoveAccountDialog
         account={removing}
         onClose={() => setRemoving(null)}
-        onConfirmStart={() => void navigate(balancesPath, { replace: true })}
+        // Only after success, and replaced: Back never returns to the removed account's URL.
+        onRemoved={() => void navigate(balancesPath, { replace: true })}
       />
     </div>
   )

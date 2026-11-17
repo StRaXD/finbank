@@ -210,25 +210,67 @@ describe('AccountDetailsPage', () => {
     expect(screen.getByTestId('account-details')).toBeInTheDocument()
   })
 
-  it('navigates to Balances before removing the account on confirm', async () => {
+  it('removes the account on confirm while staying here, then replaces the route with Balances', async () => {
     const { api, removeAccount } = statefulApi()
     const { router } = renderAt('/balances', api)
     await act(() => router.navigate('/balances/acc_2'))
     const pathAtRemove: string[] = []
+    const remove = removeAccount.getMockImplementation()!
+    let finish: () => void = () => {}
     removeAccount.mockImplementation((id: string) => {
       pathAtRemove.push(router.state.location.pathname)
-      return Promise.resolve(void id)
+      // Really removes it, so the post-removal refetch of this page's account returns null.
+      return new Promise<void>((resolve) => {
+        finish = () => void remove(id).then(resolve)
+      })
     })
     const dialog = await openRemove()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
-    expect(await screen.findByText('balances page')).toBeInTheDocument()
     await waitFor(() => expect(removeAccount).toHaveBeenCalledTimes(1))
     expect(removeAccount).toHaveBeenCalledWith('acc_2')
-    expect(pathAtRemove).toEqual(['/balances'])
+    // Still on Account Details while the removal runs.
+    expect(pathAtRemove).toEqual(['/balances/acc_2'])
+    expect(router.state.location.pathname).toBe('/balances/acc_2')
+    expect(screen.getByTestId('account-details')).toBeInTheDocument()
+
+    // The refetched account is null before the page leaves: "Account not found" must never flash.
+    let flashedNotFound = false
+    const observer = new MutationObserver(() => {
+      if (screen.queryByText('Account not found.')) flashedNotFound = true
+    })
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    await act(async () => finish())
+    expect(await screen.findByText('balances page')).toBeInTheDocument()
+    observer.disconnect()
+    expect(flashedNotFound).toBe(false)
+    expect(router.state.location.pathname).toBe('/balances')
     // Replaced, not pushed: Back never returns to the removed account's details.
     expect(router.state.historyAction).toBe('REPLACE')
     await act(() => router.navigate(-1))
     expect(router.state.location.pathname).not.toBe('/balances/acc_2')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('stays on Account Details with the error in the dialog when the removal fails, and can retry', async () => {
+    let fail = true
+    const { api, removeAccount } = statefulApi()
+    const remove = removeAccount.getMockImplementation()!
+    removeAccount.mockImplementation((id: string) =>
+      fail ? Promise.reject(new ApiError('STORAGE_FULL', 'Your browser storage is full. Free some space and try again.')) : remove(id),
+    )
+    const { router } = renderAt('/balances/acc_2', api)
+    const dialog = await openRemove()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Your browser storage is full. Free some space and try again.',
+    )
+    expect(router.state.location.pathname).toBe('/balances/acc_2')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('account-details')).toBeInTheDocument()
+
+    fail = false
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
+    expect(await screen.findByText('balances page')).toBeInTheDocument()
+    expect(removeAccount).toHaveBeenCalledTimes(2)
   })
 })

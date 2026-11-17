@@ -10,22 +10,18 @@ export type RemoveAccountDialogProps = {
   account: Account | null
   /** Called on Cancel, Esc, the X, and after a successful removal. */
   onClose: () => void
-  /** Called after the account is removed and the affected queries have refetched, before `onClose`. */
-  onRemoved?: (account: Account) => void
   /**
-   * Called synchronously on confirm, just before the removal starts (Account Details navigates to
-   * Balances here, AD-13). If the dialog unmounts as a result, the removal still runs and its
-   * invalidation still applies; only `onRemoved`/`onClose` are lost.
+   * Called only after the account is removed and the affected queries have refetched, before
+   * `onClose` (Balances moves focus; Account Details navigates to Balances here).
    */
-  onConfirmStart?: () => void
+  onRemoved?: (account: Account) => void
 }
 
 /**
- * Confirms and performs an account removal (Balances; reused by Account Details). A failure keeps
- * the dialog open with the error inline, and Confirm can be retried, unless `onConfirmStart` has
- * already unmounted the dialog (Account Details navigates away first): then a failure is not shown.
+ * Confirms and performs an account removal (Balances and Account Details). A failure keeps the
+ * dialog open with the error inline, and Confirm can be retried.
  */
-export function RemoveAccountDialog({ account, onClose, onRemoved, onConfirmStart }: RemoveAccountDialogProps) {
+export function RemoveAccountDialog({ account, onClose, onRemoved }: RemoveAccountDialogProps) {
   const removal = useRemoveAccount()
   const { reset } = removal
   const open = account !== null
@@ -62,7 +58,6 @@ export function RemoveAccountDialog({ account, onClose, onRemoved, onConfirmStar
       onConfirm={() => {
         if (!account || inFlight.current) return
         inFlight.current = true
-        onConfirmStart?.()
         removal.mutate(account.id, {
           onSettled: () => {
             inFlight.current = false

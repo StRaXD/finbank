@@ -106,6 +106,20 @@ context:
 
 ## Spec Change Log
 
+- **2026-11-17, human-directed change after `done`:** the user asked that removal from Account Details navigate to Balances only after the removal succeeds, and that a failure keep the user on Account Details with an error.
+  - **What changed:** this supersedes the frozen "Removing from Account Details (AD-13)" rule (navigate first, silent failure) and the "Remove confirm" matrix row.
+  - **Code:**
+    - `RemoveAccountDialog` loses `onConfirmStart`.
+    - `AccountDetailsPage` navigates in `onRemoved` with `{ replace: true }`.
+    - While a confirmed removal settles, the page keeps rendering the account being removed (`loaded ?? removing`), so "Account not found" never shows behind the dialog.
+    - A failure shows the `ApiError` message inline in the dialog and allows a retry.
+  - **Known-bad state avoided:** a failed removal that left the user on Balances with no explanation.
+  - **KEEP:**
+    - the replace navigation (Back never returns to the removed account);
+    - the in-flight double-confirm guard;
+    - the shared dialog copy.
+  - **Note:** the architecture spine's AD-13 still says navigate first; it needs updating to match.
+
 ## Review Triage Log
 
 | # | Source | Finding | Verdict | Evidence / route |
