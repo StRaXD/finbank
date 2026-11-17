@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 15:43
-last_updated: 11-17-2026 19:45
+last_updated: 11-17-2026 21:00
 project: Finbank
 project_key: NOKEY
 tracking_system: file-system
@@ -61,7 +61,7 @@ development_status:
   3-1-expenses-breakdown-category-cards: review
   3-2-expenses-comparison-bar-chart-with-the-monthly-weekly-select: review
   3-3-overview-statistics-chart: review
-  3-4-overview-expenses-breakdown-tiles: backlog
+  3-4-overview-expenses-breakdown-tiles: review
   epic-3-retrospective: optional
 
   epic-4: backlog

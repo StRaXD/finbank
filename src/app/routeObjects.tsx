@@ -66,6 +66,7 @@ export const routeObjects: RouteObject[] = [
               <OverviewPage
                 accountDetailsPath={routes.accountDetails}
                 billsPath={routes.bills}
+                expensesPath={routes.expenses}
                 transactionsPath={routes.transactions}
               />
             ),

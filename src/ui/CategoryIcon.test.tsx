@@ -25,4 +25,11 @@ describe('CategoryIcon', () => {
     expect(tile).toHaveClass('size-10', 'bg-category-tile', 'text-ink-2')
     expect(tile.querySelector(`svg[data-icon="${category}"]`)).not.toBeNull()
   })
+
+  it('renders the plain tone as a light surface tile with a subtle glyph', () => {
+    render(<CategoryIcon category="food" tone="plain" />)
+    const tile = screen.getByTestId('category-icon')
+    expect(tile).toHaveClass('size-10', 'bg-surface', 'text-subtle')
+    expect(tile).not.toHaveClass('bg-category-tile')
+  })
 })

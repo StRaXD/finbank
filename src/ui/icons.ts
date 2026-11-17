@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   ArrowDown,
   ArrowLeftRight,
+  ArrowRight,
   ArrowUp,
   ArrowUpRight,
   Banknote,
@@ -64,6 +65,8 @@ export const icons = {
   // Trend direction (109. Expenses.png): red up for an increase, green down for a decrease.
   arrowUp: ArrowUp,
   arrowDown: ArrowDown,
+  // An Overview Expenses Breakdown tile's link to Expenses (104. Overview.png).
+  arrowRight: ArrowRight,
 } as const
 
 export type IconName = keyof typeof icons

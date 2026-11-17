@@ -9,6 +9,7 @@ import {
   ApiError,
   type Account,
   type Bill,
+  type CategorySummary,
   type ComparisonGranularity,
   type ComparisonPoint,
   type IsoDate,
@@ -117,9 +118,22 @@ const comparison: Record<ComparisonGranularity, ComparisonPoint[]> = {
   ],
 }
 
+/** Already derived, as the adapter returns them, in the fixed category order. */
+const summaries: CategorySummary[] = [
+  { category: 'housing', totalCents: 202_300, changePct: -11, recentItems: [] },
+  { category: 'food', totalCents: 8_370, changePct: 0, recentItems: [] },
+  { category: 'transportation', totalCents: 22_000, changePct: -62, recentItems: [] },
+  { category: 'entertainment', totalCents: 54_999, changePct: 409, recentItems: [] },
+  { category: 'shopping', totalCents: 84_900, changePct: -24, recentItems: [] },
+  { category: 'others', totalCents: 370_240, changePct: -10, recentItems: [] },
+]
+
 const detailsPath = (id: string) => `/details/${id}`
 
-type OverviewApi = Pick<FinbankApi, 'listAccounts' | 'getBalanceSummary' | 'listBills' | 'listTransactions' | 'getComparison'>
+type OverviewApi = Pick<
+  FinbankApi,
+  'listAccounts' | 'getBalanceSummary' | 'listBills' | 'listTransactions' | 'getComparison' | 'listCategorySummaries'
+>
 
 const listBills = (list: Bill[] = bills) =>
   vi.fn(({ limit }: ListBillsInput = {}) => Promise.resolve(structuredClone(list.slice(0, limit))))
@@ -140,6 +154,7 @@ function seededApi(list: Account[] = accounts, totalBalanceCents = fixtureTotalC
     listBills: listBills(),
     listTransactions: listTransactions(),
     getComparison: vi.fn((g: ComparisonGranularity) => Promise.resolve(structuredClone(comparison[g]))),
+    listCategorySummaries: vi.fn(() => Promise.resolve(structuredClone(summaries))),
   }
 }
 
@@ -149,11 +164,12 @@ function renderPage(overrides: Partial<OverviewApi> = {}) {
     [
       {
         path: '/',
-        element: <OverviewPage accountDetailsPath={detailsPath} billsPath="/all-bills" transactionsPath="/all-txns" />,
+        element: <OverviewPage accountDetailsPath={detailsPath} billsPath="/all-bills" expensesPath="/all-expenses" transactionsPath="/all-txns" />,
       },
       { path: '/details/:id', element: <p>details page</p> },
       { path: '/all-bills', element: <p>bills page</p> },
       { path: '/all-txns', element: <p>transactions page</p> },
+      { path: '/all-expenses', element: <p>expenses page</p> },
     ],
     { initialEntries: ['/'] },
   )
@@ -181,7 +197,7 @@ const next = () => within(carousel()).getByRole('button', { name: 'Next' })
 const prev = () => within(carousel()).getByRole('button', { name: 'Previous' })
 
 describe('OverviewPage', () => {
-  it('places Total Balance, Upcoming Bill, Recent Transaction and Statistics in the grid, leaving the later slots empty', async () => {
+  it('places Total Balance, Upcoming Bill, Recent Transaction, Statistics and Expenses Breakdown in the grid, leaving Goals empty', async () => {
     renderPage(seededApi())
     expect(screen.getByRole('heading', { level: 1, name: 'Overview' })).toHaveClass('sr-only')
     expect(screen.getByTestId('overview-grid')).toHaveClass('grid-cols-3')
@@ -191,6 +207,7 @@ describe('OverviewPage', () => {
       'Upcoming Bill',
       'Recent Transaction',
       'Statistics',
+      'Expenses Breakdown',
     ])
     expect(screen.getByTestId('slot-total-balance')).toHaveClass('col-start-1', 'row-start-1')
     expect(screen.getByTestId('slot-upcoming-bill')).toHaveClass('col-start-3', 'row-start-1')
@@ -199,8 +216,9 @@ describe('OverviewPage', () => {
     // Row-1 cards stretch to equal height.
     expect(billCard()).toHaveClass('h-full')
     expect(card()).toHaveClass('h-full')
-    // The Goals and Expenses Breakdown slots stay empty.
-    expect(screen.getByTestId('overview-grid').children).toHaveLength(4)
+    expect(screen.getByTestId('slot-expenses-breakdown')).toHaveClass('col-span-2', 'col-start-2', 'row-start-3')
+    // The Goals slot stays empty.
+    expect(screen.getByTestId('overview-grid').children).toHaveLength(5)
   })
 
   it('shows skeletons while loading', () => {
@@ -466,6 +484,78 @@ describe('OverviewPage', () => {
       expect(await within(stats()).findByRole('alert')).toHaveTextContent('Could not load the comparison.')
       expect(await within(card()).findByText('$240,399')).toBeInTheDocument()
       expect(within(card()).queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Expenses Breakdown', () => {
+    const breakdown = () => screen.getByRole('region', { name: 'Expenses Breakdown' })
+    const tiles = () => within(breakdown()).getAllByRole('article')
+
+    it('shows the six tiles in order with the adapter totals and "%*" trends, under the caption', async () => {
+      const { api } = renderPage()
+      expect(within(breakdown()).getByText('*Compare to last month')).toHaveClass('text-14', 'text-subtle')
+      await waitFor(() => expect(tiles()).toHaveLength(6))
+      expect(api.listCategorySummaries).toHaveBeenCalledTimes(1)
+      expect(tiles().map((t) => within(t).getByRole('heading').textContent)).toEqual([
+        'Housing',
+        'Food',
+        'Transportation',
+        'Entertainment',
+        'Shopping',
+        'Others',
+      ])
+      const housing = within(breakdown()).getByRole('article', { name: 'Housing' })
+      expect(within(housing).getByText('$2,023.00')).toBeInTheDocument()
+      expect(within(housing).getByTestId('trend')).toHaveTextContent('11%*decrease')
+      const entertainment = within(breakdown()).getByRole('article', { name: 'Entertainment' })
+      expect(within(entertainment).getByText('$549.99')).toBeInTheDocument()
+      expect(within(entertainment).getByTestId('trend')).toHaveTextContent('409%*increase')
+      const food = within(breakdown()).getByRole('article', { name: 'Food' })
+      expect(within(food).getByTestId('trend')).toHaveTextContent(/^00%\*$/)
+      expect(within(breakdown()).getByTestId('category-tile-grid')).toHaveClass('grid-cols-3', 'grid-rows-2')
+    })
+
+    it('exposes the six → links in tile order, each to the Expenses path', async () => {
+      renderPage()
+      await waitFor(() => expect(tiles()).toHaveLength(6))
+      const links = within(breakdown()).getAllByRole('link')
+      expect(links.map((l) => l.getAttribute('aria-label'))).toEqual([
+        'View Housing expenses',
+        'View Food expenses',
+        'View Transportation expenses',
+        'View Entertainment expenses',
+        'View Shopping expenses',
+        'View Others expenses',
+      ])
+      for (const link of links) expect(link).toHaveAttribute('href', '/all-expenses')
+    })
+
+    it("navigates to Expenses from Food's →", async () => {
+      const { router } = renderPage()
+      fireEvent.click(await within(breakdown()).findByRole('link', { name: 'View Food expenses' }))
+      expect(await screen.findByText('expenses page')).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/all-expenses')
+    })
+
+    it('shows a skeleton while loading, keeping the title and caption', () => {
+      renderPage({ listCategorySummaries: () => new Promise(() => {}) })
+      expect(within(breakdown()).getByTestId('skeleton')).toBeInTheDocument()
+      expect(within(breakdown()).getByText('*Compare to last month')).toBeInTheDocument()
+    })
+
+    it('shows its error with Retry inside the card, keeping the title and caption, and recovers', async () => {
+      let fail = true
+      renderPage({
+        listCategorySummaries: () =>
+          fail ? Promise.reject(new ApiError('UNKNOWN', 'Could not load categories.')) : Promise.resolve(structuredClone(summaries)),
+      })
+      expect(await within(breakdown()).findByRole('alert')).toHaveTextContent('Could not load categories.')
+      expect(within(breakdown()).getByRole('heading', { level: 2, name: 'Expenses Breakdown' })).toBeInTheDocument()
+      expect(within(breakdown()).getByText('*Compare to last month')).toBeInTheDocument()
+      expect(await within(card()).findByText('$240,399')).toBeInTheDocument()
+      fail = false
+      fireEvent.click(within(breakdown()).getByRole('button', { name: 'Retry' }))
+      await waitFor(() => expect(tiles()).toHaveLength(6))
     })
   })
 })
