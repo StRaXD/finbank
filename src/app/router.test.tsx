@@ -2,7 +2,8 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FinbankApi } from '../api/port.ts'
 import { seed } from '../api/mock/seed.ts'
-import { formatDate, formatMoney } from '../lib/format.ts'
+import { formatDate, formatMoney, formatPercent } from '../lib/format.ts'
+import { categoryLabels } from '../ui/categoryLabels.ts'
 import { qk } from '../api/queryKeys.ts'
 import { ApiError, type IsoDate } from '../api/types.ts'
 import { routeObjects } from './routeObjects.tsx'
@@ -40,7 +41,7 @@ describe('routing and session guard', () => {
     },
   )
 
-  it('renders each app route placeholder when signed in', async () => {
+  it('renders each app route page heading when signed in', async () => {
     const api = await signedInApi()
     const cases = [
       [routes.balances, 'Balances'],
@@ -56,6 +57,109 @@ describe('routing and session guard', () => {
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
       unmount()
     }
+  })
+
+  it('routes /expenses to the Expenses page with six seed-derived category cards', async () => {
+    renderAt(routes.expenses, await signedInApi())
+    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(6))
+    const housing = screen.getByRole('article', { name: 'Housing' })
+    expect(within(housing).getByText('$2,023.00')).toBeInTheDocument()
+  })
+
+  it('shows the same category totals and % changes on the Overview tiles as on the Expenses cards', async () => {
+    const api = await signedInApi()
+    const expected = await api.listCategorySummaries()
+    const readAll = async (testId: string) => {
+      await waitFor(() => expect(screen.getAllByTestId(testId)).toHaveLength(6))
+      return screen.getAllByTestId(testId).map((el) => ({
+        name: el.querySelector('h3')?.textContent,
+        trend: within(el).getByTestId('trend').textContent?.replace('*', ''),
+        hasTotal: within(el).queryAllByText(formatMoney(expected.find((s) => categoryLabels[s.category] === el.querySelector('h3')?.textContent)!.totalCents, 'exact')).length > 0,
+      }))
+    }
+    const overview = renderAt(routes.overview, api)
+    const fromOverview = await readAll('category-tile')
+    overview.unmount()
+    renderAt(routes.expenses, api)
+    const fromExpenses = await readAll('category-card')
+    expect(fromOverview.map((t) => t.name)).toEqual(['Housing', 'Food', 'Transportation', 'Entertainment', 'Shopping', 'Others'])
+    expect(fromOverview.every((t) => t.hasTotal)).toBe(true)
+    expect(fromOverview).toEqual(fromExpenses)
+    const housing = screen.getByRole('article', { name: 'Housing' })
+    expect(within(housing).getByText('$2,023.00')).toBeInTheDocument()
+    expect(fromOverview[3]!.trend).toBe('409% increase')
+  })
+
+  it("navigates from an Overview tile's → to Expenses", async () => {
+    const { router } = renderAt(routes.overview, await signedInApi())
+    const food = await screen.findByRole('article', { name: 'Food' })
+    const link = within(food).getByRole('link', { name: 'View Food expenses' })
+    expect(link).toHaveAttribute('href', routes.expenses)
+    fireEvent.click(link)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Expenses' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe(routes.expenses)
+  })
+
+  it('updates the Overview tiles after an account removal', async () => {
+    const api = await signedInApi()
+    const before = await api.listCategorySummaries()
+    const { router } = renderAt(routes.overview, api)
+    await waitFor(() => expect(screen.getAllByTestId('category-tile')).toHaveLength(6))
+    const totalsShown = () =>
+      screen.getAllByTestId('category-tile').map((el, i) => within(el).queryByText(formatMoney(after[i]!.totalCents, 'exact')) !== null)
+    let after = before
+
+    await act(() => router.navigate(routes.balances))
+    const loan = await screen.findByRole('article', { name: 'Loan' })
+    fireEvent.click(within(loan).getByRole('button', { name: 'Remove' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Remove account?' })).getByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(screen.getAllByTestId('account-card')).toHaveLength(4))
+    after = await api.listCategorySummaries()
+    expect(after.map((s) => s.totalCents), 'acc_5 should carry May category expenses').not.toEqual(before.map((s) => s.totalCents))
+
+    await act(() => router.navigate(routes.overview))
+    await waitFor(() => expect(screen.getAllByTestId('category-tile')).toHaveLength(6))
+    await waitFor(() => expect(totalsShown()).toEqual([true, true, true, true, true, true]))
+    const trends = screen.getAllByTestId('category-tile').map((el) => within(el).getByTestId('trend').textContent)
+    expect(trends).toEqual(after.map((s) => expect.stringMatching(new RegExp(`^${formatPercent(s.changePct)}\\*`))))
+  })
+
+  it('shows the same Monthly series and fitted ladder on Overview Statistics as on Expenses', async () => {
+    const chartOf = async (region: HTMLElement) => {
+      const summary = (await within(region).findByText(/^Monthly expenses/)).textContent
+      const labels = (axis: 'x' | 'y') =>
+        [
+          ...within(region)
+            .getByTestId('comparison-chart')
+            .querySelectorAll(`.recharts-${axis}Axis-tick-labels .recharts-cartesian-axis-tick-value`),
+        ].map((t) => t.textContent)
+      await waitFor(() => expect(labels('x')).toHaveLength(12))
+      const bars = [...within(region).getByTestId('comparison-chart').querySelectorAll('.recharts-bar-rectangle path')].map(
+        (bar) => [bar.getAttribute('fill'), bar.getAttribute('height')],
+      )
+      return { summary, x: labels('x'), y: labels('y'), bars }
+    }
+
+    const api = await signedInApi()
+    const overview = renderAt(routes.overview, api)
+    const stats = await screen.findByRole('region', { name: 'Statistics' })
+    expect(within(stats).getByRole('button', { name: /Comparison period/ })).toHaveTextContent('Weekly Comparison')
+    await waitFor(() =>
+      expect(
+        [...stats.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((t) => t.textContent),
+      ).toEqual(['$0', '$200', '$1k', '$5k', '$25k']),
+    )
+    fireEvent.click(within(stats).getByRole('button', { name: /Comparison period/ }))
+    fireEvent.click(screen.getByRole('option', { name: 'Monthly Comparison' }))
+    const fromOverview = await chartOf(stats)
+    overview.unmount()
+
+    renderAt(routes.expenses, api)
+    const comparison = await screen.findByRole('region', { name: 'Expenses Comparison' })
+    const fromExpenses = await chartOf(comparison)
+    expect(fromExpenses.y).toEqual(['$0', '$200', '$1k', '$5k', '$25k'])
+    expect(fromExpenses.bars.length).toBeGreaterThan(12)
+    expect(fromOverview).toEqual(fromExpenses)
   })
 
   it('opens Account Details from a Balances card, with Balances still active in the nav', async () => {

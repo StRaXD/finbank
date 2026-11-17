@@ -33,3 +33,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/epic-2-final-review.md`
   summary: Stored expenses without a `category` pass `normalizeTransaction`. Epic 3 must decide whether category totals require a category.
   evidence: The Epic 2 contract makes `category` optional. The seed tags every expense.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-expenses-comparison-bar-chart-with-the-monthly-weekly-selector.md`
+  summary: Weekly comparison bars are only a few pixels tall, because the seed's daily spending in 7–20 May 2023 ($0–$300) sits far below the first $2k tick of the shared bar scale.
+  evidence: Seen in the 3.2 visual check (expenses-weekly.png). FR-14 mandates the same scale, so the fix is seed data for those two weeks, which also changes Story 3.1's approved May/April totals. Decide this in Story 3.3, where Weekly is the Overview default, against 104. Overview.png.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-3-final-review.md`
+  summary: The production JS chunk grew from 578 kB to 922 kB (281 kB gzip), mostly recharts. Reduce it before release with a lighter chart import or a `manualChunks` vendor split.
+  evidence: `npm run build` at 1835516. Overview renders the chart on first load, so lazy route splitting alone would not shrink the initial download.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-3-final-review.md`
+  summary: Move the `YYYY-MM` and `YYYY-MM-DD` string construction in `comparisonSeries` (mockApi.ts) and the seed history (seedTransactions.ts) into `lib/dates.ts` helpers, such as the months of a year and the first day of a month.
+  evidence: The Acceptance Auditor flagged template-literal date building outside `dates.ts`, against AD-9. The values are already validated by `toYearMonth`/`toIsoDate`, so behaviour is correct.

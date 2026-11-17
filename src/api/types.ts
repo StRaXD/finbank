@@ -146,6 +146,39 @@ export type Bill = {
   amountCents: number
 }
 
+/**
+ * One expense category's spending in the month that contains today, derived by the adapter.
+ * Components display these numbers as given and never re-derive them.
+ */
+export type CategorySummary = {
+  category: ExpenseCategoryId
+  /** Every expense of this category dated in the month (pending ones included). */
+  totalCents: number
+  /**
+   * Signed integer percent against the previous month: positive is an increase. 0 when both
+   * months are 0; 100 by convention when the previous month is 0 and this month is not.
+   */
+  changePct: number
+  /** The two most recent items of the month, newest first (equal dates keep stored order). */
+  recentItems: Transaction[]
+}
+
+/** The comparison chart's period: `'year'` (Jan–Dec, monthly bars) or `'week'` (Sun–Sat, daily bars). */
+export type ComparisonGranularity = 'year' | 'week'
+
+/**
+ * One bar pair of the comparison chart, derived by the adapter from the expense transactions.
+ * Components display these numbers as given and never re-derive them.
+ */
+export type ComparisonPoint = {
+  /** "Jan" … "Dec" for `'year'`, "14 Sun" … "20 Sat" for `'week'`. */
+  label: string
+  /** This period's spending, or `null` for a month or day after today. */
+  currentCents: number | null
+  /** The same month a year earlier, or the same weekday 7 days earlier. */
+  previousCents: number
+}
+
 export type ListBillsInput = {
   /** At most this many bills, an integer from 1 to 50. Omitted: every bill. */
   limit?: number

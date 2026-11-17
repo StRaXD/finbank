@@ -1,5 +1,6 @@
 // The v1 adapter (AD-6): the only owner of mock state, written through to localStorage.
-import { toIsoDate } from '../../lib/dates.ts'
+import { addDays, addMonths, currentMonth, toIsoDate, toYearMonth, weekOf, yearMonthOf } from '../../lib/dates.ts'
+import { formatDate } from '../../lib/format.ts'
 import type { FinbankApi } from '../port.ts'
 import {
   type Account,
@@ -10,6 +11,9 @@ import {
   type BillingCycle,
   type BillLogo,
   type CardNetwork,
+  type CategorySummary,
+  type ComparisonGranularity,
+  type ComparisonPoint,
   type ExpenseCategoryId,
   type GoogleLoginInput,
   type IsoDate,
@@ -319,6 +323,108 @@ function pageTransactions(all: readonly Transaction[], input: ListTransactionsIn
   }
 }
 
+/**
+ * The one expense source of Expenses (AD-5): expense-kind transactions that carry a category,
+ * whatever their status. Category summaries and comparison series both read it, so a month's bar
+ * always equals the sum of that month's category totals.
+ */
+function categorizedExpenses(all: readonly Transaction[]): Transaction[] {
+  return all.filter((t) => t.kind === 'expense' && t.category !== undefined)
+}
+
+/** How many items a category summary lists. */
+const SUMMARY_RECENT_ITEMS = 2
+
+/**
+ * Signed integer percent from `prev` to `cur`, with -0 normalised to 0. When `prev` is 0 the
+ * growth is undefined: by display convention it is 100 (an increase) when `cur` is above 0, and
+ * 0 when both are 0. This is not a calculated percentage.
+ */
+function changePercent(cur: number, prev: number): number {
+  if (prev === 0) return cur > 0 ? 100 : 0
+  // Round half away from zero, so a change of the same size shows the same magnitude either way.
+  const raw = ((cur - prev) / prev) * 100
+  const pct = Math.sign(raw) * Math.round(Math.abs(raw))
+  return pct === 0 ? 0 : pct
+}
+
+/**
+ * The six category summaries for the month containing `today`, in `EXPENSE_CATEGORIES` order.
+ * Every expense counts whatever its status; expenses without a category are left out.
+ */
+function summarizeCategories(all: readonly Transaction[], today: IsoDate): CategorySummary[] {
+  const month = currentMonth(today)
+  const previous = addMonths(month, -1)
+  // Stable newest-first sort, as in `pageTransactions`: equal dates keep stored order.
+  const expenses = categorizedExpenses(all).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+  return EXPENSE_CATEGORIES.map((category) => {
+    let totalCents = 0
+    let previousCents = 0
+    const current: Transaction[] = []
+    for (const t of expenses) {
+      if (t.category !== category) continue
+      const ym = yearMonthOf(t.date)
+      if (ym === month) {
+        totalCents += t.amountCents
+        current.push(t)
+      } else if (ym === previous) {
+        previousCents += t.amountCents
+      }
+    }
+    return {
+      category,
+      totalCents,
+      changePct: changePercent(totalCents, previousCents),
+      recentItems: structuredClone(current.slice(0, SUMMARY_RECENT_ITEMS)),
+    }
+  })
+}
+
+const COMPARISON_GRANULARITIES: readonly ComparisonGranularity[] = ['year', 'week']
+
+/** Sums `expenses` per key (a `YYYY-MM` month or a `YYYY-MM-DD` day). */
+function totalsBy(expenses: readonly Transaction[], keyOf: (t: Transaction) => string): Map<string, number> {
+  const totals = new Map<string, number>()
+  for (const t of expenses) {
+    const key = keyOf(t)
+    totals.set(key, (totals.get(key) ?? 0) + t.amountCents)
+  }
+  return totals
+}
+
+/**
+ * The comparison series from the same expenses as `summarizeCategories`. `'year'`: Jan–Dec of
+ * today's year, each against the same month a year earlier. `'week'`: Sun–Sat of the week that
+ * contains today, each against the same weekday 7 days earlier. Periods after today are `null`.
+ */
+function comparisonSeries(
+  all: readonly Transaction[],
+  today: IsoDate,
+  granularity: ComparisonGranularity,
+): ComparisonPoint[] {
+  const expenses = categorizedExpenses(all)
+  if (granularity === 'year') {
+    const byMonth = totalsBy(expenses, (t) => yearMonthOf(t.date))
+    const thisMonth = currentMonth(today)
+    const year = thisMonth.slice(0, 4)
+    return Array.from({ length: 12 }, (_, i) => {
+      const month = toYearMonth(`${year}-${String(i + 1).padStart(2, '0')}`)
+      const lastYear = addMonths(month, -12)
+      return {
+        label: formatDate(toIsoDate(`${month}-01`), 'month'),
+        currentCents: month > thisMonth ? null : (byMonth.get(month) ?? 0),
+        previousCents: byMonth.get(lastYear) ?? 0,
+      }
+    })
+  }
+  const byDay = totalsBy(expenses, (t) => t.date)
+  return weekOf(today).map((day) => ({
+    label: formatDate(day, 'weekday'),
+    currentCents: day > today ? null : (byDay.get(day) ?? 0),
+    previousCents: byDay.get(addDays(day, -7)) ?? 0,
+  }))
+}
+
 /** The largest `listBills` limit; independent of the transaction page size. */
 const MAX_BILL_LIMIT = 50
 
@@ -554,5 +660,20 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
     listTransactions: (input: ListTransactionsInput) => call(() => pageTransactions(state().transactions, input)),
 
     listBills: (input?: ListBillsInput) => call(() => sortBills(state().bills, input)),
+
+    listCategorySummaries: () =>
+      call(() => {
+        const { transactions, today } = state()
+        return summarizeCategories(transactions, today)
+      }),
+
+    getComparison: (granularity: ComparisonGranularity) =>
+      call(() => {
+        if (!COMPARISON_GRANULARITIES.includes(granularity)) {
+          throw new ApiError('VALIDATION', 'The comparison period is not valid.')
+        }
+        const { transactions, today } = state()
+        return comparisonSeries(transactions, today, granularity)
+      }),
   }
 }

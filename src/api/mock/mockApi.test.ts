@@ -9,7 +9,7 @@ import {
   type MockApiOptions,
   type StorageLike,
 } from './mockApi.ts'
-import { seed } from './seed.ts'
+import { MOCK_STATE_VERSION, seed } from './seed.ts'
 import { buildSeedTransactions } from './seedTransactions.ts'
 
 const stores = () => ({ local: localStorage, session: sessionStorage })
@@ -38,7 +38,7 @@ const throwingStorage = (error: unknown = new DOMException('quota', 'QuotaExceed
 })
 
 const seedJson = () => ({
-  version: 1,
+  version: MOCK_STATE_VERSION,
   today: '2023-05-19',
   profile: seed.profile,
   accounts: seed.accounts,
@@ -70,7 +70,7 @@ describe('seed', () => {
     })
   })
 
-  it('writes the seed through to storage as version 1 on first use', async () => {
+  it('writes the seed through to storage as the current version on first use', async () => {
     await make().getToday()
     expect(stored()).toEqual(seedJson())
   })
@@ -86,7 +86,7 @@ describe('seed', () => {
 describe('persistence', () => {
   it('round-trips state through storage into a new adapter', async () => {
     const custom = {
-      version: 1,
+      version: MOCK_STATE_VERSION,
       today: '2024-02-29',
       profile: { ...seed.profile, fullName: 'Someone Else' },
       accounts: [seed.accounts[2]],
@@ -107,7 +107,8 @@ describe('persistence', () => {
   it.each([
     ['missing', null],
     ['unparseable', '{not json'],
-    ['the wrong version', JSON.stringify({ version: 2, today: '2024-01-01' })],
+    ['an older version', JSON.stringify({ version: 1, today: '2024-01-01' })],
+    ['a newer version', JSON.stringify({ version: MOCK_STATE_VERSION + 1, today: '2024-01-01' })],
     ['not an object', JSON.stringify([1, 2, 3])],
     ['null', 'null'],
   ])('falls back to the seed when the entry is %s', async (_name, raw) => {
@@ -118,7 +119,7 @@ describe('persistence', () => {
   })
 
   it('backfills missing top-level keys from the seed and keeps the rest', async () => {
-    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ version: 1, today: '2024-03-01' }))
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ version: MOCK_STATE_VERSION, today: '2024-03-01' }))
     const api = make()
     await expect(api.getToday()).resolves.toBe('2024-03-01')
     await expect(api.getProfile()).resolves.toEqual(seed.profile)
@@ -210,8 +211,8 @@ describe('accounts', () => {
     await expect(make().getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 1230 - 5004 })
   })
 
-  it('backfills a v1 state without accounts from the seed and writes it back', async () => {
-    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ version: 1, today: '2023-05-19', profile: seed.profile }))
+  it('backfills a current-version state without accounts from the seed and writes it back', async () => {
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ version: MOCK_STATE_VERSION, today: '2023-05-19', profile: seed.profile }))
     await expect(make().listAccounts()).resolves.toEqual(seed.accounts)
     expect(stored().accounts).toEqual(seed.accounts)
   })
@@ -393,7 +394,7 @@ describe('seed transactions', () => {
       else expect(t.category).toBeDefined()
       expect(Number.isSafeInteger(t.amountCents) && t.amountCents > 0).toBe(true)
       expect(t.receiptId).toMatch(/^[0-9A-Za-z]{11}$/)
-      expect(t.date >= '2023-04-01' && t.date <= '2023-05-19').toBe(true)
+      expect(t.date >= '2022-01-01' && t.date <= '2023-05-19').toBe(true)
     }
     expect(new Set(txns.map((t) => t.id)).size).toBe(txns.length)
     expect(txns.map((t) => t.id)).toEqual(txns.map((_, i) => `txn_${i + 1}`))
@@ -661,6 +662,286 @@ describe('transactions in storage', () => {
     await make().listTransactions({ limit: 10 })
     expect(setItem).not.toHaveBeenCalled()
     expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+  })
+})
+
+describe('listCategorySummaries', () => {
+  const withTransactions = (transactions: unknown) =>
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), transactions }))
+  const txn = (patch: Record<string, unknown>) => ({ ...seed.transactions.find((t) => t.kind === 'expense')!, ...patch })
+  const order = ['housing', 'food', 'transportation', 'entertainment', 'shopping', 'others']
+
+  it('returns six May 2023 summaries in fixed order, with totals and signed % change from the seed', async () => {
+    const summaries = await make().listCategorySummaries()
+    expect(summaries.map((s) => [s.category, s.totalCents, s.changePct])).toEqual([
+      ['housing', 202_300, -11],
+      ['food', 8_370, -89],
+      ['transportation', 22_000, -62],
+      ['entertainment', 54_999, 409],
+      ['shopping', 84_900, -24],
+      ['others', 370_240, -10],
+    ])
+  })
+
+  it('totals every May expense of the category, pending included, and nothing else', async () => {
+    const summaries = await make().listCategorySummaries()
+    for (const summary of summaries) {
+      const expected = seed.transactions
+        .filter((t) => t.kind === 'expense' && t.category === summary.category && t.date.startsWith('2023-05'))
+        .reduce((total, t) => total + t.amountCents, 0)
+      expect(summary.totalCents).toBe(expected)
+    }
+  })
+
+  it('lists the two newest items, equal dates in stored order', async () => {
+    const summaries = await make().listCategorySummaries()
+    const shopping = summaries.find((s) => s.category === 'shopping')!
+    expect(shopping.recentItems.map((t) => t.item)).toEqual(['GTR 5', 'Polo shirt'])
+    for (const summary of summaries) {
+      expect(summary.recentItems).toHaveLength(2)
+      for (const item of summary.recentItems) {
+        expect(item.category).toBe(summary.category)
+        expect(item.date.startsWith('2023-05')).toBe(true)
+      }
+    }
+  })
+
+  it('returns copies', async () => {
+    const api = make()
+    const first = await api.listCategorySummaries()
+    first[0]!.recentItems[0]!.item = 'Mutated'
+    const second = await api.listCategorySummaries()
+    expect(second[0]!.recentItems[0]!.item).not.toBe('Mutated')
+  })
+
+  it('rounds a half percent away from zero for both signs', async () => {
+    withTransactions([
+      // Food: 2000 -> 1010 is -49.5% -> -50; Housing: 2000 -> 2990 is +49.5% -> +50.
+      txn({ id: 'f0', category: 'food', date: '2023-04-03', amountCents: 2_000 }),
+      txn({ id: 'f1', category: 'food', date: '2023-05-03', amountCents: 1_010 }),
+      txn({ id: 'h0', category: 'housing', date: '2023-04-03', amountCents: 2_000 }),
+      txn({ id: 'h1', category: 'housing', date: '2023-05-03', amountCents: 2_990 }),
+    ])
+    const by = Object.fromEntries((await make().listCategorySummaries()).map((s) => [s.category, s]))
+    expect(by.food!.changePct).toBe(-50)
+    expect(by.housing!.changePct).toBe(50)
+  })
+
+  it('handles empty, from-zero, flat, untagged and other-month rows', async () => {
+    const { category: _category, ...untagged } = txn({ id: 'untagged', date: '2023-05-10', amountCents: 99_999 })
+    void _category
+    withTransactions([
+      // Food: 0 -> 1500 (pending): undefined growth, shown as 100.
+      txn({ id: 'f1', category: 'food', date: '2023-05-02', amountCents: 1_500, status: 'pending' }),
+      // Housing: 1000 -> 1000: 0.
+      txn({ id: 'h0', category: 'housing', date: '2023-04-20', amountCents: 1_000 }),
+      txn({ id: 'h1', category: 'housing', date: '2023-05-01', amountCents: 1_000 }),
+      // Transportation: 1000 -> 0: -100, no items.
+      txn({ id: 't0', category: 'transportation', date: '2023-04-03', amountCents: 1_000 }),
+      // Shopping: 1000 -> 1004 rounds to 0; March is ignored.
+      txn({ id: 's0', category: 'shopping', date: '2023-04-03', amountCents: 1_000 }),
+      txn({ id: 's1', category: 'shopping', date: '2023-05-03', amountCents: 1_004 }),
+      txn({ id: 's2', category: 'shopping', date: '2023-03-03', amountCents: 50_000 }),
+      // Entertainment: 1000 -> 996 rounds to -0, normalised to 0.
+      txn({ id: 'e0', category: 'entertainment', date: '2023-04-03', amountCents: 1_000 }),
+      txn({ id: 'e1', category: 'entertainment', date: '2023-05-03', amountCents: 996 }),
+      untagged,
+    ])
+    const summaries = await make().listCategorySummaries()
+    expect(summaries.map((s) => s.category)).toEqual(order)
+    const by = Object.fromEntries(summaries.map((s) => [s.category, s]))
+    expect(by.food).toMatchObject({ totalCents: 1_500, changePct: 100 })
+    expect(by.food!.recentItems.map((t) => t.id)).toEqual(['f1'])
+    expect(by.housing).toMatchObject({ totalCents: 1_000, changePct: 0 })
+    expect(by.transportation).toEqual({ category: 'transportation', totalCents: 0, changePct: -100, recentItems: [] })
+    expect(by.shopping).toMatchObject({ totalCents: 1_004, changePct: 0 })
+    expect(Object.is(by.entertainment!.changePct, 0)).toBe(true)
+    expect(by.others).toEqual({ category: 'others', totalCents: 0, changePct: 0, recentItems: [] })
+    expect(summaries.flatMap((s) => s.recentItems).some((t) => t.id === 'untagged')).toBe(false)
+  })
+
+  it('reflects removeAccount on the next call', async () => {
+    const api = make()
+    await api.listCategorySummaries()
+    await api.removeAccount('acc_5')
+    const summaries = await api.listCategorySummaries()
+    expect(summaries.map((s) => [s.category, s.totalCents, s.changePct])).toEqual([
+      ['housing', 174_300, 43],
+      ['food', 8_370, -55],
+      ['transportation', 7_000, -79],
+      ['entertainment', 6_999, -35],
+      ['shopping', 29_900, -73],
+      ['others', 367_740, -9],
+    ])
+    expect(summaries.flatMap((s) => s.recentItems).some((t) => t.accountId === 'acc_5')).toBe(false)
+  })
+})
+
+describe('seed history', () => {
+  const history = seed.transactions.filter((t) => t.date < '2023-04-01')
+
+  it('covers every month from Jan 2022 to Mar 2023 in all six categories, on existing accounts, none pending', () => {
+    const accounts = new Set(seed.accounts.map((a) => a.id))
+    const months = [...new Set(history.map((t) => t.date.slice(0, 7)))].sort()
+    expect(months).toHaveLength(15)
+    expect(months[0]).toBe('2022-01')
+    expect(months.at(-1)).toBe('2023-03')
+    for (const month of months) {
+      const rows = history.filter((t) => t.date.startsWith(month))
+      expect(new Set(rows.map((t) => t.category)).size).toBe(6)
+      const total = rows.reduce((sum, t) => sum + t.amountCents, 0)
+      expect(total).toBeGreaterThanOrEqual(3_000_00)
+      expect(total).toBeLessThanOrEqual(15_000_00)
+    }
+    for (const t of history) {
+      expect(t.kind).toBe('expense')
+      expect(t.status).toBe('complete')
+      expect(accounts.has(t.accountId)).toBe(true)
+    }
+  })
+
+  it('comes after every April/May row, so their ids are unchanged', () => {
+    const recent = seed.transactions.filter((t) => t.date >= '2023-04-01')
+    expect(recent.map((t) => t.id)).toEqual(recent.map((_, i) => `txn_${i + 1}`))
+    expect(seed.transactions[0]).toMatchObject({ id: 'txn_1', item: 'GTR 5' })
+    expect(history[0]!.id).toBe(`txn_${recent.length + 1}`)
+  })
+})
+
+describe('getComparison', () => {
+  const expenseSum = (transactions: readonly Transaction[], prefix: string) =>
+    transactions
+      .filter((t) => t.kind === 'expense' && t.category !== undefined && t.date.startsWith(prefix))
+      .reduce((total, t) => total + t.amountCents, 0)
+  const sumOn = (prefix: string) => expenseSum(seed.transactions, prefix)
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+  it('year: Jan–Dec 2023 against 2022, null after May', async () => {
+    const points = await make().getComparison('year')
+    expect(points.map((p) => p.label)).toEqual(months)
+    points.forEach((point, i) => {
+      const mm = String(i + 1).padStart(2, '0')
+      expect(point.currentCents).toBe(i < 5 ? sumOn(`2023-${mm}`) : null)
+      expect(point.previousCents).toBe(sumOn(`2022-${mm}`))
+      expect(typeof point.previousCents).toBe('number')
+    })
+    expect(points.map((p) => p.currentCents)).toEqual([
+      520_000, 910_000, 640_000, 897_959, 742_809, null, null, null, null, null, null, null,
+    ])
+    expect(points.map((p) => p.previousCents)).toEqual([
+      420_000, 680_000, 310_000, 940_000, 1_250_000, 560_000, 790_000, 1_480_000, 360_000, 1_020_000, 830_000,
+      1_360_000,
+    ])
+  })
+
+  it('shares one expense source with the category summaries', async () => {
+    const api = make()
+    const [points, summaries] = await Promise.all([api.getComparison('year'), api.listCategorySummaries()])
+    const may = points.find((p) => p.label === 'May')!
+    expect(may.currentCents).toBe(summaries.reduce((total, s) => total + s.totalCents, 0))
+    // April against the April category sums (the summaries' previous month).
+    expect(points.find((p) => p.label === 'Apr')!.currentCents).toBe(sumOn('2023-04'))
+  })
+
+  it('week: 14 Sun to 20 Sat against 7–13 May, null after today', async () => {
+    const points = await make().getComparison('week')
+    expect(points.map((p) => p.label)).toEqual(['14 Sun', '15 Mon', '16 Tue', '17 Wed', '18 Thu', '19 Fri', '20 Sat'])
+    points.forEach((point, i) => {
+      const day = 14 + i
+      expect(point.currentCents).toBe(day <= 19 ? sumOn(`2023-05-${day}`) : null)
+      expect(point.previousCents).toBe(sumOn(`2023-05-${String(day - 7).padStart(2, '0')}`))
+    })
+    expect(points[5]!.currentCents).toBe(0)
+    expect(points[6]!.currentCents).toBeNull()
+    expect(points.map((p) => p.currentCents)).toEqual([6_800, 4_520, 0, 26_700, 0, 0, null])
+  })
+
+  it('week: each day equals the categorized expenses Transactions and Account Details list for it', async () => {
+    const api = make()
+    async function listed(input: Omit<ListTransactionsInput, 'cursor' | 'limit'>) {
+      const items: Transaction[] = []
+      let cursor: string | undefined
+      for (let page = 0; page < 100; page++) {
+        const result = await api.listTransactions({ ...input, limit: 50, cursor })
+        items.push(...result.items)
+        if (result.nextCursor === null) return items
+        cursor = result.nextCursor
+      }
+      throw new Error('listTransactions never ran out of pages')
+    }
+    const dayTotal = (items: readonly Transaction[], day: string) =>
+      items.filter((t) => t.category !== undefined && t.date === day).reduce((total, t) => total + t.amountCents, 0)
+    const expenses = await listed({ kind: 'expense' })
+    const byAccount = await Promise.all((await api.listAccounts()).map((a) => listed({ accountId: a.id, kind: 'expense' })))
+    const week = await api.getComparison('week')
+    week.forEach((point, i) => {
+      const day = `2023-05-${String(14 + i).padStart(2, '0')}`
+      const previous = `2023-05-${String(7 + i).padStart(2, '0')}`
+      if (point.currentCents !== null) {
+        expect(point.currentCents).toBe(dayTotal(expenses, day))
+        expect(point.currentCents).toBe(byAccount.reduce((total, items) => total + dayTotal(items, day), 0))
+      }
+      expect(point.previousCents).toBe(dayTotal(expenses, previous))
+    })
+    expect(week.map((p) => p.currentCents)).toEqual([6_800, 4_520, 0, 26_700, 0, 0, null])
+    expect(Math.max(...week.map((p) => p.previousCents))).toBe(dayTotal(expenses, '2023-05-12'))
+  })
+
+  it('counts pending, leaves out revenue and untagged expenses', async () => {
+    const base = seed.transactions.find((t) => t.kind === 'expense')!
+    const { category: _category, ...untagged } = { ...base, id: 'u', date: '2023-05-15', amountCents: 9_999 }
+    void _category
+    const revenue = seed.transactions.find((t) => t.kind === 'revenue' && t.accountId === base.accountId)!
+    localStorage.setItem(
+      MOCK_STORAGE_KEY,
+      JSON.stringify({
+        ...seedJson(),
+        transactions: [
+          { ...base, id: 'p', date: '2023-05-15', amountCents: 1_000, status: 'pending' },
+          { ...base, id: 'c', date: '2022-05-08', amountCents: 2_000 },
+          { ...revenue, id: 'r', date: '2023-05-15', amountCents: 50_000 },
+          untagged,
+        ],
+      }),
+    )
+    const api = make()
+    const week = await api.getComparison('week')
+    expect(week[1]).toEqual({ label: '15 Mon', currentCents: 1_000, previousCents: 0 })
+    const year = await api.getComparison('year')
+    expect(year[4]).toEqual({ label: 'May', currentCents: 1_000, previousCents: 2_000 })
+    expect(year[0]).toEqual({ label: 'Jan', currentCents: 0, previousCents: 0 })
+  })
+
+  it('follows mock today', async () => {
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), today: '2023-01-01' }))
+    const api = make()
+    const year = await api.getComparison('year')
+    expect(year.map((p) => p.currentCents === null)).toEqual([false, ...Array<boolean>(11).fill(true)])
+    const week = await api.getComparison('week')
+    expect(week.map((p) => p.label)).toEqual(['01 Sun', '02 Mon', '03 Tue', '04 Wed', '05 Thu', '06 Fri', '07 Sat'])
+    expect(week.slice(1).every((p) => p.currentCents === null)).toBe(true)
+  })
+
+  it('reflects removeAccount on the next call', async () => {
+    const api = make()
+    await api.getComparison('year')
+    await api.removeAccount('acc_5')
+    const remaining = seed.transactions.filter((t) => t.accountId !== 'acc_5')
+    const year = await api.getComparison('year')
+    expect(year[4]).toEqual({
+      label: 'May',
+      currentCents: expenseSum(remaining, '2023-05'),
+      previousCents: expenseSum(remaining, '2022-05'),
+    })
+    expect(year[4]!.currentCents).toBe(594_309)
+    expect(year[4]!.previousCents).toBeLessThan(sumOn('2022-05'))
+    const week = await api.getComparison('week')
+    expect(week[5]!.previousCents).toBe(expenseSum(remaining, '2023-05-12'))
+  })
+
+  it('rejects an unknown granularity with VALIDATION', async () => {
+    const error = await rejection(make().getComparison('month' as never))
+    expect(error.code).toBe('VALIDATION')
   })
 })
 

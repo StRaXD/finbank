@@ -5,7 +5,7 @@
 // read back with local getters, so the calendar day never depends on the runtime's offset.
 // Never `Date.parse` or `new Date('2023-05-19')`, which is UTC midnight and shifts the day.
 import {
-  addDays,
+  addDays as addDaysToDate,
   addMonths as addMonthsToDate,
   format,
   lastDayOfMonth,
@@ -98,7 +98,13 @@ export function monthRange(ym: YearMonth): { start: IsoDate; end: IsoDate } {
 /** The Sunday–Saturday week that contains `today`. */
 export function weekOf(today: IsoDate): Week {
   const sunday = startOfWeek(parseIsoDate(today), { weekStartsOn: WEEK_STARTS_ON })
-  return Array.from({ length: 7 }, (_, i) => isoDateOf(addDays(sunday, i))) as unknown as Week
+  return Array.from({ length: 7 }, (_, i) => isoDateOf(addDaysToDate(sunday, i))) as unknown as Week
+}
+
+/** `iso` shifted by `n` calendar days (negative goes back). */
+export function addDays(iso: IsoDate, n: number): IsoDate {
+  if (!Number.isSafeInteger(n)) throw new TypeError(`Expected an integer day count, got ${n}`)
+  return isoDateOf(addDaysToDate(parseIsoDate(iso), n))
 }
 
 /** `ym` shifted by `n` whole months (negative goes back). */

@@ -28,6 +28,12 @@
 
   --color-danger: #E73D1C;
   --color-positive: #4DAF6E;
+
+  /* Comparison bar chart (109. Expenses.png), read in JS by src/ui/charts/chartColors.ts:
+     the current period in primary teal, the previous period light grey, horizontal gridlines. */
+  --color-chart-current: var(--color-primary);
+  --color-chart-previous: #E8E8E8;
+  --color-chart-grid: #F3F3F3;
 }
 
 @theme {
@@ -39,6 +45,10 @@
   /* Semantic fill for disabled controls; currently matches the Google button grey. */
   --color-disabled: var(--color-google);
   --color-sidebar: var(--color-ink);
+  /* Expenses category card header band (109. Expenses.png, #E8E8E8): the border grey. */
+  --color-category-header: var(--color-border);
+  /* Category icon tile behind the glyph: the addendum's #D2D2D2 neutral (109. Expenses.png samples it as #D1D1D1). */
+  --color-category-tile: #D2D2D2;
   /* Vendor brand colours for bill logos. Adobe's official brand red: 4.56:1 on white, so the
      vendor name passes WCAG AA at every size (the #E73D1C sampled from 108 was only 4.13:1). */
   --color-brand-adobe: #EB1000;

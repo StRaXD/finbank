@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addDays,
   addMonths,
   currentMonth,
   isoDateOf,
@@ -208,6 +209,30 @@ describe('weekOf', () => {
       '2023-03-18',
     ])
     expect(weekOf(iso('2023-11-07'))[0]).toBe('2023-11-05')
+  })
+})
+
+describe('addDays', () => {
+  it.each([
+    ['2023-05-19', -7, '2023-05-12'],
+    ['2023-05-14', -1, '2023-05-13'],
+    ['2023-05-31', 1, '2023-06-01'],
+    ['2023-03-01', -1, '2023-02-28'],
+    ['2024-02-28', 1, '2024-02-29'],
+    ['2023-01-01', -1, '2022-12-31'],
+    ['2023-05-19', 0, '2023-05-19'],
+    // US DST start / end and Santiago's skipped midnight.
+    ['2023-03-11', 1, '2023-03-12'],
+    ['2023-11-05', 1, '2023-11-06'],
+    ['2023-09-02', 1, '2023-09-03'],
+    ['2023-09-03', 1, '2023-09-04'],
+  ])('%s %+i days is %s', (from, n, expected) => {
+    expect(addDays(iso(from), n)).toBe(expected)
+  })
+
+  it('rejects a non-integer count and a malformed date', () => {
+    expect(() => addDays(iso('2023-05-19'), 1.5)).toThrow(TypeError)
+    expect(() => addDays('2023-02-30' as IsoDate, 1)).toThrow(RangeError)
   })
 })
 

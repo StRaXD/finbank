@@ -1,6 +1,6 @@
 // Hierarchical query keys and the single invalidation map (AD-7).
 import { hashKey, type QueryClient } from '@tanstack/react-query'
-import type { ListTransactionsInput, Session } from './types.ts'
+import type { ComparisonGranularity, ListTransactionsInput, Session } from './types.ts'
 
 /** The cache identity of a transaction list. The cursor is never part of the key. */
 export type TransactionsFilter = Omit<ListTransactionsInput, 'cursor'>
@@ -28,6 +28,13 @@ export const qk = {
   /** Without a limit: every bill, and the prefix of every bill list. */
   bills: (limit?: number) =>
     limit === undefined ? ([...root, 'bills'] as const) : ([...root, 'bills', { limit }] as const),
+  /** The six category summaries for the month containing today. */
+  categorySummaries: () => [...root, 'categorySummaries'] as const,
+  /** Without a granularity: the prefix of every comparison series. */
+  comparison: (granularity?: ComparisonGranularity) =>
+    granularity === undefined
+      ? ([...root, 'comparison'] as const)
+      : ([...root, 'comparison', granularity] as const),
 }
 
 /** `'all'` clears the whole cache; otherwise the listed key prefixes are invalidated. */
@@ -39,7 +46,7 @@ export const invalidationMap = {
   loginWithGoogle: 'all',
   signup: 'all',
   logout: 'all',
-  removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions()],
+  removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions(), qk.categorySummaries(), qk.comparison()],
 } as const satisfies Record<string, InvalidationTarget>
 
 export type InvalidatingMutation = keyof typeof invalidationMap

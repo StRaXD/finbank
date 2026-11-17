@@ -44,6 +44,9 @@ describe('tokens.css', () => {
     '--color-surface': hex('F4F5F7'),
     '--color-danger': hex('E73D1C'),
     '--color-positive': hex('4DAF6E'),
+    '--color-chart-current': 'VAR(--COLOR-PRIMARY)',
+    '--color-chart-previous': hex('E8E8E8'),
+    '--color-chart-grid': hex('F3F3F3'),
   }
 
   it.each(Object.entries(chartColors))('%s is %s, declared once and only in @theme static', (name, value) => {
