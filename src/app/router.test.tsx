@@ -1,7 +1,10 @@
-import { act, fireEvent, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FinbankApi } from '../api/port.ts'
+import { qk } from '../api/queryKeys.ts'
 import { ApiError, type IsoDate } from '../api/types.ts'
+import { routeObjects } from './routeObjects.tsx'
+import { RouteError } from './RouteError.tsx'
 import { routes } from './routes.ts'
 import { createTestApi, renderAt, watchDom } from './test-utils.tsx'
 
@@ -97,6 +100,51 @@ describe('routing and session guard', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Goals' })).toBeInTheDocument()
   })
 
+  it('shows the shared fallback for a blank first-load error and offers no live Retry while refetching', async () => {
+    let attempt: 'fail' | 'hang' = 'fail'
+    const api = await signedInApi({
+      getToday: () =>
+        attempt === 'fail' ? Promise.reject(new ApiError('UNKNOWN', '   ')) : new Promise<IsoDate>(() => {}),
+    })
+    renderAt(routes.goals, api)
+    expect(await screen.findByRole('alert', {}, { timeout: 4000 })).toHaveTextContent(
+      'Something went wrong. Please try again.',
+    )
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(retry).toBeEnabled()
+    attempt = 'hang'
+    fireEvent.click(retry)
+    // TanStack Query moves a data-less query back to `pending` while it refetches, so the busy
+    // screen replaces the alert; `disabled={isFetching}` guards any state where both coincide.
+    await waitFor(() => {
+      const again = screen.queryByRole('button', { name: 'Retry' })
+      expect(again === null || (again as HTMLButtonElement).disabled).toBe(true)
+    })
+    expect(screen.getByTestId('page-busy')).toBeInTheDocument()
+  })
+
+  it('keeps the app and the top-bar date when a background refetch of today fails', async () => {
+    let fail = false
+    const api = await signedInApi({
+      getToday: () =>
+        fail
+          ? Promise.reject(new ApiError('UNKNOWN', 'Could not load today.'))
+          : Promise.resolve('2023-05-19' as IsoDate),
+    })
+    const { queryClient } = renderAt(routes.goals, api)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Goals' })).toBeInTheDocument()
+    expect(await screen.findByText('May 19, 2023')).toBeInTheDocument()
+
+    fail = true
+    await act(() => queryClient.refetchQueries({ queryKey: qk.today() }))
+    // The app query client retries once (about 1 s) before the query settles as an error.
+    await waitFor(() => expect(queryClient.getQueryState(qk.today())?.status).toBe('error'), { timeout: 4000 })
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Goals' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('May 19, 2023')).toBeInTheDocument()
+  })
+
   it('never shows the Login form to a signed-in user before redirecting', async () => {
     const api = await signedInApi()
     const watch = watchDom(() => screen.queryByLabelText('Email Address') !== null)
@@ -109,5 +157,34 @@ describe('routing and session guard', () => {
     if (!routes.specimen) throw new Error('routes.specimen must exist in dev')
     renderAt(routes.specimen)
     expect(await screen.findByRole('heading', { level: 1, name: 'Finbank design tokens' })).toBeInTheDocument()
+  })
+})
+
+describe('route error screen', () => {
+  it('is the errorElement of every top-level route', () => {
+    for (const route of routeObjects) {
+      expect(route.errorElement).toEqual(<RouteError />)
+    }
+  })
+
+  it('replaces a throwing route with the app error screen', async () => {
+    // React and React Router log the caught render error; it is expected here.
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    function Boom(): never {
+      throw new Error('boom')
+    }
+    try {
+      renderAt(routes.overview, createTestApi(), [
+        { path: routes.overview, element: <Boom />, errorElement: <RouteError /> },
+      ])
+      expect(await screen.findByRole('heading', { level: 1, name: 'Something went wrong' })).toBeInTheDocument()
+      expect(screen.getByText('An unexpected error occurred. Please reload the page.')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Reload' })).toBeEnabled()
+      expect(screen.queryByText('boom')).not.toBeInTheDocument()
+    } finally {
+      consoleError.mockRestore()
+      consoleWarn.mockRestore()
+    }
   })
 })

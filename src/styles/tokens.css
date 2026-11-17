@@ -2,7 +2,7 @@
  * Finbank design tokens: the single source of truth (AD-11).
  * Values come from design-reference/design-system/Typography-color.png.
  * Hex literals and arbitrary colour / font-size utilities are banned everywhere
- * else in src/ (enforced by src/design-literals.test.ts).
+ * else in src/ (enforced by src/design-literals.node.test.ts).
  */
 
 /*

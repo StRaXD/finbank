@@ -106,7 +106,8 @@ export function formatRange(ym: YearMonth): string {
 export function maskAccountNumber(num: string, mode: MaskMode): string {
   const digits = typeof num === 'string' ? num.replace(/\s+/g, '') : ''
   if (!/^\d{4,}$/.test(digits)) {
-    throw new RangeError(`Expected an account number of at least 4 digits, got ${String(num)}`)
+    // The input may be a full account number, so it is never echoed into the message.
+    throw new RangeError('Expected an account number of at least 4 digits')
   }
   if (mode === 'tail4') return `**** **** **** ${digits.slice(-4)}`
   if (mode === 'groups') {

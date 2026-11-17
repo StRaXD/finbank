@@ -66,9 +66,10 @@ export function ForgotPasswordPage({ paths }: { paths: AuthPaths }) {
           placeholder="hello@example.com"
           error={errors.email?.message}
           {...register('email', {
-            // The confirmation names no address, so it must not outlive an edit to the email.
+            // The confirmation names no address, so it must not outlive an edit to the email,
+            // nor appear for a request still in flight when the email was edited.
             onChange: () => {
-              if (reset.isSuccess) reset.reset()
+              if (reset.isSuccess || reset.isPending) reset.reset()
             },
           })}
         />

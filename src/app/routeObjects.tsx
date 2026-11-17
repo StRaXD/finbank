@@ -8,6 +8,7 @@ import { PageBusy } from './PageBusy.tsx'
 import { PlaceholderPage } from './PlaceholderPage.tsx'
 import { RedirectIfSession } from './RedirectIfSession.tsx'
 import { RequireSession } from './RequireSession.tsx'
+import { RouteError } from './RouteError.tsx'
 import { routePatterns, routes } from './routes.ts'
 
 const authPaths: AuthPaths = {
@@ -24,6 +25,7 @@ function devRoutes(): RouteObject[] {
   return [
     {
       path: routes.specimen,
+      errorElement: <RouteError />,
       element: (
         <Suspense fallback={<PageBusy />}>
           <Specimen />
@@ -33,10 +35,13 @@ function devRoutes(): RouteObject[] {
   ]
 }
 
+// Every top-level route renders `RouteError` when anything below it throws, so a render error
+// never shows React Router's default developer page.
 export const routeObjects: RouteObject[] = [
   {
     // Also owns the post-sign-in redirect: once the session is seeded, it sends the user to Overview.
     element: <RedirectIfSession />,
+    errorElement: <RouteError />,
     children: [
       { path: routes.login, element: <LoginPage paths={authPaths} /> },
       { path: routes.signup, element: <SignupPage paths={authPaths} /> },
@@ -45,6 +50,7 @@ export const routeObjects: RouteObject[] = [
   },
   {
     element: <RequireSession />,
+    errorElement: <RouteError />,
     children: [
       {
         element: <AppShell />,
@@ -62,5 +68,5 @@ export const routeObjects: RouteObject[] = [
     ],
   },
   ...devRoutes(),
-  { path: routePatterns.unknown, element: <Navigate to={routes.overview} replace /> },
+  { path: routePatterns.unknown, element: <Navigate to={routes.overview} replace />, errorElement: <RouteError /> },
 ]

@@ -110,11 +110,25 @@ describe('Login screen', () => {
     expect(localStorage.getItem(SESSION_STORAGE_KEY)).toBeNull()
   })
 
-  it('lands on Overview after Continue with Google', async () => {
-    const { router } = await openLogin()
+  it('lands on Overview after Continue with Google, persistent by default', async () => {
+    const api = createTestApi()
+    const google = vi.spyOn(api, 'loginWithGoogle')
+    const { router } = await openLogin(api)
     fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe(routes.overview)
+    expect(google).toHaveBeenCalledWith({ persistent: true })
+    expect(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? 'null')).toMatchObject({ persistent: true })
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull()
+  })
+
+  it('Continue with Google honours an unchecked "Keep me signed in"', async () => {
+    await openLogin()
+    fireEvent.click(screen.getByLabelText('Keep me signed in'))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument()
+    expect(JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY) ?? 'null')).toMatchObject({ persistent: false })
+    expect(localStorage.getItem(SESSION_STORAGE_KEY)).toBeNull()
   })
 
   it('disables both buttons while the login is pending', async () => {

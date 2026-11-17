@@ -1,10 +1,10 @@
-import type { IsoDate, LoginInput, Session, SignupInput, UserProfile } from './types.ts'
+import type { GoogleLoginInput, IsoDate, LoginInput, Session, SignupInput, UserProfile } from './types.ts'
 
 /** The single data port (AD-2/AD-3). Every adapter implements all of it. Later epics extend it. */
 export interface FinbankApi {
   getToday(): Promise<IsoDate>
   login(input: LoginInput): Promise<Session>
-  loginWithGoogle(): Promise<Session>
+  loginWithGoogle(input: GoogleLoginInput): Promise<Session>
   signup(input: SignupInput): Promise<Session>
   logout(): Promise<void>
   requestPasswordReset(email: string): Promise<void>

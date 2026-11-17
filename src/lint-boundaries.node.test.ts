@@ -63,6 +63,7 @@ describe('AD-1 import boundaries', () => {
     ['ui imports features', 'src/ui/A.ts', valueImport('../features/auth')],
     ['ui imports app', 'src/ui/B.ts', valueImport('../app/x')],
     ['ui imports a value from api/types', 'src/ui/C.ts', valueImport('../api/types')],
+    ['ui imports a value from api/types.ts', 'src/ui/TypesValue.ts', valueImport('../api/types.ts')],
     ['ui imports other api modules', 'src/ui/D.ts', typeImport('../api/port')],
     ['feature imports api/mock', 'src/features/auth/A.ts', valueImport('../../api/mock/seed')],
     ['feature imports api/mock.ts', 'src/features/auth/B.ts', valueImport('../../api/mock.ts')],
@@ -81,6 +82,7 @@ describe('AD-1 import boundaries', () => {
 
   it.each([
     ['ui uses `import type` from api/types', 'src/ui/E.ts', typeImport('../api/types')],
+    ['ui uses `import type` from api/types.ts', 'src/ui/TypesType.ts', typeImport('../api/types.ts')],
     ['app composes the mock adapter', 'src/app/providers.ts', valueImport('../api/mock/mockApi')],
     ['feature uses api hooks', 'src/features/auth/E.ts', valueImport('../../api/hooks/useToday')],
     ['api uses its own mock', 'src/api/D.ts', valueImport('./mock/seed')],

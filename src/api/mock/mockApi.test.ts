@@ -210,7 +210,7 @@ describe('session', () => {
   })
 
   it.each([
-    ['loginWithGoogle', () => make().loginWithGoogle()],
+    ['loginWithGoogle', () => make().loginWithGoogle({ persistent: true })],
     ['signup', () => make().signup({ name: 'Jane', ...credentials })],
   ])('%s creates a persistent session for usr_1', async (_name, run) => {
     await expect(run()).resolves.toEqual({ userId: 'usr_1', persistent: true })
@@ -218,6 +218,16 @@ describe('session', () => {
       userId: 'usr_1',
       persistent: true,
     })
+  })
+
+  it('stores a non-persistent Google login in sessionStorage only', async () => {
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ userId: 'old', persistent: true }))
+    const session = await make().loginWithGoogle({ persistent: false })
+    expect(session).toEqual({ userId: 'usr_1', persistent: false })
+    expect(JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY)!)).toEqual(session)
+    expect(localStorage.getItem(SESSION_STORAGE_KEY)).toBeNull()
+
+    await expect(make().getSession()).resolves.toEqual(session)
   })
 
   it('discards the signup name and email: the profile stays the seeded user', async () => {

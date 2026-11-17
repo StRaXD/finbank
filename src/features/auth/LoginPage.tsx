@@ -31,6 +31,7 @@ export function LoginPage({ paths }: { paths: AuthPaths }) {
     handleSubmit,
     setError,
     clearErrors,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -57,7 +58,8 @@ export function LoginPage({ paths }: { paths: AuthPaths }) {
   const onGoogle = () => {
     if (busy) return
     clearErrors()
-    google.mutate(undefined, {
+    // Google honours "Keep me signed in" just like the email/password login.
+    google.mutate({ persistent: getValues('persistent') }, {
       onError: (error) => setError('root.server', { message: alertMessage(error) }),
     })
   }

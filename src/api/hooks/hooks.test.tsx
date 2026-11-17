@@ -87,7 +87,7 @@ describe('mutation hooks', () => {
   })
 
   it.each([
-    ['useLoginWithGoogle', () => useLoginWithGoogle(), undefined],
+    ['useLoginWithGoogle', () => useLoginWithGoogle(), { persistent: true }],
     ['useSignup', () => useSignup(), { name: 'Jane', email: 'jane@doe.com', password: 'pw' }],
   ])('%s signs in persistently', async (_name, useMutationHook, input) => {
     const { wrapper } = setup()
@@ -140,7 +140,8 @@ describe('mutation hooks', () => {
   it.each([
     ['useLogin', () => useLogin(), { email: 'a@b.co', password: 'secret', persistent: true }],
     ['useSignup', () => useSignup(), { name: 'Jane', email: 'a@b.co', password: 'secret' }],
-    ['useLoginWithGoogle', () => useLoginWithGoogle(), undefined],
+    ['useLoginWithGoogle', () => useLoginWithGoogle(), { persistent: true }],
+    ['useRequestPasswordReset', () => useRequestPasswordReset(), 'a@b.co'],
   ])('%s does not keep its variables in the mutation cache once unmounted', async (_name, useHook, input) => {
     const { wrapper, queryClient } = setup()
     const { result, unmount } = renderHook(() => useHook(), { wrapper })

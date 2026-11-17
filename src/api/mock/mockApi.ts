@@ -3,6 +3,7 @@ import { toIsoDate } from '../../lib/dates.ts'
 import type { FinbankApi } from '../port.ts'
 import {
   ApiError,
+  type GoogleLoginInput,
   type IsoDate,
   type LoginInput,
   type Session,
@@ -234,7 +235,8 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
         return writeSession({ userId: MOCK_USER_ID, persistent: input.persistent === true })
       }),
 
-    loginWithGoogle: () => call(() => writeSession({ userId: MOCK_USER_ID, persistent: true })),
+    loginWithGoogle: (input: GoogleLoginInput) =>
+      call(() => writeSession({ userId: MOCK_USER_ID, persistent: input?.persistent === true })),
 
     signup: (input: SignupInput) =>
       call(() => {

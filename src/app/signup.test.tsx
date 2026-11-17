@@ -100,11 +100,14 @@ describe('Signup screen', () => {
     expect(signup).toHaveBeenCalledWith({ name: 'Tanzir Rahman', email: 'tanzir@example.com', password: 'secret' })
   })
 
-  it('lands on Overview after Continue with Google', async () => {
-    const { router } = await openSignup()
+  it('lands on Overview after Continue with Google, with a persistent session', async () => {
+    const api = createTestApi()
+    const google = vi.spyOn(api, 'loginWithGoogle')
+    const { router } = await openSignup(api)
     fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe(routes.overview)
+    expect(google).toHaveBeenCalledWith({ persistent: true })
   })
 
   it('maps an API fieldErrors.name to the Name field', async () => {

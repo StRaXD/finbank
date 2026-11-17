@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/types.ts'
 import { routes } from './routes.ts'
@@ -83,6 +83,25 @@ describe('Forgot Password screen', () => {
     fill('other@example.com')
     // Mutation state changes reach React through a batched notify, so wait for it.
     await waitFor(() => expect(screen.getByRole('status')).toBeEmptyDOMElement())
+  })
+
+  it('never shows the confirmation for a request that settles after the email was edited', async () => {
+    let resolveRequest: (() => void) | undefined
+    const request = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRequest = resolve
+        }),
+    )
+    await openForgot(createTestApi({ requestPasswordReset: request }))
+    fill('tanzir@example.com')
+    submit()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Password Reset' })).toBeDisabled())
+    fill('other@example.com')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Password Reset' })).toBeEnabled())
+    await act(async () => resolveRequest?.())
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
   })
 
   it('sends a pasted email trimmed', async () => {

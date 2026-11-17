@@ -38,6 +38,11 @@ export type LoginInput = {
   persistent: boolean
 }
 
+/** Mock Google sign-in: `persistent` mirrors "Keep me signed in" (Signup, which has no box, passes `true`). */
+export type GoogleLoginInput = {
+  persistent: boolean
+}
+
 export type SignupInput = {
   name: string
   email: string

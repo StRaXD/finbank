@@ -176,6 +176,13 @@ describe('maskAccountNumber', () => {
     expect(() => maskAccountNumber(num, 'tail4')).toThrow(RangeError)
   })
 
+  it('does not echo the rejected account number in the error', () => {
+    const num = '1234-5678-9012'
+    expect(() => maskAccountNumber(num, 'groups')).toThrow(
+      expect.objectContaining({ message: expect.not.stringContaining('5678') }),
+    )
+  })
+
   it('throws on an unknown mode', () => {
     expect(() => maskAccountNumber('12345678', 'full' as MaskMode)).toThrow(RangeError)
   })

@@ -56,7 +56,8 @@ export function SignupPage({ paths }: { paths: AuthPaths }) {
   const onGoogle = () => {
     if (busy) return
     clearErrors()
-    google.mutate(undefined, {
+    // Signup has no "Keep me signed in" box; its sessions are always persistent.
+    google.mutate({ persistent: true }, {
       onError: (error) => setError('root.server', { message: alertMessage(error) }),
     })
   }
