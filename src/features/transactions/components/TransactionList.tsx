@@ -18,8 +18,10 @@ export type TransactionListProps = {
   loadMore?: boolean
 }
 
-function ItemIcon({ transaction }: { transaction: Transaction }) {
+/** The category glyph: bare in the table (107), in a grey square in the compact rows (104). */
+function ItemIcon({ transaction, framed = false }: { transaction: Transaction; framed?: boolean }) {
   const Icon = transactionIcons[transaction.icon]
+  if (!framed) return <Icon aria-hidden="true" data-icon={transaction.icon} size={24} className="shrink-0 text-ink-2" />
   return (
     <span className="flex size-8 shrink-0 items-center justify-center rounded-button bg-surface text-ink-2">
       <Icon aria-hidden="true" data-icon={transaction.icon} size={20} />
@@ -31,29 +33,34 @@ const columns: readonly TableColumn<Transaction>[] = [
   {
     key: 'item',
     header: 'Items',
+    // Widths measured from 107. Transactions.png: column centres at 33%, 55% and 77% of the table.
+    width: '22%',
     render: (t) => (
-      <span className="flex items-center gap-2">
+      <span className="flex items-center gap-4">
         <ItemIcon transaction={t} />
         <span className="font-bold text-ink">{t.item}</span>
       </span>
     ),
   },
-  { key: 'shop', header: 'Shop Name', align: 'center', render: (t) => <span className="text-muted">{t.shop}</span> },
+  { key: 'shop', header: 'Shop Name', align: 'center', width: '22%', render: (t) => <span className="text-muted">{t.shop}</span> },
   {
     key: 'date',
     header: 'Date',
+    width: '21%',
     align: 'center',
     render: (t) => <span className="whitespace-nowrap text-muted">{formatDate(t.date, 'row')}</span>,
   },
   {
     key: 'paymentMethod',
     header: 'Payment Method',
+    width: '23%',
     align: 'center',
     render: (t) => <span className="text-muted">{t.paymentMethod}</span>,
   },
   {
     key: 'amount',
     header: 'Amount',
+    width: '12%',
     align: 'right',
     // Revenue and expense look the same: no sign, no colour.
     render: (t) => <span className="font-bold text-ink">{formatMoney(t.amountCents, 'exact')}</span>,
@@ -65,7 +72,7 @@ function CompactRows({ rows }: { rows: readonly Transaction[] }) {
     <ul className="flex flex-col divide-y divide-border">
       {rows.map((t) => (
         <li key={t.id} className="flex items-center gap-4 py-4">
-          <ItemIcon transaction={t} />
+          <ItemIcon transaction={t} framed />
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="text-16 font-semibold text-ink">{t.item}</span>
             <span className="text-14 text-subtle">{t.shop}</span>

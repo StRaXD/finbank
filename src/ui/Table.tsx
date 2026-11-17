@@ -6,6 +6,8 @@ export type TableColumn<T> = {
   key: string
   header: string
   align?: TableAlign
+  /** Column share of the table width (e.g. '22%'), so columns sit where the design puts them. */
+  width?: string
   render: (row: T) => ReactNode
 }
 
@@ -25,12 +27,20 @@ const alignClass: Record<TableAlign, string> = {
 
 /**
  * A semantic data table (measured from 107. Transactions.png): a bold header row and 72px body
- * rows, each separated by a divider.
+ * rows, each separated by a divider. Column `width`s fix the layout so it does not follow content.
  */
 export function Table<T>({ columns, rows, rowKey, caption }: TableProps<T>) {
+  const fixed = columns.some((column) => column.width !== undefined)
   return (
-    <table className="w-full border-collapse">
+    <table className={`w-full border-collapse ${fixed ? 'table-fixed' : ''}`}>
       <caption className="sr-only">{caption}</caption>
+      {fixed && (
+        <colgroup>
+          {columns.map((column) => (
+            <col key={column.key} style={column.width ? { width: column.width } : undefined} />
+          ))}
+        </colgroup>
+      )}
       <thead>
         <tr className="border-b border-border">
           {columns.map((column) => (

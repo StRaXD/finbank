@@ -8,19 +8,23 @@ export type ButtonSize = 'md' | 'sm'
 const boxedDisabled =
   'disabled:border-transparent disabled:bg-disabled disabled:text-muted aria-disabled:cursor-not-allowed aria-disabled:border-transparent aria-disabled:bg-disabled aria-disabled:text-muted'
 
-const variants: Record<ButtonVariant, string> = {
-  primary: `border border-transparent bg-primary font-bold text-white enabled:hover:brightness-90 ${boxedDisabled}`,
-  outline: `border border-primary bg-transparent font-medium text-primary enabled:hover:bg-primary/10 ${boxedDisabled}`,
-  text: 'font-semibold text-primary enabled:hover:underline disabled:text-faint',
-  google: `border border-transparent bg-google font-normal text-ink-2 enabled:hover:brightness-95 ${boxedDisabled}`,
+// A button hovers only while it is enabled and not `aria-disabled` (LoadMore while busy), so a
+// greyed-out button never darkens or underlines under the pointer.
+export const BUTTON_HOVER_GATE = 'enabled:not-aria-disabled:hover:'
+
+// Full literals (not built from the gate), so Tailwind's source scan generates every class.
+const hoverClass: Record<ButtonVariant, { button: string; link: string }> = {
+  primary: { button: 'enabled:not-aria-disabled:hover:brightness-90', link: 'hover:brightness-90' },
+  outline: { button: 'enabled:not-aria-disabled:hover:bg-primary/10', link: 'hover:bg-primary/10' },
+  text: { button: 'enabled:not-aria-disabled:hover:underline', link: 'hover:underline' },
+  google: { button: 'enabled:not-aria-disabled:hover:brightness-95', link: 'hover:brightness-95' },
 }
 
-// A link has no `enabled` state, so its hover applies unconditionally.
-const linkHover: Partial<Record<ButtonVariant, [string, string]>> = {
-  primary: ['enabled:hover:brightness-90', 'hover:brightness-90'],
-  outline: ['enabled:hover:bg-primary/10', 'hover:bg-primary/10'],
-  text: ['enabled:hover:underline', 'hover:underline'],
-  google: ['enabled:hover:brightness-95', 'hover:brightness-95'],
+const variants: Record<ButtonVariant, string> = {
+  primary: `border border-transparent bg-primary font-bold text-white ${boxedDisabled}`,
+  outline: `border border-primary bg-transparent font-medium text-primary ${boxedDisabled}`,
+  text: 'font-semibold text-primary disabled:text-faint',
+  google: `border border-transparent bg-google font-normal text-ink-2 ${boxedDisabled}`,
 }
 
 const boxedSizes: Record<ButtonSize, string> = {
@@ -48,12 +52,12 @@ export function buttonClassName({
   fullWidth = false,
   asLink = false,
 }: ButtonClassOptions = {}): string {
-  let look = variants[variant]
-  const hover = linkHover[variant]
-  if (asLink && hover) look = look.replace(hover[0], hover[1])
+  // A link has no `enabled` state, so its hover applies unconditionally.
+  const hover = hoverClass[variant][asLink ? 'link' : 'button']
   return [
     'inline-flex cursor-pointer items-center justify-center rounded-button transition disabled:cursor-not-allowed',
-    look,
+    variants[variant],
+    hover,
     variant === 'text' ? textSizes[size] : boxedSizes[size],
     variant === 'google' && size === 'md' ? 'gap-4' : '',
     fullWidth ? 'w-full' : '',
