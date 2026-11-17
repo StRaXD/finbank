@@ -163,6 +163,22 @@ export type CategorySummary = {
   recentItems: Transaction[]
 }
 
+/** The comparison chart's period: `'year'` (Jan–Dec, monthly bars) or `'week'` (Sun–Sat, daily bars). */
+export type ComparisonGranularity = 'year' | 'week'
+
+/**
+ * One bar pair of the comparison chart, derived by the adapter from the expense transactions.
+ * Components display these numbers as given and never re-derive them.
+ */
+export type ComparisonPoint = {
+  /** "Jan" … "Dec" for `'year'`, "14 Sun" … "20 Sat" for `'week'`. */
+  label: string
+  /** This period's spending, or `null` for a month or day after today. */
+  currentCents: number | null
+  /** The same month a year earlier, or the same weekday 7 days earlier. */
+  previousCents: number
+}
+
 export type ListBillsInput = {
   /** At most this many bills, an integer from 1 to 50. Omitted: every bill. */
   limit?: number

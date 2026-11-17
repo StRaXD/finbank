@@ -14,6 +14,7 @@ import { useApi } from './useApi.ts'
 import { useBalanceSummary } from './useBalanceSummary.ts'
 import { useBills } from './useBills.ts'
 import { useCategorySummaries } from './useCategorySummaries.ts'
+import { useComparison } from './useComparison.ts'
 import { useLogin } from './useLogin.ts'
 import { useLoginWithGoogle } from './useLoginWithGoogle.ts'
 import { useLogout } from './useLogout.ts'
@@ -133,6 +134,19 @@ describe('query hooks', () => {
       'others',
     ])
     expect(queryClient.getQueryData(qk.categorySummaries())).toEqual(result.current.data)
+  })
+
+  it('useComparison resolves each granularity under its own key', async () => {
+    const { wrapper, queryClient, api } = setup()
+    const spy = vi.spyOn(api, 'getComparison')
+    const { result } = renderHook(() => ({ year: useComparison('year'), week: useComparison('week') }), { wrapper })
+    await waitFor(() => expect(result.current.year.data).toHaveLength(12))
+    await waitFor(() => expect(result.current.week.data).toHaveLength(7))
+    expect(spy).toHaveBeenCalledWith('year')
+    expect(spy).toHaveBeenCalledWith('week')
+    expect(result.current.week.data![0]!.label).toBe('14 Sun')
+    expect(queryClient.getQueryData(qk.comparison('year'))).toEqual(result.current.year.data)
+    expect(queryClient.getQueryData(qk.comparison('week'))).toEqual(result.current.week.data)
   })
 
   it('useSession is null when signed out', async () => {
@@ -265,6 +279,17 @@ describe('mutation hooks', () => {
     const housing = { category: 'housing', totalCents: 174_300, changePct: 43 }
     expect(queryClient.getQueryData<{ category: string }[]>(qk.categorySummaries())?.[0]).toMatchObject(housing)
     await waitFor(() => expect(result.current.summaries.data?.[0]).toMatchObject(housing))
+  })
+
+  it('useRemoveAccount refetches the mounted comparison series', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => ({ year: useComparison('year'), remove: useRemoveAccount() }), { wrapper })
+    await waitFor(() => expect(result.current.year.data?.[4]?.currentCents).toBe(742_809))
+    await act(() => result.current.remove.mutateAsync('acc_5'))
+    expect(queryClient.getQueryData<{ currentCents: number | null }[]>(qk.comparison('year'))?.[4]?.currentCents).toBe(
+      594_309,
+    )
+    await waitFor(() => expect(result.current.year.data?.[4]?.currentCents).toBe(594_309))
   })
 
   it('mutations call the adapter from ApiProvider', async () => {

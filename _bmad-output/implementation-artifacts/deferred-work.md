@@ -33,3 +33,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/epic-2-final-review.md`
   summary: Stored expenses without a `category` pass `normalizeTransaction`. Epic 3 must decide whether category totals require a category.
   evidence: The Epic 2 contract makes `category` optional. The seed tags every expense.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-expenses-comparison-bar-chart-with-the-monthly-weekly-selector.md`
+  summary: Weekly comparison bars are only a few pixels tall, because the seed's daily spending in 7–20 May 2023 ($0–$300) sits far below the first $2k tick of the shared bar scale.
+  evidence: Seen in the 3.2 visual check (expenses-weekly.png). FR-14 mandates the same scale, so the fix is seed data for those two weeks, which also changes Story 3.1's approved May/April totals. Decide this in Story 3.3, where Weekly is the Overview default, against 104. Overview.png.

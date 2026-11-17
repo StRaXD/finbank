@@ -2,7 +2,7 @@ import { toIsoDate } from '../../lib/dates.ts'
 import type { Account, Bill, IsoDate, Transaction, UserProfile } from '../types.ts'
 import { buildSeedTransactions } from './seedTransactions.ts'
 
-export const MOCK_STATE_VERSION = 1
+export const MOCK_STATE_VERSION = 2
 
 /** Everything the mock adapter persists under `finbank:mock:v1`. Later epics add top-level keys. */
 export type MockState = {

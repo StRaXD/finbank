@@ -58,7 +58,7 @@ describe('built CSS', () => {
     expect(css.length).toBeGreaterThan(0)
   })
 
-  it.each(['primary', 'ink', 'ink-2', 'muted', 'subtle', 'faint', 'border', 'surface', 'danger', 'positive'])(
+  it.each(['primary', 'ink', 'ink-2', 'muted', 'subtle', 'faint', 'border', 'surface', 'danger', 'positive', 'chart-current', 'chart-previous', 'chart-grid'])(
     'always emits the chart colour --color-%s',
     (name) => {
       expect(css).toMatch(new RegExp(`--color-${name}:`))

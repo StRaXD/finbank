@@ -1,5 +1,5 @@
 // The seeded transactions: a pure, deterministic builder (no randomness, no `Date`).
-import { toIsoDate } from '../../lib/dates.ts'
+import { addMonths, toIsoDate, toYearMonth } from '../../lib/dates.ts'
 import type { Account, AccountType, ExpenseCategoryId, Transaction, TransactionIcon } from '../types.ts'
 
 /** The payment method each account type pays with. */
@@ -151,6 +151,103 @@ const ROWS: readonly Row[] = [
   expense('acc_5', '2023-04-02', 'Insurance premium', 'MetLife', 'others', 6_000),
 ]
 
+// Expense history for the comparison chart's previous periods (Jan 2022 to Mar 2023). Every row is
+// dated before 2023-04-01, so the April/May rows above, and their `txn_` ids, are unchanged.
+const HISTORY_FIRST_MONTH = toYearMonth('2022-01')
+/** Each history month's total in whole dollars, oldest first: between $3k and $15k. */
+const HISTORY_MONTH_TOTALS = [
+  4_200, 6_800, 3_100, 9_400, 12_500, 5_600, 7_900, 14_800, 3_600, 10_200, 8_300, 13_600, 5_200, 9_100, 6_400,
+] as const
+
+type HistorySlot = {
+  category: ExpenseCategoryId
+  accountId: string
+  /** Day of the month (at most 28, so it exists in every month). */
+  day: number
+  /** Share of the month's total, per mille. `others` takes whatever is left. */
+  perMille: number
+  /** Item and shop pairs, cycled month by month. */
+  items: readonly (readonly [item: string, shop: string])[]
+}
+
+const HISTORY_SLOTS: readonly HistorySlot[] = [
+  { category: 'housing', accountId: 'acc_3', day: 3, perMille: 450, items: [['Rent', 'Banani Properties']] },
+  {
+    category: 'food',
+    accountId: 'acc_2',
+    day: 8,
+    perMille: 150,
+    items: [
+      ['Groceries', 'Meena Bazar'],
+      ['Family dinner', "Nando's"],
+      ['Groceries', 'Shwapno'],
+    ],
+  },
+  {
+    category: 'transportation',
+    accountId: 'acc_1',
+    day: 12,
+    perMille: 80,
+    items: [
+      ['Fuel', 'Padma Oil'],
+      ['Ride share', 'Pathao'],
+    ],
+  },
+  {
+    category: 'entertainment',
+    accountId: 'acc_5',
+    day: 17,
+    perMille: 70,
+    items: [
+      ['Concert ticket', 'Ticketmaster'],
+      ['Movie night', 'Star Cineplex'],
+    ],
+  },
+  {
+    category: 'shopping',
+    accountId: 'acc_1',
+    day: 22,
+    perMille: 150,
+    items: [
+      ['Clothes', 'Aarong'],
+      ['Electronics', 'Star Tech'],
+      ['Books', 'Rokomari'],
+    ],
+  },
+  {
+    category: 'others',
+    accountId: 'acc_4',
+    day: 26,
+    perMille: 100,
+    items: [
+      ['Stock purchase', 'DSE Broker'],
+      ['Insurance premium', 'MetLife'],
+    ],
+  },
+]
+
+/**
+ * The history rows, one per category per month from Jan 2022 to Mar 2023, newest first. Pure and
+ * deterministic: each month's rows sum exactly to its `HISTORY_MONTH_TOTALS` entry.
+ */
+function historyRows(): Row[] {
+  const rows: Row[] = []
+  HISTORY_MONTH_TOTALS.forEach((dollars, monthIndex) => {
+    const ym = addMonths(HISTORY_FIRST_MONTH, monthIndex)
+    const totalCents = dollars * 100
+    let allocated = 0
+    for (const slot of HISTORY_SLOTS) {
+      const amountCents =
+        slot.category === 'others' ? totalCents - allocated : Math.round((dollars * slot.perMille) / 1000) * 100
+      allocated += amountCents
+      const [item, shop] = slot.items[monthIndex % slot.items.length]!
+      const date = `${ym}-${String(slot.day).padStart(2, '0')}`
+      rows.push(expense(slot.accountId, date, item, shop, slot.category, amountCents))
+    }
+  })
+  return rows.reverse()
+}
+
 const RECEIPT_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 
 /** An 11-character alphanumeric receipt id, derived from the row number only. */
@@ -172,7 +269,7 @@ function receiptId(n: number): string {
 export function buildSeedTransactions(accounts: readonly Pick<Account, 'id' | 'type'>[]): Transaction[] {
   const typeOf = new Map(accounts.map((account) => [account.id, account.type]))
   // Fixed-width ISO dates compare correctly as strings; `sort` is stable.
-  const ordered = [...ROWS].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+  const ordered = [...ROWS, ...historyRows()].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
   return ordered.map((row, index) => {
     const accountType = typeOf.get(row.accountId)
     if (!accountType) throw new Error(`Seed transaction for unknown account ${row.accountId}`)

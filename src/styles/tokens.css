@@ -28,6 +28,12 @@
 
   --color-danger: #E73D1C;
   --color-positive: #4DAF6E;
+
+  /* Comparison bar chart (109. Expenses.png), read in JS by src/ui/charts/chartColors.ts:
+     the current period in primary teal, the previous period light grey, horizontal gridlines. */
+  --color-chart-current: var(--color-primary);
+  --color-chart-previous: #E8E8E8;
+  --color-chart-grid: #F3F3F3;
 }
 
 @theme {

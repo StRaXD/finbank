@@ -3,7 +3,13 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it, vi } from 'vitest'
 import { ApiProvider } from '../../api/ApiProvider.tsx'
 import type { FinbankApi } from '../../api/port.ts'
-import { ApiError, type CategorySummary, type IsoDate, type Transaction } from '../../api/types.ts'
+import {
+  ApiError,
+  type CategorySummary,
+  type ComparisonPoint,
+  type IsoDate,
+  type Transaction,
+} from '../../api/types.ts'
 import { ExpensesPage } from './ExpensesPage.tsx'
 
 const item = (patch: Partial<Transaction> & Pick<Transaction, 'id' | 'item'>): Transaction => ({
@@ -39,8 +45,16 @@ const fixture: CategorySummary[] = [
   { category: 'others', totalCents: 370_240, changePct: -10, recentItems: [item({ id: 'o1', item: 'Gift' })] },
 ]
 
-function renderWith(listCategorySummaries: FinbankApi['listCategorySummaries']) {
-  const api = { listCategorySummaries } as FinbankApi
+const comparison: ComparisonPoint[] = [
+  { label: 'Jan', currentCents: 520_000, previousCents: 420_000 },
+  { label: 'Feb', currentCents: null, previousCents: 680_000 },
+]
+
+function renderWith(
+  listCategorySummaries: FinbankApi['listCategorySummaries'],
+  getComparison: FinbankApi['getComparison'] = () => Promise.resolve(structuredClone(comparison)),
+) {
+  const api = { listCategorySummaries, getComparison } as FinbankApi
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <ApiProvider api={api}>
@@ -52,11 +66,31 @@ function renderWith(listCategorySummaries: FinbankApi['listCategorySummaries']) 
 }
 
 describe('ExpensesPage', () => {
-  it('has a visually hidden h1, the Breakdown title and a skeleton while loading', () => {
-    renderWith(() => new Promise(() => {}))
+  it('has a visually hidden h1, both section titles and a skeleton per section while loading', () => {
+    renderWith(
+      () => new Promise(() => {}),
+      () => new Promise(() => {}),
+    )
     expect(screen.getByRole('heading', { level: 1, name: 'Expenses' })).toHaveClass('sr-only')
-    expect(screen.getByRole('heading', { level: 2, name: 'Expenses Breakdown' })).toHaveClass('text-22', 'text-subtle')
-    expect(screen.getByTestId('skeleton')).toBeInTheDocument()
+    const titles = screen.getAllByRole('heading', { level: 2 })
+    expect(titles.map((h) => h.textContent)).toEqual(['Expenses Comparison', 'Expenses Breakdown'])
+    for (const title of titles) expect(title).toHaveClass('text-22', 'text-subtle')
+    const comparison = screen.getByRole('region', { name: 'Expenses Comparison' })
+    const breakdown = screen.getByRole('region', { name: 'Expenses Breakdown' })
+    // Section titles sit 16px above their content.
+    expect(comparison).toHaveClass('gap-4')
+    expect(breakdown).toHaveClass('gap-4')
+    expect(within(comparison).getByTestId('skeleton')).toBeInTheDocument()
+    expect(within(breakdown).getByTestId('skeleton')).toBeInTheDocument()
+  })
+
+  it('shows the Monthly comparison chart above the breakdown', async () => {
+    renderWith(() => Promise.resolve(structuredClone(fixture)))
+    const comparison = screen.getByRole('region', { name: 'Expenses Comparison' })
+    expect(within(comparison).getByRole('button', { name: /Monthly Comparison/ })).toBeInTheDocument()
+    expect(await within(comparison).findByText(/Jan: this year \$5,200, last year \$4,200\./)).toHaveClass('sr-only')
+    const breakdown = screen.getByRole('region', { name: 'Expenses Breakdown' })
+    expect(comparison.compareDocumentPosition(breakdown) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('renders six category cards in order in a 3-column grid', async () => {
