@@ -19,6 +19,7 @@ describe('qk', () => {
     ])
     expect(qk.bills()).toEqual(['finbank', 'bills'])
     expect(qk.bills(2)).toEqual(['finbank', 'bills', { limit: 2 }])
+    expect(qk.categorySummaries()).toEqual(['finbank', 'categorySummaries'])
   })
 
   it('never puts the cursor in a transactions key', () => {
@@ -39,7 +40,7 @@ describe('invalidationMap', () => {
       loginWithGoogle: 'all',
       signup: 'all',
       logout: 'all',
-      removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions()],
+      removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions(), qk.categorySummaries()],
     })
   })
 
@@ -49,8 +50,10 @@ describe('invalidationMap', () => {
     client.setQueryData(qk.account('acc_2'), null)
     client.setQueryData(qk.transactions({ limit: 10 }), { pages: [], pageParams: [] })
     client.setQueryData(qk.balanceSummary(), { totalBalanceCents: 0 })
+    client.setQueryData(qk.categorySummaries(), [])
     client.setQueryData(qk.profile(), { fullName: 'x' })
     await applyInvalidation(client, 'removeAccount')
+    expect(client.getQueryState(qk.categorySummaries())?.isInvalidated).toBe(true)
     expect(client.getQueryState(qk.accounts())?.isInvalidated).toBe(true)
     expect(client.getQueryState(qk.account('acc_2'))?.isInvalidated).toBe(true)
     expect(client.getQueryState(qk.balanceSummary())?.isInvalidated).toBe(true)

@@ -664,6 +664,105 @@ describe('transactions in storage', () => {
   })
 })
 
+describe('listCategorySummaries', () => {
+  const withTransactions = (transactions: unknown) =>
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), transactions }))
+  const txn = (patch: Record<string, unknown>) => ({ ...seed.transactions.find((t) => t.kind === 'expense')!, ...patch })
+  const order = ['housing', 'food', 'transportation', 'entertainment', 'shopping', 'others']
+
+  it('returns six May 2023 summaries in fixed order, with totals and signed % change from the seed', async () => {
+    const summaries = await make().listCategorySummaries()
+    expect(summaries.map((s) => [s.category, s.totalCents, s.changePct])).toEqual([
+      ['housing', 202_300, -11],
+      ['food', 8_370, -89],
+      ['transportation', 22_000, -62],
+      ['entertainment', 54_999, 409],
+      ['shopping', 84_900, -24],
+      ['others', 370_240, -10],
+    ])
+  })
+
+  it('totals every May expense of the category, pending included, and nothing else', async () => {
+    const summaries = await make().listCategorySummaries()
+    for (const summary of summaries) {
+      const expected = seed.transactions
+        .filter((t) => t.kind === 'expense' && t.category === summary.category && t.date.startsWith('2023-05'))
+        .reduce((total, t) => total + t.amountCents, 0)
+      expect(summary.totalCents).toBe(expected)
+    }
+  })
+
+  it('lists the two newest items, equal dates in stored order', async () => {
+    const summaries = await make().listCategorySummaries()
+    const shopping = summaries.find((s) => s.category === 'shopping')!
+    expect(shopping.recentItems.map((t) => t.item)).toEqual(['GTR 5', 'Polo shirt'])
+    for (const summary of summaries) {
+      expect(summary.recentItems).toHaveLength(2)
+      for (const item of summary.recentItems) {
+        expect(item.category).toBe(summary.category)
+        expect(item.date.startsWith('2023-05')).toBe(true)
+      }
+    }
+  })
+
+  it('returns copies', async () => {
+    const api = make()
+    const first = await api.listCategorySummaries()
+    first[0]!.recentItems[0]!.item = 'Mutated'
+    const second = await api.listCategorySummaries()
+    expect(second[0]!.recentItems[0]!.item).not.toBe('Mutated')
+  })
+
+  it('handles empty, from-zero, flat, untagged and other-month rows', async () => {
+    const { category: _category, ...untagged } = txn({ id: 'untagged', date: '2023-05-10', amountCents: 99_999 })
+    void _category
+    withTransactions([
+      // Food: 0 -> 1500 (pending): undefined growth, shown as 100.
+      txn({ id: 'f1', category: 'food', date: '2023-05-02', amountCents: 1_500, status: 'pending' }),
+      // Housing: 1000 -> 1000: 0.
+      txn({ id: 'h0', category: 'housing', date: '2023-04-20', amountCents: 1_000 }),
+      txn({ id: 'h1', category: 'housing', date: '2023-05-01', amountCents: 1_000 }),
+      // Transportation: 1000 -> 0: -100, no items.
+      txn({ id: 't0', category: 'transportation', date: '2023-04-03', amountCents: 1_000 }),
+      // Shopping: 1000 -> 1004 rounds to 0; March is ignored.
+      txn({ id: 's0', category: 'shopping', date: '2023-04-03', amountCents: 1_000 }),
+      txn({ id: 's1', category: 'shopping', date: '2023-05-03', amountCents: 1_004 }),
+      txn({ id: 's2', category: 'shopping', date: '2023-03-03', amountCents: 50_000 }),
+      // Entertainment: 1000 -> 996 rounds to -0, normalised to 0.
+      txn({ id: 'e0', category: 'entertainment', date: '2023-04-03', amountCents: 1_000 }),
+      txn({ id: 'e1', category: 'entertainment', date: '2023-05-03', amountCents: 996 }),
+      untagged,
+    ])
+    const summaries = await make().listCategorySummaries()
+    expect(summaries.map((s) => s.category)).toEqual(order)
+    const by = Object.fromEntries(summaries.map((s) => [s.category, s]))
+    expect(by.food).toMatchObject({ totalCents: 1_500, changePct: 100 })
+    expect(by.food!.recentItems.map((t) => t.id)).toEqual(['f1'])
+    expect(by.housing).toMatchObject({ totalCents: 1_000, changePct: 0 })
+    expect(by.transportation).toEqual({ category: 'transportation', totalCents: 0, changePct: -100, recentItems: [] })
+    expect(by.shopping).toMatchObject({ totalCents: 1_004, changePct: 0 })
+    expect(Object.is(by.entertainment!.changePct, 0)).toBe(true)
+    expect(by.others).toEqual({ category: 'others', totalCents: 0, changePct: 0, recentItems: [] })
+    expect(summaries.flatMap((s) => s.recentItems).some((t) => t.id === 'untagged')).toBe(false)
+  })
+
+  it('reflects removeAccount on the next call', async () => {
+    const api = make()
+    await api.listCategorySummaries()
+    await api.removeAccount('acc_5')
+    const summaries = await api.listCategorySummaries()
+    expect(summaries.map((s) => [s.category, s.totalCents, s.changePct])).toEqual([
+      ['housing', 174_300, 43],
+      ['food', 8_370, -55],
+      ['transportation', 7_000, -79],
+      ['entertainment', 6_999, -35],
+      ['shopping', 29_900, -73],
+      ['others', 367_740, -9],
+    ])
+    expect(summaries.flatMap((s) => s.recentItems).some((t) => t.accountId === 'acc_5')).toBe(false)
+  })
+})
+
 describe('seed bills', () => {
   const addMonths = (iso: string, months: number) => {
     const [y, m, d] = iso.split('-').map(Number) as [number, number, number]

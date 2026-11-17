@@ -2,6 +2,7 @@ import type {
   Account,
   BalanceSummary,
   Bill,
+  CategorySummary,
   GoogleLoginInput,
   IsoDate,
   ListBillsInput,
@@ -44,6 +45,12 @@ export interface FinbankApi {
    * to `limit` when given. A bad `limit` rejects with `VALIDATION`.
    */
   listBills(input?: ListBillsInput): Promise<Bill[]>
+  /**
+   * Six summaries, fixed order, month containing today: Housing, Food, Transportation,
+   * Entertainment, Shopping, Others. Each has the month's total, its signed % change against the
+   * previous month and its two most recent items. Untagged expenses are left out.
+   */
+  listCategorySummaries(): Promise<CategorySummary[]>
 }
 
 /** Every port method name, for tests that must cover the whole port. */
@@ -62,6 +69,7 @@ export const FINBANK_API_METHODS = [
   'removeAccount',
   'listTransactions',
   'listBills',
+  'listCategorySummaries',
 ] as const satisfies readonly (keyof FinbankApi)[]
 
 // Compile-time guard: adding a port method without listing it above fails `tsc`.

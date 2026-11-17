@@ -13,6 +13,7 @@ import { useAccounts } from './useAccounts.ts'
 import { useApi } from './useApi.ts'
 import { useBalanceSummary } from './useBalanceSummary.ts'
 import { useBills } from './useBills.ts'
+import { useCategorySummaries } from './useCategorySummaries.ts'
 import { useLogin } from './useLogin.ts'
 import { useLoginWithGoogle } from './useLoginWithGoogle.ts'
 import { useLogout } from './useLogout.ts'
@@ -117,6 +118,21 @@ describe('query hooks', () => {
     expect(spy).toHaveBeenCalledWith({ limit: 2 })
     expect(queryClient.getQueryData(qk.bills())).toEqual(seed.bills)
     expect(queryClient.getQueryData(qk.bills(2))).toHaveLength(2)
+  })
+
+  it('useCategorySummaries resolves the six summaries under its key', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => useCategorySummaries(), { wrapper })
+    await waitFor(() => expect(result.current.data).toHaveLength(6))
+    expect(result.current.data!.map((s) => s.category)).toEqual([
+      'housing',
+      'food',
+      'transportation',
+      'entertainment',
+      'shopping',
+      'others',
+    ])
+    expect(queryClient.getQueryData(qk.categorySummaries())).toEqual(result.current.data)
   })
 
   it('useSession is null when signed out', async () => {
@@ -236,6 +252,19 @@ describe('mutation hooks', () => {
     expect(ids).toEqual(['acc_1', 'acc_3', 'acc_4', 'acc_5'])
     expect(queryClient.getQueryData(qk.balanceSummary())).toEqual({ totalBalanceCents: 21_534_300 })
     await waitFor(() => expect(result.current.summary.data).toEqual({ totalBalanceCents: 21_534_300 }))
+  })
+
+  it('useRemoveAccount refetches the mounted category summaries', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => ({ summaries: useCategorySummaries(), remove: useRemoveAccount() }), {
+      wrapper,
+    })
+    await waitFor(() => expect(result.current.summaries.data?.[0]?.totalCents).toBe(202_300))
+    await act(() => result.current.remove.mutateAsync('acc_5'))
+    // Read straight after it settles: the mutation resolved only once the active queries refetched.
+    const housing = { category: 'housing', totalCents: 174_300, changePct: 43 }
+    expect(queryClient.getQueryData<{ category: string }[]>(qk.categorySummaries())?.[0]).toMatchObject(housing)
+    await waitFor(() => expect(result.current.summaries.data?.[0]).toMatchObject(housing))
   })
 
   it('mutations call the adapter from ApiProvider', async () => {

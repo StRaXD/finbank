@@ -28,6 +28,8 @@ export const qk = {
   /** Without a limit: every bill, and the prefix of every bill list. */
   bills: (limit?: number) =>
     limit === undefined ? ([...root, 'bills'] as const) : ([...root, 'bills', { limit }] as const),
+  /** The six category summaries for the month containing today. */
+  categorySummaries: () => [...root, 'categorySummaries'] as const,
 }
 
 /** `'all'` clears the whole cache; otherwise the listed key prefixes are invalidated. */
@@ -39,7 +41,7 @@ export const invalidationMap = {
   loginWithGoogle: 'all',
   signup: 'all',
   logout: 'all',
-  removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions()],
+  removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions(), qk.categorySummaries()],
 } as const satisfies Record<string, InvalidationTarget>
 
 export type InvalidatingMutation = keyof typeof invalidationMap

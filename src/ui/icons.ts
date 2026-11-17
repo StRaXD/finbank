@@ -1,7 +1,9 @@
 // The single icon map: ui components never import lucide-react directly.
 import type { LucideIcon } from 'lucide-react'
 import {
+  ArrowDown,
   ArrowLeftRight,
+  ArrowUp,
   ArrowUpRight,
   Banknote,
   BanknoteArrowUp,
@@ -30,7 +32,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react'
-import type { TransactionIcon } from '../api/types.ts'
+import type { ExpenseCategoryId, TransactionIcon } from '../api/types.ts'
 
 export const icons = {
   eye: Eye,
@@ -57,6 +59,9 @@ export const icons = {
   close: X,
   // The carousel slide's open-details button (104. Overview.png).
   arrowUpRight: ArrowUpRight,
+  // Trend direction (109. Expenses.png): red up for an increase, green down for a decrease.
+  arrowUp: ArrowUp,
+  arrowDown: ArrowDown,
 } as const
 
 export type IconName = keyof typeof icons
@@ -72,4 +77,14 @@ export const transactionIcons: Record<TransactionIcon, LucideIcon> = {
   salary: Banknote,
   transfer: ArrowLeftRight,
   other: Circle,
+}
+
+/** Expense category glyphs (closest lucide matches to 109. Expenses.png). */
+export const categoryIcons: Record<ExpenseCategoryId, LucideIcon> = {
+  housing: House,
+  food: Utensils,
+  transportation: CarTaxiFront,
+  entertainment: Clapperboard,
+  shopping: ShoppingBag,
+  others: LayoutGrid,
 }

@@ -40,7 +40,7 @@ describe('routing and session guard', () => {
     },
   )
 
-  it('renders each app route placeholder when signed in', async () => {
+  it('renders each app route page heading when signed in', async () => {
     const api = await signedInApi()
     const cases = [
       [routes.balances, 'Balances'],
@@ -56,6 +56,13 @@ describe('routing and session guard', () => {
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
       unmount()
     }
+  })
+
+  it('routes /expenses to the Expenses page with six seed-derived category cards', async () => {
+    renderAt(routes.expenses, await signedInApi())
+    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(6))
+    const housing = screen.getByRole('article', { name: 'Housing' })
+    expect(within(housing).getByText('$2,023.00')).toBeInTheDocument()
   })
 
   it('opens Account Details from a Balances card, with Balances still active in the nav', async () => {
