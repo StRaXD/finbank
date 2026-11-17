@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import type { ComparisonPoint } from '../../api/types.ts'
-import { BAR_TICKS, createTickScale } from '../../lib/chartScale.ts'
+import { createTickScale } from '../../lib/chartScale.ts'
 import { formatCompact } from '../../lib/format.ts'
 import { readChartColors } from './chartColors.ts'
 
@@ -9,8 +9,8 @@ export type ComparisonBarChartProps = {
   points: readonly ComparisonPoint[]
   /** The text alternative: a summary of both series, rendered for screen readers only. */
   summary: string
-  /** The value ticks in cents (default `BAR_TICKS`). */
-  ticksCents?: readonly number[]
+  /** The value ticks in cents. Required: callers pass the ladder fitted to the shown data (`fitLadderTicks`). */
+  ticksCents: readonly number[]
   /** Initial size before the container is measured (tests, first paint). */
   initialWidth?: number
 }
@@ -29,11 +29,11 @@ const X_PADDING = { left: 0, right: 32 }
 const TICK_CLASS = 'fill-subtle text-14'
 
 /**
- * A grouped bar chart of a current and a previous period on the tick scale (AD-16): previous bars
+ * A grouped bar chart of a current and a previous period on the given tick scale (AD-16, fitted per Story 3.3): previous bars
  * light grey, current bars teal, horizontal gridlines only. A `null` current value draws no bar.
  * The SVG is hidden from assistive technology; `summary` is the text alternative.
  */
-export function ComparisonBarChart({ points, summary, ticksCents = BAR_TICKS, initialWidth = 1000 }: ComparisonBarChartProps) {
+export function ComparisonBarChart({ points, summary, ticksCents, initialWidth = 1000 }: ComparisonBarChartProps) {
   const colors = useMemo(() => readChartColors(), [])
   const scale = useMemo(() => createTickScale(ticksCents), [ticksCents])
   const data = useMemo(

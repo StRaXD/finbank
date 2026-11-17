@@ -12,7 +12,7 @@ const accessibleText = (el: Element): string =>
 describe('TrendIndicator', () => {
   it('shows an increase as the percent then a red up arrow, with sr-only direction', () => {
     render(<TrendIndicator changePct={409} />)
-    expect(trend()).toHaveTextContent('409%increase')
+    expect(trend()).toHaveTextContent('409% increase')
     const arrow = trend().querySelector('[data-icon="arrowUp"]')
     expect(arrow).toHaveClass('text-danger')
     expect(arrow).toHaveAttribute('aria-hidden', 'true')
@@ -22,7 +22,7 @@ describe('TrendIndicator', () => {
 
   it('shows a decrease as a two-digit magnitude and a green down arrow', () => {
     render(<TrendIndicator changePct={-8} />)
-    expect(trend()).toHaveTextContent('08%decrease')
+    expect(trend()).toHaveTextContent('08% decrease')
     expect(trend().querySelector('[data-icon="arrowDown"]')).toHaveClass('text-positive')
     expect(trend().querySelector('[data-icon="arrowUp"]')).toBeNull()
   })
@@ -44,7 +44,7 @@ describe('TrendIndicator', () => {
   describe('tile variant', () => {
     it('shows the percent with a "*" marker in text-14 muted, then the arrow on the same line', () => {
       render(<TrendIndicator changePct={409} variant="tile" />)
-      expect(trend()).toHaveTextContent('409%*increase')
+      expect(trend()).toHaveTextContent('409%* increase')
       expect(trend().firstElementChild).toHaveTextContent('409%*')
       expect(trend().firstElementChild).toHaveClass('text-14', 'text-muted')
       expect(trend().querySelector('[data-icon="arrowUp"]')).toHaveClass('text-danger')
@@ -54,13 +54,13 @@ describe('TrendIndicator', () => {
 
     it('hides the "*" marker from screen readers', () => {
       render(<TrendIndicator changePct={409} variant="tile" />)
-      expect(accessibleText(trend())).toBe('409%increase')
+      expect(accessibleText(trend())).toBe('409% increase')
       expect(accessibleText(trend())).not.toContain('*')
     })
 
     it('shows a decrease with a green down arrow', () => {
       render(<TrendIndicator changePct={-11} variant="tile" />)
-      expect(trend()).toHaveTextContent('11%*decrease')
+      expect(trend()).toHaveTextContent('11%* decrease')
       expect(trend().querySelector('[data-icon="arrowDown"]')).toHaveClass('text-positive')
     })
 

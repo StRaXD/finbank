@@ -41,7 +41,7 @@ export function TrendIndicator({ changePct, caption, variant = 'card' }: TrendIn
         </span>
         {up && <ArrowUp aria-hidden="true" data-icon="arrowUp" size={arrowSize} className={tone} />}
         {down && <ArrowDown aria-hidden="true" data-icon="arrowDown" size={arrowSize} className={tone} />}
-        {(up || down) && <span className="sr-only">{up ? 'increase' : 'decrease'}</span>}
+        {(up || down) && <span className="sr-only">{up ? ' increase' : ' decrease'}</span>}
       </span>
       {caption !== undefined && <span className="text-12 text-muted">{caption}</span>}
     </div>

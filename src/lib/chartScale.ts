@@ -11,7 +11,7 @@ export type TickScale = {
   ticks: readonly Tick[]
 }
 
-/** The comparison bar chart ticks: $0, $2k, $10k, $50k, $250k. */
+/** The design's fixed bar ticks ($0, $2k, $10k, $50k, $250k): rung k = 3 of the fitted ladder. Comparison charts use `fitLadderTicks` (Story 3.3), not this directly. */
 export const BAR_TICKS: readonly number[] = Object.freeze([0, 2_000_00, 10_000_00, 50_000_00, 250_000_00])
 /** The comparison ladder at k = 0, in cents: $0, $2, $10, $50, $250. Ladder k is this × 10^k. */
 const LADDER_BASE: readonly number[] = Object.freeze([0, 2_00, 10_00, 50_00, 250_00])

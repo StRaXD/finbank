@@ -1018,6 +1018,8 @@ So that I can spot months where I spent more than usual.
 **When** `createTickScale(BAR_TICKS)` is used
 **Then** the ticks $0, $2k, $10k, $50k and $250k (stored as cents) are evenly spaced.
 **And** values are interpolated linearly between adjacent ticks, and values above $250k are clamped.
+
+> **Superseded (Story 3.3, 2026-11-17):** comparison charts no longer use the fixed `BAR_TICKS` scale. They use `fitLadderTicks`, the same 5× ladder fitted to the shown data. `BAR_TICKS` is its k = 3 rung.
 **And** unit tests cover the tick values, midpoints and clamping (AD-16).
 
 **Given** `getComparison('year' | 'week')`

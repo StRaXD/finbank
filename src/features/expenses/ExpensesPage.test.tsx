@@ -66,6 +66,12 @@ function renderWith(
 }
 
 describe('ExpensesPage', () => {
+  it('shows the Breakdown empty message when the adapter returns no summaries', async () => {
+    renderWith(() => Promise.resolve([]))
+    expect(await screen.findByText('No expenses this month')).toBeInTheDocument()
+    expect(screen.queryAllByRole('article')).toHaveLength(0)
+  })
+
   it('has a visually hidden h1, both section titles and a skeleton per section while loading', () => {
     renderWith(
       () => new Promise(() => {}),
@@ -111,12 +117,12 @@ describe('ExpensesPage', () => {
     renderWith(() => Promise.resolve(structuredClone(fixture)))
     const housing = await screen.findByRole('article', { name: 'Housing' })
     expect(within(housing).getByText('$2,023.00')).toHaveClass('text-20', 'font-bold', 'text-ink')
-    expect(within(housing).getByTestId('trend')).toHaveTextContent('11%decrease')
+    expect(within(housing).getByTestId('trend')).toHaveTextContent('11% decrease')
     expect(within(housing).getByText('Compare to last month')).toBeInTheDocument()
     const rows = within(housing).getAllByRole('listitem')
     expect(rows.map((r) => r.textContent)).toEqual(['Electricity bill$68.0014 May 2023', 'Rent$1,200.0010 May 2023'])
     const entertainment = screen.getByRole('article', { name: 'Entertainment' })
-    expect(within(entertainment).getByTestId('trend')).toHaveTextContent('409%increase')
+    expect(within(entertainment).getByTestId('trend')).toHaveTextContent('409% increase')
     const transportation = screen.getByRole('article', { name: 'Transportation' })
     expect(within(transportation).getByTestId('trend')).toHaveTextContent(/^00%$/)
   })

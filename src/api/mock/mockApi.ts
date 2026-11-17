@@ -342,7 +342,9 @@ const SUMMARY_RECENT_ITEMS = 2
  */
 function changePercent(cur: number, prev: number): number {
   if (prev === 0) return cur > 0 ? 100 : 0
-  const pct = Math.round(((cur - prev) / prev) * 100)
+  // Round half away from zero, so a change of the same size shows the same magnitude either way.
+  const raw = ((cur - prev) / prev) * 100
+  const pct = Math.sign(raw) * Math.round(Math.abs(raw))
   return pct === 0 ? 0 : pct
 }
 

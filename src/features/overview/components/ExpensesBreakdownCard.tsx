@@ -19,7 +19,7 @@ export function ExpensesBreakdownCard({ expensesPath }: ExpensesBreakdownCardPro
   const query = useCategorySummaries()
   return (
     <Card title="Expenses Breakdown" actions={<span className="text-14 text-subtle">*Compare to last month</span>}>
-      <AsyncSection query={query} emptyMessage="No expenses this month">
+      <AsyncSection query={query} isEmpty={(summaries) => summaries.length === 0} emptyMessage="No expenses this month">
         {(summaries) => (
           // -m-6 cancels the card padding: the tiles and dividers are measured from the card edge.
           <div data-testid="category-tile-grid" className="relative -m-6 grid grid-cols-3 grid-rows-2">

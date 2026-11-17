@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ComparisonPoint } from '../../api/types.ts'
+import { BAR_TICKS } from '../../lib/chartScale.ts'
 import { chartColorVars } from './chartColors.ts'
 import { ChartLegend } from './ChartLegend.tsx'
 import { ComparisonBarChart } from './ComparisonBarChart.tsx'
@@ -24,7 +25,7 @@ const points: ComparisonPoint[] = [
 ]
 
 function renderChart() {
-  return render(<ComparisonBarChart points={points} summary="Weekly spending summary" initialWidth={600} />)
+  return render(<ComparisonBarChart points={points} summary="Weekly spending summary" ticksCents={BAR_TICKS} initialWidth={600} />)
 }
 
 describe('ComparisonBarChart', () => {

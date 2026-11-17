@@ -87,7 +87,7 @@ describe('routing and session guard', () => {
     expect(fromOverview).toEqual(fromExpenses)
     const housing = screen.getByRole('article', { name: 'Housing' })
     expect(within(housing).getByText('$2,023.00')).toBeInTheDocument()
-    expect(fromOverview[3]!.trend).toBe('409%increase')
+    expect(fromOverview[3]!.trend).toBe('409% increase')
   })
 
   it("navigates from an Overview tile's → to Expenses", async () => {

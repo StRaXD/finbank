@@ -26,7 +26,7 @@ export function ExpensesPage() {
         <h2 id={breakdownId} className="text-22 font-normal text-subtle">
           Expenses Breakdown
         </h2>
-        <AsyncSection query={query} emptyMessage="No expenses this month">
+        <AsyncSection query={query} isEmpty={(summaries) => summaries.length === 0} emptyMessage="No expenses this month">
           {(summaries) => (
             <div data-testid="category-grid" className="grid grid-cols-3 gap-6">
               {summaries.map((summary) => (

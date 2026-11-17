@@ -86,6 +86,11 @@ describe('ComparisonChartCard', () => {
     expect(resolveSeries).toHaveBeenCalledWith('week')
   })
 
+  it('shows its empty message when the adapter returns no points', async () => {
+    renderCard(() => Promise.resolve([]))
+    expect(await screen.findByText('No expenses to compare')).toBeInTheDocument()
+  })
+
   it('starts on the given default granularity', async () => {
     renderCard(resolveSeries, 'week')
     expect(trigger()).toHaveTextContent('Weekly Comparison')

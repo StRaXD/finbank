@@ -714,6 +714,19 @@ describe('listCategorySummaries', () => {
     expect(second[0]!.recentItems[0]!.item).not.toBe('Mutated')
   })
 
+  it('rounds a half percent away from zero for both signs', async () => {
+    withTransactions([
+      // Food: 2000 -> 1010 is -49.5% -> -50; Housing: 2000 -> 2990 is +49.5% -> +50.
+      txn({ id: 'f0', category: 'food', date: '2023-04-03', amountCents: 2_000 }),
+      txn({ id: 'f1', category: 'food', date: '2023-05-03', amountCents: 1_010 }),
+      txn({ id: 'h0', category: 'housing', date: '2023-04-03', amountCents: 2_000 }),
+      txn({ id: 'h1', category: 'housing', date: '2023-05-03', amountCents: 2_990 }),
+    ])
+    const by = Object.fromEntries((await make().listCategorySummaries()).map((s) => [s.category, s]))
+    expect(by.food!.changePct).toBe(-50)
+    expect(by.housing!.changePct).toBe(50)
+  })
+
   it('handles empty, from-zero, flat, untagged and other-month rows', async () => {
     const { category: _category, ...untagged } = txn({ id: 'untagged', date: '2023-05-10', amountCents: 99_999 })
     void _category

@@ -31,7 +31,7 @@ describe('CategorySummaryTile', () => {
     expect(within(tile).getByTestId('category-icon')).toHaveClass('bg-surface', 'text-subtle')
     expect(within(tile).getByRole('heading', { level: 3, name: 'Housing' })).toHaveClass('text-14')
     expect(within(tile).getByText('$2,023.00')).toHaveClass('font-bold')
-    expect(within(tile).getByTestId('trend')).toHaveTextContent('11%*decrease')
+    expect(within(tile).getByTestId('trend')).toHaveTextContent('11%* decrease')
     expect(within(tile).getByTestId('trend').querySelector('[data-icon="arrowDown"]')).toHaveClass('text-positive')
   })
 

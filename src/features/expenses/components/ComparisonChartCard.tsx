@@ -79,7 +79,7 @@ export function ComparisonChartCard({ defaultGranularity, title }: ComparisonCha
           ]}
         />
       </div>
-      <AsyncSection query={query} emptyMessage="No expenses to compare">
+      <AsyncSection query={query} isEmpty={(points) => points.length === 0} emptyMessage="No expenses to compare">
         {(points) => <FittedComparisonChart points={points} granularity={granularity} />}
       </AsyncSection>
     </Card>

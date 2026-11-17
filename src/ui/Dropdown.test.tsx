@@ -57,6 +57,15 @@ describe('Dropdown', () => {
     expect(trigger()).toHaveFocus()
   })
 
+  it('opens from the trigger with ArrowUp too, on the selected option', () => {
+    render(<Harness onChange={vi.fn()} />)
+    trigger().focus()
+    fireEvent.keyDown(trigger(), { key: 'ArrowUp' })
+    const listbox = screen.getByRole('listbox')
+    expect(listbox).toHaveFocus()
+    expect(listbox).toHaveAttribute('aria-activedescendant', screen.getAllByRole('option')[0]!.id)
+  })
+
   it('is fully operable by keyboard: pick Weekly, then return to Monthly', () => {
     const onChange = vi.fn()
     render(<Harness onChange={onChange} />)
