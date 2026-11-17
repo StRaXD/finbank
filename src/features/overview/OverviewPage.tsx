@@ -1,4 +1,5 @@
 import type { AccountDetailsPath } from '../balances/index.ts'
+import { ComparisonChartCard } from '../expenses/index.ts'
 import { RecentTransactionCard } from './components/RecentTransactionCard.tsx'
 import { TotalBalanceCard } from './components/TotalBalanceCard.tsx'
 import { UpcomingBillCard } from './components/UpcomingBillCard.tsx'
@@ -15,8 +16,9 @@ export type OverviewPageProps = {
 /**
  * Overview (104. Overview.png): a 3-column grid. Row 1 holds Total Balance (column 1) and Upcoming
  * Bill (column 3) at equal height; Recent Transaction fills column 1 from row 2, spanning the rows
- * Statistics and Expenses Breakdown will use. The Goals, Statistics and Expenses Breakdown slots
- * stay empty until Epics 3–4. The greeting lives in the top bar, so the page's `h1` is visually
+ * Statistics and Expenses Breakdown use. Statistics (columns 2–3, row 2) is the shared comparison
+ * chart, Weekly by default. The Goals and Expenses Breakdown slots stay empty until Story 3.4 and
+ * Epic 4. The greeting lives in the top bar, so the page's `h1` is visually
  * hidden.
  */
 export function OverviewPage({ accountDetailsPath, billsPath, transactionsPath }: OverviewPageProps) {
@@ -32,6 +34,9 @@ export function OverviewPage({ accountDetailsPath, billsPath, transactionsPath }
         </div>
         <div data-testid="slot-recent-transaction" className="col-start-1 row-span-2 row-start-2">
           <RecentTransactionCard transactionsPath={transactionsPath} />
+        </div>
+        <div data-testid="slot-statistics" className="col-span-2 col-start-2 row-start-2">
+          <ComparisonChartCard title="Statistics" defaultGranularity="week" />
         </div>
       </div>
     </>

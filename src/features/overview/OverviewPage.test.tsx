@@ -9,6 +9,8 @@ import {
   ApiError,
   type Account,
   type Bill,
+  type ComparisonGranularity,
+  type ComparisonPoint,
   type IsoDate,
   type ListBillsInput,
   type ListTransactionsInput,
@@ -101,9 +103,23 @@ const transactions: Transaction[] = Array.from({ length: 21 }, (_, i) => {
   return t
 })
 
+/** Already derived, as the adapter returns them: the seed's week of 14 May and a short year. */
+const weekLabels = ['14 Sun', '15 Mon', '16 Tue', '17 Wed', '18 Thu', '19 Fri', '20 Sat']
+const comparison: Record<ComparisonGranularity, ComparisonPoint[]> = {
+  week: weekLabels.map((label, i) => ({
+    label,
+    currentCents: i === 6 ? null : [6_800, 4_520, 0, 26_700, 0, 0][i]!,
+    previousCents: [120_000, 0, 45_000, 0, 80_000, 299_499, 0][i]!,
+  })),
+  year: [
+    { label: 'Jan', currentCents: 520_000, previousCents: 420_000 },
+    { label: 'Feb', currentCents: null, previousCents: 3_000_000 },
+  ],
+}
+
 const detailsPath = (id: string) => `/details/${id}`
 
-type OverviewApi = Pick<FinbankApi, 'listAccounts' | 'getBalanceSummary' | 'listBills' | 'listTransactions'>
+type OverviewApi = Pick<FinbankApi, 'listAccounts' | 'getBalanceSummary' | 'listBills' | 'listTransactions' | 'getComparison'>
 
 const listBills = (list: Bill[] = bills) =>
   vi.fn(({ limit }: ListBillsInput = {}) => Promise.resolve(structuredClone(list.slice(0, limit))))
@@ -123,6 +139,7 @@ function seededApi(list: Account[] = accounts, totalBalanceCents = fixtureTotalC
     getBalanceSummary: () => Promise.resolve({ totalBalanceCents }),
     listBills: listBills(),
     listTransactions: listTransactions(),
+    getComparison: vi.fn((g: ComparisonGranularity) => Promise.resolve(structuredClone(comparison[g]))),
   }
 }
 
@@ -164,7 +181,7 @@ const next = () => within(carousel()).getByRole('button', { name: 'Next' })
 const prev = () => within(carousel()).getByRole('button', { name: 'Previous' })
 
 describe('OverviewPage', () => {
-  it('places Total Balance, Upcoming Bill and Recent Transaction in the grid, leaving the later slots empty', async () => {
+  it('places Total Balance, Upcoming Bill, Recent Transaction and Statistics in the grid, leaving the later slots empty', async () => {
     renderPage(seededApi())
     expect(screen.getByRole('heading', { level: 1, name: 'Overview' })).toHaveClass('sr-only')
     expect(screen.getByTestId('overview-grid')).toHaveClass('grid-cols-3')
@@ -173,15 +190,17 @@ describe('OverviewPage', () => {
       'Total Balance',
       'Upcoming Bill',
       'Recent Transaction',
+      'Statistics',
     ])
     expect(screen.getByTestId('slot-total-balance')).toHaveClass('col-start-1', 'row-start-1')
     expect(screen.getByTestId('slot-upcoming-bill')).toHaveClass('col-start-3', 'row-start-1')
     expect(screen.getByTestId('slot-recent-transaction')).toHaveClass('col-start-1', 'row-start-2', 'row-span-2')
+    expect(screen.getByTestId('slot-statistics')).toHaveClass('col-span-2', 'col-start-2', 'row-start-2')
     // Row-1 cards stretch to equal height.
     expect(billCard()).toHaveClass('h-full')
     expect(card()).toHaveClass('h-full')
-    // The Goals, Statistics and Expenses Breakdown slots stay empty.
-    expect(screen.getByTestId('overview-grid').children).toHaveLength(3)
+    // The Goals and Expenses Breakdown slots stay empty.
+    expect(screen.getByTestId('overview-grid').children).toHaveLength(4)
   })
 
   it('shows skeletons while loading', () => {
@@ -409,6 +428,44 @@ describe('OverviewPage', () => {
       fireEvent.click(link)
       expect(await screen.findByText('transactions page')).toBeInTheDocument()
       expect(router.state.location.pathname).toBe('/all-txns')
+    })
+  })
+
+  describe('Statistics', () => {
+    const stats = () => screen.getByRole('region', { name: 'Statistics' })
+    const axisLabels = (axis: 'x' | 'y') =>
+      [...within(stats()).getByTestId('comparison-chart').querySelectorAll(`.recharts-${axis}Axis-tick-labels .recharts-cartesian-axis-tick-value`)].map(
+        (t) => t.textContent,
+      )
+
+    it('defaults to Weekly Comparison: 14 Sun to 20 Sat on the fitted ladder', async () => {
+      const { api } = renderPage()
+      expect(within(stats()).getByRole('button', { name: /Comparison period/ })).toHaveTextContent('Weekly Comparison')
+      expect(within(stats()).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['This week', 'Last week'])
+      expect(await within(stats()).findByText(/^Daily expenses/)).toHaveClass('sr-only')
+      expect(api.getComparison).toHaveBeenCalledWith('week')
+      expect(api.getComparison).not.toHaveBeenCalledWith('year')
+      await waitFor(() => expect(axisLabels('x')).toEqual(weekLabels))
+      expect(axisLabels('y')).toEqual(['$0', '$200', '$1k', '$5k', '$25k'])
+    })
+
+    it('switches to Monthly Comparison and refits the axis', async () => {
+      renderPage()
+      await within(stats()).findByText(/^Daily expenses/)
+      fireEvent.click(within(stats()).getByRole('button', { name: /Comparison period/ }))
+      fireEvent.click(screen.getByRole('option', { name: 'Monthly Comparison' }))
+      expect(await within(stats()).findByText(/^Monthly expenses/)).toBeInTheDocument()
+      expect(within(stats()).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['This Year', 'Last Year'])
+      await waitFor(() => expect(axisLabels('x')).toEqual(['Jan', 'Feb']))
+      // $30,000 last February is over $25k, so the ladder moves up to k = 3.
+      expect(axisLabels('y')).toEqual(['$0', '$2k', '$10k', '$50k', '$250k'])
+    })
+
+    it('shows its error with Retry without affecting the other widgets', async () => {
+      renderPage({ getComparison: () => Promise.reject(new ApiError('UNKNOWN', 'Could not load the comparison.')) })
+      expect(await within(stats()).findByRole('alert')).toHaveTextContent('Could not load the comparison.')
+      expect(await within(card()).findByText('$240,399')).toBeInTheDocument()
+      expect(within(card()).queryByRole('alert')).not.toBeInTheDocument()
     })
   })
 })

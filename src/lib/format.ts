@@ -48,8 +48,11 @@ const COMPACT_STEPS = [
 ] as const
 
 /**
- * Abbreviated whole dollars, truncated (never rounded up): $12,500 → "12K" (gauge) or "$12k"
- * (axis). Values under $1,000 print whole dollars: "150" / "$150".
+ * Abbreviated dollars, truncated (never rounded up). 'gauge' keeps whole units: $12,500 → "12K".
+ * 'axis' keeps one truncated decimal for non-whole thousands or millions, so the fitted ladder
+ * ticks label exactly ($2,500 → "$2.5k", $2,000 → "$2k"); other values are truncated to one
+ * decimal ($12,999 → "$12.9k", $1,250 → "$1.2k"). Values under $1,000 print whole dollars:
+ * "150" / "$150".
  */
 export function formatCompact(cents: number, mode: CompactMode): string {
   assertCents(cents)
@@ -58,10 +61,13 @@ export function formatCompact(cents: number, mode: CompactMode): string {
   }
   const dollars = Math.floor(Math.abs(cents) / 100)
   const step = COMPACT_STEPS.find((s) => dollars >= s.size)
-  const value = step ? Math.floor(dollars / step.size) : dollars
-  const suffix = step ? step[mode] : ''
   const currency = mode === 'axis' ? '$' : ''
-  return `${signOf(cents, value)}${currency}${value}${suffix}`
+  if (!step) return `${signOf(cents, dollars)}${currency}${dollars}`
+  const whole = Math.floor(dollars / step.size)
+  // Tenths of a unit, truncated: integer arithmetic only.
+  const tenth = mode === 'axis' ? Math.floor(((dollars % step.size) * 10) / step.size) : 0
+  const value = tenth === 0 ? String(whole) : `${whole}.${tenth}`
+  return `${signOf(cents, whole)}${currency}${value}${step[mode]}`
 }
 
 /**

@@ -843,6 +843,37 @@ describe('getComparison', () => {
     expect(points.map((p) => p.currentCents)).toEqual([6_800, 4_520, 0, 26_700, 0, 0, null])
   })
 
+  it('week: each day equals the categorized expenses Transactions and Account Details list for it', async () => {
+    const api = make()
+    async function listed(input: Omit<ListTransactionsInput, 'cursor' | 'limit'>) {
+      const items: Transaction[] = []
+      let cursor: string | undefined
+      for (let page = 0; page < 100; page++) {
+        const result = await api.listTransactions({ ...input, limit: 50, cursor })
+        items.push(...result.items)
+        if (result.nextCursor === null) return items
+        cursor = result.nextCursor
+      }
+      throw new Error('listTransactions never ran out of pages')
+    }
+    const dayTotal = (items: readonly Transaction[], day: string) =>
+      items.filter((t) => t.category !== undefined && t.date === day).reduce((total, t) => total + t.amountCents, 0)
+    const expenses = await listed({ kind: 'expense' })
+    const byAccount = await Promise.all((await api.listAccounts()).map((a) => listed({ accountId: a.id, kind: 'expense' })))
+    const week = await api.getComparison('week')
+    week.forEach((point, i) => {
+      const day = `2023-05-${String(14 + i).padStart(2, '0')}`
+      const previous = `2023-05-${String(7 + i).padStart(2, '0')}`
+      if (point.currentCents !== null) {
+        expect(point.currentCents).toBe(dayTotal(expenses, day))
+        expect(point.currentCents).toBe(byAccount.reduce((total, items) => total + dayTotal(items, day), 0))
+      }
+      expect(point.previousCents).toBe(dayTotal(expenses, previous))
+    })
+    expect(week.map((p) => p.currentCents)).toEqual([6_800, 4_520, 0, 26_700, 0, 0, null])
+    expect(Math.max(...week.map((p) => p.previousCents))).toBe(dayTotal(expenses, '2023-05-12'))
+  })
+
   it('counts pending, leaves out revenue and untagged expenses', async () => {
     const base = seed.transactions.find((t) => t.kind === 'expense')!
     const { category: _category, ...untagged } = { ...base, id: 'u', date: '2023-05-15', amountCents: 9_999 }

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useComparison } from '../../../api/hooks/useComparison.ts'
 import type { ComparisonGranularity, ComparisonPoint } from '../../../api/types.ts'
+import { fitLadderTicks } from '../../../lib/chartScale.ts'
 import { formatMoney } from '../../../lib/format.ts'
 import { AsyncSection } from '../../../ui/AsyncSection.tsx'
 import { Card } from '../../../ui/Card.tsx'
@@ -11,6 +12,8 @@ import { Dropdown } from '../../../ui/Dropdown.tsx'
 export type ComparisonChartCardProps = {
   /** The period shown first: `'year'` on Expenses (Monthly), `'week'` on Overview (Weekly). */
   defaultGranularity: ComparisonGranularity
+  /** The section title above the card, in `Card`'s title style ("Statistics" on Overview). */
+  title?: string
 }
 
 const OPTIONS = [
@@ -36,16 +39,31 @@ function summarize(points: readonly ComparisonPoint[], granularity: ComparisonGr
 }
 
 /**
+ * The axis ladder fitted to the points as shown: the largest value of both series, nulls ignored.
+ * Presentation only; the series values are drawn as given.
+ */
+function fittedTicks(points: readonly ComparisonPoint[]): readonly number[] {
+  let max = 0
+  for (const point of points) max = Math.max(max, point.previousCents, point.currentCents ?? 0)
+  return fitLadderTicks(max)
+}
+
+function FittedComparisonChart({ points, granularity }: { points: readonly ComparisonPoint[]; granularity: ComparisonGranularity }) {
+  const ticksCents = useMemo(() => fittedTicks(points), [points])
+  return <ComparisonBarChart points={points} ticksCents={ticksCents} summary={summarize(points, granularity)} />
+}
+
+/**
  * The Expenses Comparison card (109. Expenses.png): a Monthly/Weekly dropdown and the legend on one
  * row, above the grouped bar chart. The selection is local state; the series comes from the
- * adapter as is.
+ * adapter as is, on the ladder fitted to the shown series. Overview reuses it as Statistics.
  */
-export function ComparisonChartCard({ defaultGranularity }: ComparisonChartCardProps) {
+export function ComparisonChartCard({ defaultGranularity, title }: ComparisonChartCardProps) {
   const [granularity, setGranularity] = useState<ComparisonGranularity>(defaultGranularity)
   const query = useComparison(granularity)
   const period = PERIODS[granularity]
   return (
-    <Card>
+    <Card title={title}>
       <div className="flex h-6 items-center justify-between gap-4">
         <Dropdown
           label="Comparison period"
@@ -62,7 +80,7 @@ export function ComparisonChartCard({ defaultGranularity }: ComparisonChartCardP
         />
       </div>
       <AsyncSection query={query} emptyMessage="No expenses to compare">
-        {(points) => <ComparisonBarChart points={points} summary={summarize(points, granularity)} />}
+        {(points) => <FittedComparisonChart points={points} granularity={granularity} />}
       </AsyncSection>
     </Card>
   )

@@ -65,6 +65,44 @@ describe('routing and session guard', () => {
     expect(within(housing).getByText('$2,023.00')).toBeInTheDocument()
   })
 
+  it('shows the same Monthly series and fitted ladder on Overview Statistics as on Expenses', async () => {
+    const chartOf = async (region: HTMLElement) => {
+      const summary = (await within(region).findByText(/^Monthly expenses/)).textContent
+      const labels = (axis: 'x' | 'y') =>
+        [
+          ...within(region)
+            .getByTestId('comparison-chart')
+            .querySelectorAll(`.recharts-${axis}Axis-tick-labels .recharts-cartesian-axis-tick-value`),
+        ].map((t) => t.textContent)
+      await waitFor(() => expect(labels('x')).toHaveLength(12))
+      const bars = [...within(region).getByTestId('comparison-chart').querySelectorAll('.recharts-bar-rectangle path')].map(
+        (bar) => [bar.getAttribute('fill'), bar.getAttribute('height')],
+      )
+      return { summary, x: labels('x'), y: labels('y'), bars }
+    }
+
+    const api = await signedInApi()
+    const overview = renderAt(routes.overview, api)
+    const stats = await screen.findByRole('region', { name: 'Statistics' })
+    expect(within(stats).getByRole('button', { name: /Comparison period/ })).toHaveTextContent('Weekly Comparison')
+    await waitFor(() =>
+      expect(
+        [...stats.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((t) => t.textContent),
+      ).toEqual(['$0', '$200', '$1k', '$5k', '$25k']),
+    )
+    fireEvent.click(within(stats).getByRole('button', { name: /Comparison period/ }))
+    fireEvent.click(screen.getByRole('option', { name: 'Monthly Comparison' }))
+    const fromOverview = await chartOf(stats)
+    overview.unmount()
+
+    renderAt(routes.expenses, api)
+    const comparison = await screen.findByRole('region', { name: 'Expenses Comparison' })
+    const fromExpenses = await chartOf(comparison)
+    expect(fromExpenses.y).toEqual(['$0', '$200', '$1k', '$5k', '$25k'])
+    expect(fromExpenses.bars.length).toBeGreaterThan(12)
+    expect(fromOverview).toEqual(fromExpenses)
+  })
+
   it('opens Account Details from a Balances card, with Balances still active in the nav', async () => {
     const { router } = renderAt(routes.balances, await signedInApi())
     const checking = await screen.findByRole('article', { name: 'Checking' })
