@@ -20,6 +20,7 @@ import { useRequestPasswordReset } from './useRequestPasswordReset.ts'
 import { useSession } from './useSession.ts'
 import { useSignup } from './useSignup.ts'
 import { useToday } from './useToday.ts'
+import { useTransactions } from './useTransactions.ts'
 
 function setup() {
   const api = createMockApi({
@@ -69,6 +70,30 @@ describe('query hooks', () => {
     await waitFor(() => expect(result.current.summary.data).toEqual({ totalBalanceCents: 24_039_900 }))
     expect(queryClient.getQueryData(qk.accounts())).toEqual(seed.accounts)
     expect(queryClient.getQueryData(qk.balanceSummary())).toEqual({ totalBalanceCents: 24_039_900 })
+  })
+
+  it('useTransactions chains pages through nextCursor, keyed without the cursor', async () => {
+    const { wrapper, queryClient, api } = setup()
+    const spy = vi.spyOn(api, 'listTransactions')
+    const { result } = renderHook(() => useTransactions({ kind: 'expense', limit: 10 }), { wrapper })
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(1))
+    expect(spy).toHaveBeenLastCalledWith({ kind: 'expense', accountId: undefined, limit: 10, cursor: undefined })
+    const first = result.current.data!.pages[0]!
+    expect(first.items).toHaveLength(10)
+    expect(first.items[0]!.item).toBe('GTR 5')
+    expect(result.current.hasNextPage).toBe(true)
+
+    await act(() => result.current.fetchNextPage())
+    expect(spy).toHaveBeenLastCalledWith({ kind: 'expense', accountId: undefined, limit: 10, cursor: first.nextCursor })
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2))
+    expect(queryClient.getQueryData(qk.transactions({ kind: 'expense', limit: 10 }))).toBeDefined()
+
+    while (result.current.hasNextPage) await act(() => result.current.fetchNextPage())
+    const ids = result.current.data!.pages.flatMap((page) => page.items.map((t) => t.id))
+    const expenses = seed.transactions.filter((t) => t.kind === 'expense')
+    expect(ids).toHaveLength(expenses.length)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(result.current.data!.pages.at(-1)!.nextCursor).toBeNull()
   })
 
   it('useSession is null when signed out', async () => {

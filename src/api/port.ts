@@ -3,9 +3,11 @@ import type {
   BalanceSummary,
   GoogleLoginInput,
   IsoDate,
+  ListTransactionsInput,
   LoginInput,
   Session,
   SignupInput,
+  TransactionPage,
   UserProfile,
 } from './types.ts'
 
@@ -24,6 +26,11 @@ export interface FinbankApi {
   getBalanceSummary(): Promise<BalanceSummary>
   /** Removes an account and persists it. An unknown id resolves as a no-op (idempotent). */
   removeAccount(id: string): Promise<void>
+  /**
+   * One page of transactions, newest first (equal dates keep stored order), optionally filtered
+   * by kind and account. A bad `limit` or cursor rejects with `VALIDATION`.
+   */
+  listTransactions(input: ListTransactionsInput): Promise<TransactionPage>
 }
 
 /** Every port method name, for tests that must cover the whole port. */
@@ -39,6 +46,7 @@ export const FINBANK_API_METHODS = [
   'listAccounts',
   'getBalanceSummary',
   'removeAccount',
+  'listTransactions',
 ] as const satisfies readonly (keyof FinbankApi)[]
 
 // Compile-time guard: adding a port method without listing it above fails `tsc`.

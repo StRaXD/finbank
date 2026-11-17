@@ -1,4 +1,6 @@
 // The only home of domain types (AD-2). Later epics add their entities here.
+import type { IsoDate } from '../lib/dates.ts'
+
 export type { IsoDate, YearMonth } from '../lib/dates.ts'
 
 export type ApiErrorCode = 'VALIDATION' | 'STORAGE_FULL' | 'NOT_IMPLEMENTED' | 'UNKNOWN'
@@ -68,4 +70,56 @@ export type SignupInput = {
   name: string
   email: string
   password: string
+}
+
+/** Expense categories (Epic 3 sums expenses per category). Only expenses carry one. */
+export type ExpenseCategoryId = 'housing' | 'food' | 'transportation' | 'entertainment' | 'shopping' | 'others'
+
+export type TransactionKind = 'revenue' | 'expense'
+
+/** The closed set of transaction icon keys; `ui/icons.ts` maps each to a glyph. */
+export type TransactionIcon =
+  | 'gadget'
+  | 'shopping'
+  | 'food'
+  | 'entertainment'
+  | 'transport'
+  | 'housing'
+  | 'salary'
+  | 'transfer'
+  | 'other'
+
+/**
+ * One transaction on one account. `amountCents` is a positive magnitude (revenue and expense look
+ * the same). `paymentMethod` follows the account type and `type` follows `kind`.
+ */
+export type Transaction = {
+  id: string
+  accountId: string
+  item: string
+  shop: string
+  kind: TransactionKind
+  category?: ExpenseCategoryId
+  paymentMethod: string
+  status: 'complete' | 'pending'
+  type: 'credit' | 'debit'
+  receiptId: string
+  amountCents: number
+  date: IsoDate
+  icon: TransactionIcon
+}
+
+/** One page of transactions. `nextCursor` is opaque, and `null` on the last page. */
+export type TransactionPage = {
+  items: Transaction[]
+  nextCursor: string | null
+}
+
+export type ListTransactionsInput = {
+  kind?: TransactionKind
+  accountId?: string
+  /** From the previous page's `nextCursor`; omitted for the first page. */
+  cursor?: string
+  /** Page size, an integer from 1 to 50. */
+  limit: number
 }

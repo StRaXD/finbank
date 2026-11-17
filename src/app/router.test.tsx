@@ -43,7 +43,7 @@ describe('routing and session guard', () => {
     const cases = [
       [routes.balances, 'Balances'],
       [routes.accountDetails('acc_1'), 'Account Details'],
-      [routes.transactions, 'Transactions'],
+      [routes.transactions, 'Recent Transaction'],
       [routes.bills, 'Bills'],
       [routes.expenses, 'Expenses'],
       [routes.goals, 'Goals'],
@@ -82,6 +82,31 @@ describe('routing and session guard', () => {
     expect(screen.queryByRole('article', { name: 'Checking' })).not.toBeInTheDocument()
     expect(screen.getAllByTestId('account-card')).toHaveLength(4)
     await expect(createTestApi().listAccounts()).resolves.toHaveLength(4)
+  })
+
+  it('shows Transactions newest first, and drops a removed account’s rows', async () => {
+    const { router } = renderAt(routes.transactions, await signedInApi())
+    const table = await screen.findByRole('table', { name: 'Transactions' })
+    const firstItems = () =>
+      within(screen.getByRole('table')).getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell')[0]!.textContent)
+    expect(within(table).getAllByRole('row')).toHaveLength(11)
+    expect(firstItems().slice(0, 7)).toEqual(['GTR 5', 'Polo shirt', 'Biriyani', 'Movie ticket', 'Taxi fare', 'Pizza', 'Keyboard'])
+
+    await act(() => router.navigate(routes.balances))
+    const credit = await screen.findByRole('article', { name: 'Credit Card' })
+    fireEvent.click(within(credit).getByRole('button', { name: 'Remove' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Remove account?' })).getByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    await act(() => router.navigate(routes.transactions))
+    await screen.findByRole('table', { name: 'Transactions' })
+    await waitFor(() => expect(firstItems()).not.toContain('GTR 5'))
+    const payments = within(screen.getByRole('table'))
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => within(row).getAllByRole('cell')[3]!.textContent)
+    expect(payments).toHaveLength(10)
+    expect(payments).not.toContain('Credit Card')
   })
 
   it('redirects an unknown path to Overview', async () => {

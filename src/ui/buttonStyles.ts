@@ -4,7 +4,9 @@ export type ButtonVariant = 'primary' | 'outline' | 'text' | 'google'
 export type ButtonSize = 'md' | 'sm'
 
 // Boxed variants share the grey disabled look of the grey "Login" in Components-1.png.
-const boxedDisabled = 'disabled:border-transparent disabled:bg-disabled disabled:text-muted'
+// `aria-disabled` gets the same look, for buttons that must keep focus while busy (LoadMore).
+const boxedDisabled =
+  'disabled:border-transparent disabled:bg-disabled disabled:text-muted aria-disabled:cursor-not-allowed aria-disabled:border-transparent aria-disabled:bg-disabled aria-disabled:text-muted'
 
 const variants: Record<ButtonVariant, string> = {
   primary: `border border-transparent bg-primary font-bold text-white enabled:hover:brightness-90 ${boxedDisabled}`,

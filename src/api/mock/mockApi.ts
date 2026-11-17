@@ -7,14 +7,21 @@ import {
   ApiError,
   type BalanceSummary,
   type CardNetwork,
+  type ExpenseCategoryId,
   type GoogleLoginInput,
   type IsoDate,
+  type ListTransactionsInput,
   type LoginInput,
   type Session,
   type SignupInput,
+  type Transaction,
+  type TransactionIcon,
+  type TransactionKind,
+  type TransactionPage,
   type UserProfile,
 } from '../types.ts'
 import { MOCK_STATE_VERSION, MOCK_USER_ID, type MockState, seedState } from './seed.ts'
+import { PAYMENT_METHOD_BY_ACCOUNT_TYPE } from './seedTransactions.ts'
 
 export const MOCK_STORAGE_KEY = 'finbank:mock:v1'
 export const SESSION_STORAGE_KEY = 'finbank:session'
@@ -188,6 +195,125 @@ function normalizeAccounts(value: unknown, fallback: Account[]): Account[] {
   return accounts
 }
 
+const TRANSACTION_KINDS: readonly TransactionKind[] = ['revenue', 'expense']
+const EXPENSE_CATEGORIES: readonly ExpenseCategoryId[] = [
+  'housing',
+  'food',
+  'transportation',
+  'entertainment',
+  'shopping',
+  'others',
+]
+const TRANSACTION_ICONS: readonly TransactionIcon[] = [
+  'gadget',
+  'shopping',
+  'food',
+  'entertainment',
+  'transport',
+  'housing',
+  'salary',
+  'transfer',
+  'other',
+]
+const TRANSACTION_STATUSES: readonly Transaction['status'][] = ['complete', 'pending']
+
+/** A shape-checked transaction, or `null`. `type` must follow `kind`; only expenses carry a category. */
+function normalizeTransaction(value: unknown): Transaction | null {
+  if (!isPlainObject(value)) return null
+  const { id, accountId, item, shop, kind, category, paymentMethod, status, type, receiptId, amountCents, date, icon } =
+    value
+  if (typeof id !== 'string' || id === '') return null
+  if (typeof accountId !== 'string' || accountId === '') return null
+  if (typeof item !== 'string' || typeof shop !== 'string') return null
+  if (!TRANSACTION_KINDS.includes(kind as TransactionKind)) return null
+  if (type !== (kind === 'revenue' ? 'credit' : 'debit')) return null
+  if (kind === 'expense') {
+    if (category != null && !EXPENSE_CATEGORIES.includes(category as ExpenseCategoryId)) return null
+  } else if (category != null) {
+    return null
+  }
+  if (typeof paymentMethod !== 'string' || paymentMethod === '') return null
+  if (!TRANSACTION_STATUSES.includes(status as Transaction['status'])) return null
+  if (typeof receiptId !== 'string' || receiptId === '') return null
+  if (typeof amountCents !== 'number' || !Number.isSafeInteger(amountCents) || amountCents <= 0) return null
+  const isoDate = validIsoDate(date)
+  if (!isoDate) return null
+  if (!TRANSACTION_ICONS.includes(icon as TransactionIcon)) return null
+  // Same key order as the seed builder, so a clean stored entry round-trips byte for byte.
+  const transaction: Transaction = {
+    id,
+    accountId,
+    item,
+    shop,
+    kind: kind as TransactionKind,
+    paymentMethod,
+    status: status as Transaction['status'],
+    type: type as Transaction['type'],
+    receiptId,
+    amountCents,
+    date: isoDate,
+    icon: icon as TransactionIcon,
+  }
+  if (category != null) transaction.category = category as ExpenseCategoryId
+  return transaction
+}
+
+/**
+ * A non-array value is replaced by the seed transactions. Invalid entries, repeated ids, orphans
+ * (an `accountId` not in `accounts`) and rows whose payment method disagrees with their account's
+ * type are dropped. Run after the accounts are normalized.
+ */
+function normalizeTransactions(value: unknown, fallback: Transaction[], accounts: Account[]): Transaction[] {
+  const accountTypes = new Map(accounts.map((account) => [account.id, account.type]))
+  const seen = new Set<string>()
+  const transactions: Transaction[] = []
+  for (const entry of Array.isArray(value) ? value : fallback) {
+    const transaction = normalizeTransaction(entry)
+    if (!transaction || seen.has(transaction.id)) continue
+    const accountType = accountTypes.get(transaction.accountId)
+    if (!accountType || transaction.paymentMethod !== PAYMENT_METHOD_BY_ACCOUNT_TYPE[accountType]) continue
+    seen.add(transaction.id)
+    transactions.push(transaction)
+  }
+  return transactions
+}
+
+const MAX_PAGE_SIZE = 50
+
+/** The offset a cursor holds. A missing cursor is the first page; anything unparseable is `null`. */
+function parseCursor(cursor: unknown): number | null {
+  if (cursor === undefined || cursor === null) return 0
+  if (typeof cursor !== 'string' || !/^o(0|[1-9]\d{0,8})$/.test(cursor)) return null
+  return Number(cursor.slice(1))
+}
+
+const cursorAt = (offset: number) => `o${offset}`
+
+/** Filters, orders newest first (stable, so equal dates keep stored order) and pages. */
+function pageTransactions(all: readonly Transaction[], input: ListTransactionsInput): TransactionPage {
+  const limit = input?.limit
+  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) {
+    throw new ApiError('VALIDATION', `The page size must be a whole number from 1 to ${MAX_PAGE_SIZE}.`)
+  }
+  const offset = parseCursor(input.cursor)
+  if (offset === null) throw new ApiError('VALIDATION', 'The page cursor is not valid.')
+  if (input.kind !== undefined && !TRANSACTION_KINDS.includes(input.kind)) {
+    throw new ApiError('VALIDATION', 'The transaction kind is not valid.')
+  }
+  const filtered = all
+    .filter(
+      (t) =>
+        (input.kind === undefined || t.kind === input.kind) &&
+        (input.accountId === undefined || t.accountId === input.accountId),
+    )
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+  const end = offset + limit
+  return {
+    items: structuredClone(filtered.slice(offset, end)),
+    nextCursor: end < filtered.length ? cursorAt(end) : null,
+  }
+}
+
 /**
  * Reads the persisted state. A missing, unparseable or wrong-version entry falls back to the
  * seed (wrong versions are reseeded, not migrated). Missing or `null` top-level keys are filled
@@ -214,6 +340,7 @@ function loadState(storage: StorageLike): { state: MockState; dirty: boolean } {
   state.today = validIsoDate(state.today) ?? seeded.today
   state.profile = normalizeProfile(state.profile, seeded.profile)
   state.accounts = normalizeAccounts(state.accounts, seeded.accounts)
+  state.transactions = normalizeTransactions(state.transactions, seeded.transactions, state.accounts as Account[])
   return { state: state as MockState, dirty: JSON.stringify(state) !== JSON.stringify(parsed) }
 }
 
@@ -342,11 +469,17 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
       call(() => {
         const prev = state()
         if (!prev.accounts.some((account) => account.id === id)) return
-        // Story 2.3: also drop this account's transactions here (AD-6).
-        const next: MockState = { ...prev, accounts: prev.accounts.filter((account) => account.id !== id) }
+        // The account and its transactions go in the same single write (AD-6).
+        const next: MockState = {
+          ...prev,
+          accounts: prev.accounts.filter((account) => account.id !== id),
+          transactions: prev.transactions.filter((transaction) => transaction.accountId !== id),
+        }
         // Write first: a failed write leaves both memory and storage unchanged.
         writeItem(storage, MOCK_STORAGE_KEY, JSON.stringify(next))
         current = next
       }),
+
+    listTransactions: (input: ListTransactionsInput) => call(() => pageTransactions(state().transactions, input)),
   }
 }

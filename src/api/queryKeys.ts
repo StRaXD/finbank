@@ -1,6 +1,9 @@
 // Hierarchical query keys and the single invalidation map (AD-7).
 import { hashKey, type QueryClient } from '@tanstack/react-query'
-import type { Session } from './types.ts'
+import type { ListTransactionsInput, Session } from './types.ts'
+
+/** The cache identity of a transaction list. The cursor is never part of the key. */
+export type TransactionsFilter = Omit<ListTransactionsInput, 'cursor'>
 
 const root = ['finbank'] as const
 
@@ -11,6 +14,11 @@ export const qk = {
   profile: () => [...root, 'profile'] as const,
   accounts: () => [...root, 'accounts'] as const,
   balanceSummary: () => [...root, 'balanceSummary'] as const,
+  /** Without a filter: the prefix of every transaction list. */
+  transactions: (filter?: TransactionsFilter) =>
+    filter
+      ? ([...root, 'transactions', { kind: filter.kind, accountId: filter.accountId, limit: filter.limit }] as const)
+      : ([...root, 'transactions'] as const),
 }
 
 /** `'all'` clears the whole cache; otherwise the listed key prefixes are invalidated. */
@@ -22,8 +30,7 @@ export const invalidationMap = {
   loginWithGoogle: 'all',
   signup: 'all',
   logout: 'all',
-  // Story 2.3 adds qk.transactions() here (AD-6).
-  removeAccount: [qk.accounts(), qk.balanceSummary()],
+  removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions()],
 } as const satisfies Record<string, InvalidationTarget>
 
 export type InvalidatingMutation = keyof typeof invalidationMap

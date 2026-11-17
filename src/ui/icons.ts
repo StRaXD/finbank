@@ -1,24 +1,34 @@
 // The single icon map: ui components never import lucide-react directly.
+import type { LucideIcon } from 'lucide-react'
 import {
   ArrowLeftRight,
+  Banknote,
   BanknoteArrowUp,
   Bell,
+  CarTaxiFront,
   Check,
   ChevronRight,
   ChevronsRight,
+  Circle,
+  Clapperboard,
   Crosshair,
   EllipsisVertical,
   Eye,
   EyeOff,
+  Gamepad2,
+  House,
   LayoutGrid,
   LogIn,
   Pencil,
   Receipt,
   Search,
   Settings,
+  ShoppingBag,
+  Utensils,
   Wallet,
   X,
 } from 'lucide-react'
+import type { TransactionIcon } from '../api/types.ts'
 
 export const icons = {
   eye: Eye,
@@ -45,3 +55,16 @@ export const icons = {
 } as const
 
 export type IconName = keyof typeof icons
+
+/** Transaction item glyphs (closest lucide matches to 107. Transactions.png). */
+export const transactionIcons: Record<TransactionIcon, LucideIcon> = {
+  gadget: Gamepad2,
+  shopping: ShoppingBag,
+  food: Utensils,
+  entertainment: Clapperboard,
+  transport: CarTaxiFront,
+  housing: House,
+  salary: Banknote,
+  transfer: ArrowLeftRight,
+  other: Circle,
+}

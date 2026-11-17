@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError } from '../types.ts'
+import type { FinbankApi } from '../port.ts'
+import { ApiError, type ListTransactionsInput, type Transaction } from '../types.ts'
 import {
   createMemoryStorage,
   createMockApi,
@@ -9,6 +10,7 @@ import {
   type StorageLike,
 } from './mockApi.ts'
 import { seed } from './seed.ts'
+import { buildSeedTransactions } from './seedTransactions.ts'
 
 const stores = () => ({ local: localStorage, session: sessionStorage })
 const make = (options: MockApiOptions = {}) =>
@@ -35,7 +37,13 @@ const throwingStorage = (error: unknown = new DOMException('quota', 'QuotaExceed
   removeItem: () => {},
 })
 
-const seedJson = () => ({ version: 1, today: '2023-05-19', profile: seed.profile, accounts: seed.accounts })
+const seedJson = () => ({
+  version: 1,
+  today: '2023-05-19',
+  profile: seed.profile,
+  accounts: seed.accounts,
+  transactions: seed.transactions,
+})
 
 beforeEach(() => {
   localStorage.clear()
@@ -58,7 +66,7 @@ describe('seed', () => {
 
   it('writes the seed through to storage as version 1 on first use', async () => {
     await make().getToday()
-    expect(stored()).toEqual({ version: 1, today: '2023-05-19', profile: seed.profile, accounts: seed.accounts })
+    expect(stored()).toEqual(seedJson())
   })
 
   it('hands out copies, so callers cannot mutate adapter state', async () => {
@@ -76,6 +84,7 @@ describe('persistence', () => {
       today: '2024-02-29',
       profile: { ...seed.profile, fullName: 'Someone Else' },
       accounts: [seed.accounts[2]],
+      transactions: seed.transactions.filter((t) => t.accountId === 'acc_3'),
     }
     localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(custom))
     const api = make()
@@ -98,7 +107,7 @@ describe('persistence', () => {
     if (raw !== null) localStorage.setItem(MOCK_STORAGE_KEY, raw)
     const api = make()
     await expect(api.getToday()).resolves.toBe('2023-05-19')
-    expect(stored()).toEqual({ version: 1, today: '2023-05-19', profile: seed.profile, accounts: seed.accounts })
+    expect(stored()).toEqual(seedJson())
   })
 
   it('backfills missing top-level keys from the seed and keeps the rest', async () => {
@@ -106,7 +115,7 @@ describe('persistence', () => {
     const api = make()
     await expect(api.getToday()).resolves.toBe('2024-03-01')
     await expect(api.getProfile()).resolves.toEqual(seed.profile)
-    expect(stored()).toEqual({ version: 1, today: '2024-03-01', profile: seed.profile, accounts: seed.accounts })
+    expect(stored()).toEqual({ ...seedJson(), today: '2024-03-01' })
   })
 
   it.each([
@@ -266,6 +275,25 @@ describe('removeAccount', () => {
     expect(stored().accounts.map((a: { id: string }) => a.id)).not.toContain('acc_2')
   })
 
+  it('removes the account and its transactions in one write, leaving the other balances as stored', async () => {
+    const api = make()
+    await api.listAccounts()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await api.removeAccount('acc_1')
+    expect(setItem).toHaveBeenCalledTimes(1)
+    setItem.mockRestore()
+    const { items } = await api.listTransactions({ limit: 50 })
+    expect(items.some((t) => t.accountId === 'acc_1')).toBe(false)
+    await expect(api.listTransactions({ accountId: 'acc_1', limit: 10 })).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    })
+    expect(stored().transactions).toEqual(seed.transactions.filter((t) => t.accountId !== 'acc_1'))
+    expect(stored().accounts).toEqual(seed.accounts.filter((a) => a.id !== 'acc_1'))
+    const fresh = await make().listTransactions({ limit: 50 })
+    expect(fresh.items.some((t) => t.accountId === 'acc_1')).toBe(false)
+  })
+
   it('keeps the account removed for a new adapter over the same storage', async () => {
     await make().removeAccount('acc_2')
     const accounts = await make().listAccounts()
@@ -315,6 +343,302 @@ describe('removeAccount', () => {
     await expect(api.getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 0 })
     expect(stored().accounts).toEqual([])
     await expect(make().listAccounts()).resolves.toEqual([])
+  })
+})
+
+describe('seed transactions', () => {
+  const txns = seed.transactions
+  const accountType = new Map(seed.accounts.map((a) => [a.id, a.type]))
+  const payment = {
+    creditCard: 'Credit Card',
+    checking: 'Debit Card',
+    savings: 'Bank Transfer',
+    investment: 'Bank Transfer',
+    loan: 'Bank Transfer',
+  }
+
+  it('ties every transaction to a seeded account, with payment method and type following the rules', () => {
+    for (const t of txns) {
+      const type = accountType.get(t.accountId)
+      expect(type).toBeDefined()
+      expect(t.paymentMethod).toBe(payment[type!])
+      expect(t.type).toBe(t.kind === 'revenue' ? 'credit' : 'debit')
+      if (t.kind === 'revenue') expect(t).not.toHaveProperty('category')
+      else expect(t.category).toBeDefined()
+      expect(Number.isSafeInteger(t.amountCents) && t.amountCents > 0).toBe(true)
+      expect(t.receiptId).toMatch(/^[0-9A-Za-z]{11}$/)
+      expect(t.date >= '2023-04-01' && t.date <= '2023-05-19').toBe(true)
+    }
+    expect(new Set(txns.map((t) => t.id)).size).toBe(txns.length)
+    expect(txns.map((t) => t.id)).toEqual(txns.map((_, i) => `txn_${i + 1}`))
+  })
+
+  it('gives every account at least 15 transactions and at least one revenue row', () => {
+    for (const account of seed.accounts) {
+      const own = txns.filter((t) => t.accountId === account.id)
+      expect(own.length).toBeGreaterThanOrEqual(15)
+      expect(own.some((t) => t.kind === 'revenue')).toBe(true)
+    }
+  })
+
+  it('has expenses in all six categories in both April and May 2023', () => {
+    for (const month of ['2023-04', '2023-05']) {
+      const categories = new Set(
+        txns.filter((t) => t.kind === 'expense' && t.date.startsWith(month)).map((t) => t.category),
+      )
+      expect([...categories].sort()).toEqual([
+        'entertainment',
+        'food',
+        'housing',
+        'others',
+        'shopping',
+        'transportation',
+      ])
+    }
+  })
+
+  it('is mostly complete, with a few pending', () => {
+    const pending = txns.filter((t) => t.status === 'pending').length
+    expect(pending).toBeGreaterThan(0)
+    expect(pending).toBeLessThan(txns.length / 10)
+  })
+
+  it('is deterministic', () => {
+    expect(buildSeedTransactions(seed.accounts)).toEqual(txns)
+  })
+})
+
+describe('listTransactions', () => {
+  const seven = [
+    ['GTR 5', 'Gadget & Gear', 16_000],
+    ['Polo shirt', 'XL fashions', 2_000],
+    ['Biriyani', 'Hajir Biriyani', 1_200],
+    ['Movie ticket', 'Inox', 1_500],
+    ['Taxi fare', 'Uber', 1_000],
+    ['Pizza', 'Pizza Hit', 2_000],
+    ['Keyboard', 'Gadget & Gear', 3_000],
+  ]
+
+  async function allPages(api: FinbankApi, input: Omit<ListTransactionsInput, 'cursor'>) {
+    const items: Transaction[] = []
+    let cursor: string | undefined
+    let pages = 0
+    for (;;) {
+      const page = await api.listTransactions({ ...input, cursor })
+      items.push(...page.items)
+      pages += 1
+      if (page.nextCursor === null) break
+      cursor = page.nextCursor
+    }
+    return { items, pages }
+  }
+
+  const newestFirst = (items: Transaction[]) => items.every((t, i) => i === 0 || items[i - 1]!.date >= t.date)
+
+  it('returns the 10 newest first, starting with the seven 107 rows on 2023-05-17', async () => {
+    const page = await make().listTransactions({ limit: 10 })
+    expect(page.items).toHaveLength(10)
+    expect(page.nextCursor).toEqual(expect.any(String))
+    expect(page.items.slice(0, 7).map((t) => [t.item, t.shop, t.amountCents])).toEqual(seven)
+    for (const t of page.items.slice(0, 7)) {
+      expect(t).toMatchObject({ date: '2023-05-17', accountId: 'acc_1', paymentMethod: 'Credit Card' })
+    }
+    expect(page.items[0]!.id).toBe('txn_1')
+    expect(page.items.slice(7).every((t) => t.date < '2023-05-17')).toBe(true)
+  })
+
+  it('pages through every transaction exactly once, newest first, ending with a null cursor', async () => {
+    const { items, pages } = await allPages(make(), { limit: 10 })
+    expect(items.map((t) => t.id).sort()).toEqual(seed.transactions.map((t) => t.id).sort())
+    expect(new Set(items.map((t) => t.id)).size).toBe(items.length)
+    expect(pages).toBe(Math.ceil(seed.transactions.length / 10))
+    expect(newestFirst(items)).toBe(true)
+  })
+
+  it('keeps stored order for equal dates', async () => {
+    const { items } = await allPages(make(), { limit: 50 })
+    const storedOrder = seed.transactions.map((t) => t.id)
+    for (let i = 1; i < items.length; i++) {
+      if (items[i - 1]!.date === items[i]!.date) {
+        expect(storedOrder.indexOf(items[i - 1]!.id)).toBeLessThan(storedOrder.indexOf(items[i]!.id))
+      }
+    }
+  })
+
+  it.each(['revenue', 'expense'] as const)('filters by kind %s', async (kind) => {
+    const { items } = await allPages(make(), { kind, limit: 10 })
+    expect(items.length).toBe(seed.transactions.filter((t) => t.kind === kind).length)
+    expect(items.every((t) => t.kind === kind)).toBe(true)
+    expect(newestFirst(items)).toBe(true)
+  })
+
+  it('filters by account', async () => {
+    const api = make()
+    const first = await api.listTransactions({ accountId: 'acc_2', limit: 10 })
+    expect(first.items).toHaveLength(10)
+    expect(first.nextCursor).not.toBeNull()
+    const { items } = await allPages(api, { accountId: 'acc_2', limit: 10 })
+    expect(items.length).toBeGreaterThanOrEqual(15)
+    expect(items.every((t) => t.accountId === 'acc_2')).toBe(true)
+    expect(newestFirst(items)).toBe(true)
+  })
+
+  it('combines the kind and account filters', async () => {
+    const { items } = await allPages(make(), { kind: 'revenue', accountId: 'acc_2', limit: 10 })
+    expect(items.length).toBeGreaterThan(0)
+    expect(items.every((t) => t.kind === 'revenue' && t.accountId === 'acc_2')).toBe(true)
+  })
+
+  it('returns an empty last page for an unknown account', async () => {
+    await expect(make().listTransactions({ accountId: 'nope', limit: 10 })).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    })
+  })
+
+  it.each([
+    ['limit 0', { limit: 0 }],
+    ['limit 51', { limit: 51 }],
+    ['a fractional limit', { limit: 2.5 }],
+    ['a missing limit', {}],
+    ["cursor 'x'", { limit: 10, cursor: 'x' }],
+    ['a negative cursor', { limit: 10, cursor: '-1' }],
+    ['an unknown kind', { limit: 10, kind: 'refund' }],
+  ])('rejects %s with VALIDATION', async (_name, input) => {
+    const error = await rejection(make().listTransactions(input as ListTransactionsInput))
+    expect(error.code).toBe('VALIDATION')
+  })
+
+  it('accepts the page sizes 1 and 50', async () => {
+    const api = make()
+    await expect(api.listTransactions({ limit: 1 })).resolves.toMatchObject({ items: [{ id: 'txn_1' }] })
+    expect((await api.listTransactions({ limit: 50 })).items).toHaveLength(50)
+  })
+
+  it('hands out copies, so callers cannot mutate adapter state', async () => {
+    const api = make()
+    const page = await api.listTransactions({ limit: 1 })
+    page.items[0]!.amountCents = 1
+    page.items[0]!.item = 'Changed'
+    await expect(api.listTransactions({ limit: 1 })).resolves.toMatchObject({
+      items: [{ item: 'GTR 5', amountCents: 16_000 }],
+    })
+  })
+})
+
+describe('transactions in storage', () => {
+  const withState = (patch: Record<string, unknown>) =>
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), ...patch }))
+  const txn = (patch: Record<string, unknown> = {}) => ({ ...seed.transactions[0], ...patch })
+
+  it('drops orphans whose account is not stored, and writes the result back', async () => {
+    withState({ accounts: seed.accounts.filter((a) => a.id !== 'acc_1') })
+    const { items } = await make().listTransactions({ limit: 50, accountId: 'acc_1' })
+    expect(items).toEqual([])
+    expect(stored().transactions).toEqual(seed.transactions.filter((t) => t.accountId !== 'acc_1'))
+  })
+
+  it('backfills an old v1 state without transactions from the seed, minus removed accounts', async () => {
+    const v1: Record<string, unknown> = { ...seedJson(), accounts: seed.accounts.filter((a) => a.id !== 'acc_2') }
+    delete v1.transactions
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(v1))
+    await make().getToday()
+    expect(stored().transactions).toEqual(seed.transactions.filter((t) => t.accountId !== 'acc_2'))
+  })
+
+  it.each([
+    ['a string', 'x'],
+    ['an object', { txn_1: {} }],
+    ['null', null],
+  ])('replaces transactions stored as %s with the seed', async (_name, value) => {
+    withState({ transactions: value })
+    await make().getToday()
+    expect(stored().transactions).toEqual(seed.transactions)
+  })
+
+  it('keeps an empty transaction list', async () => {
+    withState({ transactions: [] })
+    await expect(make().listTransactions({ limit: 10 })).resolves.toEqual({ items: [], nextCursor: null })
+    expect(stored().transactions).toEqual([])
+  })
+
+  it('drops invalid entries and repeated ids, and keeps the valid ones', async () => {
+    const good = txn({ id: 'ok' })
+    const { category: _category, ...expense } = txn({ id: 'rev' })
+    void _category
+    const revenue = { ...expense, kind: 'revenue', type: 'credit', icon: 'salary' }
+    withState({
+      transactions: [
+        good,
+        revenue,
+        null,
+        'x',
+        txn({ id: '' }),
+        txn({ id: 'acct', accountId: 3 }),
+        txn({ id: 'kind', kind: 'gift' }),
+        txn({ id: 'type', type: 'credit' }),
+        txn({ id: 'revcat', kind: 'revenue', type: 'credit' }),
+        txn({ id: 'cat', category: 'travel' }),
+        txn({ id: 'status', status: 'failed' }),
+        txn({ id: 'pay', paymentMethod: '' }),
+        txn({ id: 'receipt', receiptId: 7 }),
+        txn({ id: 'zero', amountCents: 0 }),
+        txn({ id: 'frac', amountCents: 1.5 }),
+        txn({ id: 'date', date: '2023-02-30' }),
+        txn({ id: 'icon', icon: 'rocket' }),
+        txn({ id: 'ok', item: 'Duplicate' }),
+      ],
+    })
+    const { items } = await make().listTransactions({ limit: 50 })
+    expect(items).toEqual([good, revenue])
+    expect(stored().transactions).toEqual([good, revenue])
+  })
+
+  it('pages stored rows newest first whatever their stored order, keeping stored order for equal dates', async () => {
+    const at = (id: string, date: string) => txn({ id, date })
+    withState({
+      transactions: [
+        at('mid', '2023-05-01'),
+        at('oldest', '2023-04-02'),
+        at('sameA', '2023-05-10'),
+        at('newest', '2023-05-16'),
+        at('sameB', '2023-05-10'),
+        at('old', '2023-04-20'),
+      ],
+    })
+    const api = make()
+    const ids: string[] = []
+    let cursor: string | undefined
+    for (;;) {
+      const page = await api.listTransactions({ limit: 2, cursor })
+      ids.push(...page.items.map((t) => t.id))
+      if (page.nextCursor === null) break
+      cursor = page.nextCursor
+    }
+    expect(ids).toEqual(['newest', 'sameA', 'sameB', 'mid', 'old', 'oldest'])
+  })
+
+  it('drops rows whose payment method disagrees with their account type, and writes the result back', async () => {
+    const good = txn({ id: 'ok' })
+    const debitOnCredit = txn({ id: 'wrong', paymentMethod: 'Debit Card' })
+    withState({ transactions: [good, debitOnCredit] })
+    await expect(make().listTransactions({ limit: 10 })).resolves.toEqual({ items: [good], nextCursor: null })
+    expect(stored().transactions).toEqual([good])
+  })
+
+  it('does not rewrite clean stored transactions on load', async () => {
+    // Accounts without a network: their normalized key order matches storage byte for byte.
+    const kept = new Set(['acc_3', 'acc_4', 'acc_5'])
+    withState({
+      accounts: seed.accounts.filter((a) => kept.has(a.id)),
+      transactions: seed.transactions.filter((t) => kept.has(t.accountId)),
+    })
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await make().listTransactions({ limit: 10 })
+    expect(setItem).not.toHaveBeenCalled()
+    setItem.mockRestore()
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
   })
 })
 

@@ -10,6 +10,18 @@ describe('qk', () => {
     expect(qk.profile()).toEqual(['finbank', 'profile'])
     expect(qk.accounts()).toEqual(['finbank', 'accounts'])
     expect(qk.balanceSummary()).toEqual(['finbank', 'balanceSummary'])
+    expect(qk.transactions()).toEqual(['finbank', 'transactions'])
+    expect(qk.transactions({ kind: 'revenue', accountId: 'acc_2', limit: 10 })).toEqual([
+      'finbank',
+      'transactions',
+      { kind: 'revenue', accountId: 'acc_2', limit: 10 },
+    ])
+  })
+
+  it('never puts the cursor in a transactions key', () => {
+    const filter = { kind: 'expense', limit: 5, cursor: '10' } as Parameters<typeof qk.transactions>[0]
+    expect(qk.transactions(filter)).toEqual(['finbank', 'transactions', { kind: 'expense', accountId: undefined, limit: 5 }])
+    expect(JSON.stringify(qk.transactions(filter))).not.toContain('cursor')
   })
 
   it('returns stable, equal shapes on each call', () => {
@@ -24,18 +36,20 @@ describe('invalidationMap', () => {
       loginWithGoogle: 'all',
       signup: 'all',
       logout: 'all',
-      removeAccount: [qk.accounts(), qk.balanceSummary()],
+      removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions()],
     })
   })
 
-  it('invalidates only accounts and the balance summary on removeAccount', async () => {
+  it('invalidates accounts, the balance summary and every transaction list on removeAccount', async () => {
     const client = new QueryClient()
     client.setQueryData(qk.accounts(), [])
+    client.setQueryData(qk.transactions({ limit: 10 }), { pages: [], pageParams: [] })
     client.setQueryData(qk.balanceSummary(), { totalBalanceCents: 0 })
     client.setQueryData(qk.profile(), { fullName: 'x' })
     await applyInvalidation(client, 'removeAccount')
     expect(client.getQueryState(qk.accounts())?.isInvalidated).toBe(true)
     expect(client.getQueryState(qk.balanceSummary())?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.transactions({ limit: 10 }))?.isInvalidated).toBe(true)
     expect(client.getQueryState(qk.profile())?.isInvalidated).toBe(false)
     expect(client.getQueryData(qk.profile())).toEqual({ fullName: 'x' })
   })
