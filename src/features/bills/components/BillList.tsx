@@ -13,12 +13,12 @@ export type BillListProps = {
   limit?: number
 }
 
-/** The whole-dollar amount in an outlined rounded box (108, 104). */
+/** The whole-dollar amount in an outlined rounded box: 108×48 on 108, 68×40 on 104. */
 function AmountBox({ cents, size = 'md' }: { cents: number; size?: 'md' | 'sm' }) {
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-input border border-border font-bold text-ink ${
-        size === 'md' ? 'h-12 min-w-27 px-6 text-20' : 'h-11 min-w-21 px-4 text-18'
+      className={`inline-flex shrink-0 items-center justify-center rounded-input border border-border font-bold ${
+        size === 'md' ? 'h-12 min-w-27 px-6 text-20 text-ink' : 'h-10 min-w-17 px-3 text-18 text-ink-2'
       }`}
     >
       {formatMoney(cents, 'whole')}
@@ -64,16 +64,21 @@ const columns: readonly TableColumn<Bill>[] = [
   },
 ]
 
+// Measured from 104. Overview.png: a 44×66 badge 12px from the text, rows 20px either side of the
+// divider, the title in ink-2 and the 68×40 amount box.
 function CompactRows({ rows }: { rows: readonly Bill[] }) {
   return (
     <ul className="flex flex-col divide-y divide-border">
       {rows.map((b) => (
-        <li key={b.id} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
+        <li key={b.id} className="flex items-center gap-3 py-5 first:pt-0 last:pb-0">
           <DateBadge date={b.dueDate} size="sm" />
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex min-w-0 flex-1 flex-col items-start">
             <VendorLogo logo={b.logo} vendor={b.vendor} size="sm" />
-            <span className="text-18 font-bold text-ink">{b.title}</span>
-            <span className="text-14 text-faint">Last Charge - {formatDate(b.lastChargeDate, 'row')}</span>
+            {/* One line as in 104: longer titles end in an ellipsis (full text stays in the DOM and on /bills). */}
+            <span title={b.title} className="block max-w-full truncate text-18 font-bold text-ink-2">
+              {b.title}
+            </span>
+            <span className="block max-w-full truncate text-12 text-muted">Last Charge - {formatDate(b.lastChargeDate, 'row')}</span>
           </div>
           <AmountBox cents={b.amountCents} size="sm" />
         </li>

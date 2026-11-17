@@ -38,8 +38,9 @@
   /* Semantic fill for disabled controls; currently matches the Google button grey. */
   --color-disabled: var(--color-google);
   --color-sidebar: var(--color-ink);
-  /* Vendor brand colours for bill logos, sampled from 108. Bills.png (the "Adobe" name). */
-  --color-brand-adobe: #E73D1C;
+  /* Vendor brand colours for bill logos. Adobe's official brand red: 4.56:1 on white, so the
+     vendor name passes WCAG AA at every size (the #E73D1C sampled from 108 was only 4.13:1). */
+  --color-brand-adobe: #EB1000;
   /* Modal dim over the content column, measured from 110.2. Goals.png (#F4F5F7 -> #D3D4D6,
      white -> #DDDDDD): black at about 13.5%. */
   --color-overlay: rgb(0 0 0 / 13.5%);

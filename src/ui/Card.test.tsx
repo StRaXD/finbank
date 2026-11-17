@@ -50,4 +50,21 @@ describe('Card', () => {
     )
     expect(screen.getByTestId('card-body').parentElement?.children).toHaveLength(1)
   })
+
+  it('stretches to its container with fill', () => {
+    const { rerender } = render(
+      <Card title="Upcoming Bill" fill>
+        <p>Body</p>
+      </Card>,
+    )
+    expect(screen.getByRole('region', { name: 'Upcoming Bill' })).toHaveClass('h-full')
+    expect(screen.getByTestId('card-body')).toHaveClass('flex', 'flex-1', 'flex-col')
+    rerender(
+      <Card title="Upcoming Bill">
+        <p>Body</p>
+      </Card>,
+    )
+    expect(screen.getByRole('region', { name: 'Upcoming Bill' })).not.toHaveClass('h-full')
+    expect(screen.getByTestId('card-body')).not.toHaveClass('flex-1')
+  })
 })

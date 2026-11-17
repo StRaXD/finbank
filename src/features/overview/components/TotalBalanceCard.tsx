@@ -21,7 +21,7 @@ export function TotalBalanceCard({ accountDetailsPath }: TotalBalanceCardProps) 
   const summary = useBalanceSummary()
   const accounts = useAccounts()
   return (
-    <Card title="Total Balance">
+    <Card title="Total Balance" fill>
       <div className="flex flex-col gap-3">
         <div className="flex min-h-10 items-center justify-between gap-4 border-b border-border pb-2">
           <div className="min-w-0 flex-1">

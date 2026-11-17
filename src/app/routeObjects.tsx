@@ -59,7 +59,16 @@ export const routeObjects: RouteObject[] = [
       {
         element: <AppShell />,
         children: [
-          { path: routes.overview, element: <OverviewPage accountDetailsPath={routes.accountDetails} /> },
+          {
+            path: routes.overview,
+            element: (
+              <OverviewPage
+                accountDetailsPath={routes.accountDetails}
+                billsPath={routes.bills}
+                transactionsPath={routes.transactions}
+              />
+            ),
+          },
           { path: routes.balances, element: <BalancesPage accountDetailsPath={routes.accountDetails} /> },
           { path: routePatterns.accountDetails, element: <AccountDetailsPage balancesPath={routes.balances} /> },
           { path: routes.transactions, element: <TransactionsPage /> },

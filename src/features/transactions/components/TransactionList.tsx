@@ -26,8 +26,8 @@ function ItemIcon({ transaction, framed = false }: { transaction: Transaction; f
   const Icon = transactionIcons[transaction.icon]
   if (!framed) return <Icon aria-hidden="true" data-icon={transaction.icon} size={24} className="shrink-0 text-ink-2" />
   return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-button bg-surface text-ink-2">
-      <Icon aria-hidden="true" data-icon={transaction.icon} size={20} />
+    <span className="flex size-10 shrink-0 items-center justify-center rounded-card bg-surface text-ink-2">
+      <Icon aria-hidden="true" data-icon={transaction.icon} size={24} />
     </span>
   )
 }
@@ -112,11 +112,13 @@ const historyColumns: readonly TableColumn<Transaction>[] = [
   },
 ]
 
+// Measured from 104. Overview.png: a 40px framed icon 16px from the text, rows on an 88px pitch
+// (22px either side of the divider around the 44px text block).
 function CompactRows({ rows }: { rows: readonly Transaction[] }) {
   return (
     <ul className="flex flex-col divide-y divide-border">
       {rows.map((t) => (
-        <li key={t.id} className="flex items-center gap-4 py-4">
+        <li key={t.id} className="flex items-center gap-4 py-5.5">
           <ItemIcon transaction={t} framed />
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="text-16 font-semibold text-ink">{t.item}</span>

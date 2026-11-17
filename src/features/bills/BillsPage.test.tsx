@@ -142,8 +142,11 @@ describe('BillList compact', () => {
     expect(within(first).getByRole('img', { name: 'Due May 25' })).toBeInTheDocument()
     expect(first.querySelector('img[data-logo="figma"]')).not.toBeNull()
     expect(within(first).getByText('Figma')).toBeInTheDocument()
-    expect(within(first).getByText('Figma - Yearly Plan')).toBeInTheDocument()
-    expect(within(first).getByText('Last Charge - 25 May 2022')).toBeInTheDocument()
+    const title = within(first).getByText('Figma - Yearly Plan')
+    expect(title).toHaveClass('truncate')
+    expect(title).toHaveAttribute('title', 'Figma - Yearly Plan')
+    // Muted (AA on white) and truncated, so it never spills under the amount box.
+    expect(within(first).getByText('Last Charge - 25 May 2022')).toHaveClass('text-muted', 'truncate')
     expect(within(first).getByText('$150')).toHaveClass('border')
     expect(within(items[1]!).getByText('$559')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()

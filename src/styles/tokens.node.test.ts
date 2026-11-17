@@ -62,7 +62,9 @@ describe('tokens.css', () => {
     ['--color-white', hex('FFFFFF')],
     ['--color-card', 'var(--color-white)'],
     ['--color-sidebar', 'var(--color-ink)'],
-    ['--color-brand-adobe', hex('E73D1C')],
+    // Adobe's official brand red: 4.56:1 on white (FFFFFF), so the vendor name passes WCAG AA at every
+    // size (108's 24px name and 104's 16px compact name share it).
+    ['--color-brand-adobe', hex('EB1000')],
     ['--color-overlay', fn('rgb', '0 0 0 / 13.5%')],
     ['--color-on-dark', 'var(--color-white)'],
     ['--color-on-dark-muted', fn('rgb', '255 255 255 / 70%')],
@@ -114,4 +116,24 @@ describe('tokens.css', () => {
   it('drops the Tailwind default type scale', () => {
     expect(theme.get('--text-*')).toBe('initial')
   })
+
+  it('keeps the Adobe vendor name at WCAG AA contrast (>= 4.5:1) on white', () => {
+    const value = theme.get('--color-brand-adobe') ?? ''
+    expect(value).toMatch(/^#[0-9A-F]{6}$/i)
+    expect(contrastRatio(value, hex('FFFFFF'))).toBeGreaterThanOrEqual(4.5)
+  })
 })
+
+/** WCAG 2 relative luminance of a `#RRGGBB` colour. */
+function luminance(color: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = Number.parseInt(color.slice(i, i + 2), 16) / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+}
+
+function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (hi! + 0.05) / (lo! + 0.05)
+}

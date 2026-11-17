@@ -179,6 +179,114 @@ describe('routing and session guard', () => {
     expect(payments).not.toContain('Credit Card')
   })
 
+  describe('Overview widgets read the same records as their pages', () => {
+    const region = (name: string) => screen.getByRole('region', { name })
+    const tableRows = () => within(screen.getByRole('table')).getAllByRole('row').slice(1)
+    const overviewTxnRows = () =>
+      within(region('Recent Transaction'))
+        .getAllByRole('listitem')
+        .map((row) => row.textContent)
+    // A seed transaction as the Overview compact row reads: item, shop, amount, date.
+    const rowOf = (t: (typeof seed.transactions)[number]) =>
+      `${t.item}${t.shop}${formatMoney(t.amountCents, 'exact')}${formatDate(t.date, 'row')}`
+    // The Transactions table cells as the Overview compact row orders them: item, shop, amount, date.
+    const pageTxnRows = () =>
+      tableRows()
+        .slice(0, 5)
+        .map((row) => {
+          const [item, shop, date, , amount] = within(row).getAllByRole('cell').map((c) => c.textContent)
+          return `${item}${shop}${amount}${date}`
+        })
+
+    it('shows the first two /bills rows (due date, last charge, amount) in Upcoming Bill', async () => {
+      const { router } = renderAt(routes.overview, await signedInApi())
+      const compact = await within(await screen.findByRole('region', { name: 'Upcoming Bill' })).findAllByRole('listitem')
+      const overview = compact.map((row) => ({
+        due: within(row).getByRole('img', { name: /^Due / }).getAttribute('aria-label'),
+        lastCharge: within(row).getByText(/^Last Charge - /).textContent?.replace('Last Charge - ', ''),
+        amount: within(row).getByText(/^\$/).textContent,
+      }))
+      expect(overview).toEqual([
+        { due: 'Due May 25', lastCharge: expect.any(String), amount: '$150' },
+        { due: 'Due Jun 16', lastCharge: expect.any(String), amount: '$559' },
+      ])
+      expect(within(compact[0]!).getByText('Figma')).toBeInTheDocument()
+      expect(within(compact[1]!).getByText('Adobe')).toBeInTheDocument()
+
+      fireEvent.click(within(region('Upcoming Bill')).getByRole('link', { name: 'View All bills' }))
+      await screen.findByRole('table', { name: 'Upcoming Bills' })
+      expect(router.state.location.pathname).toBe(routes.bills)
+      const page = tableRows()
+        .slice(0, 2)
+        .map((row) => {
+          const cells = within(row).getAllByRole('cell')
+          return {
+            due: within(cells[0]!).getByRole('img').getAttribute('aria-label'),
+            lastCharge: cells[3]!.textContent,
+            amount: cells[4]!.textContent,
+          }
+        })
+      expect(page).toEqual(overview)
+    })
+
+    it('shows the first five /transactions rows in Recent Transaction, on All and on Revenue', async () => {
+      const { router } = renderAt(routes.overview, await signedInApi())
+      await within(await screen.findByRole('region', { name: 'Recent Transaction' })).findAllByRole('listitem')
+      const all = overviewTxnRows()
+      expect(all).toHaveLength(5)
+      fireEvent.click(within(region('Recent Transaction')).getByRole('tab', { name: 'Revenue' }))
+      await waitFor(() => expect(overviewTxnRows()).not.toEqual(all))
+      const revenue = overviewTxnRows()
+      expect(revenue).toHaveLength(5)
+
+      fireEvent.click(within(region('Recent Transaction')).getByRole('link', { name: 'View All transactions' }))
+      await screen.findByRole('table', { name: 'Transactions' })
+      expect(router.state.location.pathname).toBe(routes.transactions)
+      expect(pageTxnRows()).toEqual(all)
+      expect(all).toEqual(seed.transactions.slice(0, 5).map(rowOf))
+      expect(seed.transactions.slice(0, 5).map((t) => t.item)).toEqual([
+        'GTR 5',
+        'Polo shirt',
+        'Biriyani',
+        'Movie ticket',
+        'Taxi fare',
+      ])
+      const before = pageTxnRows()
+      fireEvent.click(screen.getByRole('tab', { name: 'Revenue' }))
+      await waitFor(() => expect(pageTxnRows()).not.toEqual(before))
+      expect(pageTxnRows()).toEqual(revenue)
+    })
+
+    it('drops a removed account’s transactions from Recent Transaction', async () => {
+      const { router } = renderAt(routes.overview, await signedInApi())
+      await within(await screen.findByRole('region', { name: 'Recent Transaction' })).findAllByRole('listitem')
+      const revenueTab = () => within(region('Recent Transaction')).getByRole('tab', { name: 'Revenue' })
+      const newest = (accountId?: string) =>
+        seed.transactions
+          .filter((t) => t.kind === 'revenue' && t.accountId !== accountId)
+          .slice(0, 5)
+          .map(rowOf)
+      // Checking's salary is the newest revenue, so it heads the Revenue tab before the removal.
+      fireEvent.click(revenueTab())
+      await waitFor(() => expect(overviewTxnRows()).toEqual(newest()))
+      expect(seed.transactions.filter((t) => t.kind === 'revenue')[0]!.accountId).toBe('acc_2')
+
+      await act(() => router.navigate(routes.balances))
+      const checking = await screen.findByRole('article', { name: 'Checking' })
+      fireEvent.click(within(checking).getByRole('button', { name: 'Remove' }))
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Remove account?' })).getByRole('button', { name: 'Remove' }))
+      await waitFor(() => expect(screen.getAllByTestId('account-card')).toHaveLength(4))
+
+      await act(() => router.navigate(routes.overview))
+      const remaining = seed.transactions.filter((t) => t.accountId !== 'acc_2')
+      await waitFor(() => expect(overviewTxnRows()).toEqual(remaining.slice(0, 5).map(rowOf)))
+      fireEvent.click(revenueTab())
+      await waitFor(() => expect(overviewTxnRows()).toEqual(newest('acc_2')))
+      const checkingRows = new Set(seed.transactions.filter((t) => t.accountId === 'acc_2').map(rowOf))
+      expect(overviewTxnRows().filter((row) => checkingRows.has(row ?? ''))).toEqual([])
+    })
+  })
+
   it('redirects an unknown path to Overview', async () => {
     const { router } = renderAt(`${routes.overview}no-such-page`, await signedInApi())
     expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument()

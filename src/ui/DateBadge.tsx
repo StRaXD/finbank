@@ -5,13 +5,13 @@ export type DateBadgeSize = 'md' | 'sm'
 
 export type DateBadgeProps = {
   date: IsoDate
-  /** `md` (default) is the 72×82 Bills table badge (108); `sm` the narrower Overview widget badge (104). */
+  /** `md` (default) is the 72×82 Bills table badge (108); `sm` the 44×66 Overview widget badge (104). */
   size?: DateBadgeSize
 }
 
 const boxClass: Record<DateBadgeSize, string> = {
   md: 'h-20.5 w-18 gap-1',
-  sm: 'h-16 w-11 gap-0.5',
+  sm: 'h-16.5 w-11 gap-0.5',
 }
 
 const dayClass: Record<DateBadgeSize, string> = {

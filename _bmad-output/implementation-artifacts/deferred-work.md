@@ -19,3 +19,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-5-upcoming-bills-page.md`
   summary: The mock adapter rewrites `finbank:mock:v1` on every load, because `normalizeAccount` (Story 2.1) emits `network` after `balanceCents` while the seed stores it before `accountNumber`, so the normalized JSON never equals the stored JSON.
   evidence: A clean seed should round-trip with `dirty: false`. The 2.5 "does not rewrite clean stored bills" test has to trim the accounts that carry a network to avoid it. Fix by emitting the keys in seed order.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-7-overview-upcoming-bill-and-recent-transaction-widgets.md`
+  summary: The `--color-faint` text token (#9F9F9F) is about 2.6:1 on white, below WCAG AA, and is used for secondary text on Bills (Last Charge, descriptions), Transactions and elsewhere. Story 2.7 moved only its own compact "Last Charge" line to `text-muted`. Decide design-wide whether to darken the token or switch those uses, and add a contrast test for text tokens on white.
+  evidence: Computed contrast of #9F9F9F on #FFFFFF is about 2.6:1. Story 2.7 resolved the earlier Adobe red item (now #EB1000, 4.56:1, tested).
