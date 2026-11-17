@@ -17,6 +17,8 @@ describe('qk', () => {
       'transactions',
       { kind: 'revenue', accountId: 'acc_2', limit: 10 },
     ])
+    expect(qk.bills()).toEqual(['finbank', 'bills'])
+    expect(qk.bills(2)).toEqual(['finbank', 'bills', { limit: 2 }])
   })
 
   it('never puts the cursor in a transactions key', () => {

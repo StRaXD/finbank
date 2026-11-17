@@ -4,15 +4,21 @@ export type TableAlign = 'left' | 'center' | 'right'
 
 export type TableColumn<T> = {
   key: string
-  header: string
+  /** Usually text; a node lets a column align its title with its cell content (Bills' Amount). */
+  header: ReactNode
   align?: TableAlign
   /** Column share of the table width (e.g. '22%'), so columns sit where the design puts them. */
   width?: string
   render: (row: T) => ReactNode
 }
 
-/** Body row height: `md` 72px (107. Transactions), `sm` about 54px (106. Account Details). */
-export type TableDensity = 'md' | 'sm'
+/**
+ * Body cell padding: `md` gives 72px rows (107. Transactions), `sm` about 54px (106. Account
+ * Details), `lg` 32px above and below tall content (162px rows in 108. Bills). In 108 the cells
+ * have no side inset (text starts at the divider) and the header row is taller, so `lg` also
+ * drops the horizontal padding and pads the header more.
+ */
+export type TableDensity = 'md' | 'sm' | 'lg'
 
 export type TableProps<T> = {
   columns: readonly TableColumn<T>[]
@@ -25,8 +31,15 @@ export type TableProps<T> = {
 }
 
 const cellPadding: Record<TableDensity, string> = {
-  md: 'py-6',
-  sm: 'py-3.75',
+  md: 'px-2 py-6',
+  sm: 'px-2 py-3.75',
+  lg: 'px-0 py-8',
+}
+
+const headerPadding: Record<TableDensity, string> = {
+  md: 'px-2 pb-4',
+  sm: 'px-2 pb-4',
+  lg: 'px-0 pb-6',
 }
 
 const alignClass: Record<TableAlign, string> = {
@@ -58,7 +71,7 @@ export function Table<T>({ columns, rows, rowKey, caption, density = 'md' }: Tab
             <th
               key={column.key}
               scope="col"
-              className={`px-2 pb-4 text-16 font-bold text-ink ${alignClass[column.align ?? 'left']}`}
+              className={`${headerPadding[density]} text-16 font-bold text-ink ${alignClass[column.align ?? 'left']}`}
             >
               {column.header}
             </th>
@@ -71,7 +84,7 @@ export function Table<T>({ columns, rows, rowKey, caption, density = 'md' }: Tab
             {columns.map((column) => (
               <td
                 key={column.key}
-                className={`px-2 ${cellPadding[density]} text-16 ${alignClass[column.align ?? 'left']}`}
+                className={`${cellPadding[density]} text-16 ${alignClass[column.align ?? 'left']}`}
               >
                 {column.render(row)}
               </td>

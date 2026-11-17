@@ -43,6 +43,7 @@ const seedJson = () => ({
   profile: seed.profile,
   accounts: seed.accounts,
   transactions: seed.transactions,
+  bills: seed.bills,
 })
 
 beforeEach(() => {
@@ -85,6 +86,7 @@ describe('persistence', () => {
       profile: { ...seed.profile, fullName: 'Someone Else' },
       accounts: [seed.accounts[2]],
       transactions: seed.transactions.filter((t) => t.accountId === 'acc_3'),
+      bills: [seed.bills[1]],
     }
     localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(custom))
     const api = make()
@@ -650,6 +652,134 @@ describe('transactions in storage', () => {
     expect(setItem).not.toHaveBeenCalled()
     setItem.mockRestore()
     expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+  })
+})
+
+describe('seed bills', () => {
+  const addMonths = (iso: string, months: number) => {
+    const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
+    const total = y * 12 + (m - 1) + months
+    return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  }
+
+  it('has the three 108 bills, all due after mock today and last charged one cycle before', () => {
+    expect(seed.bills.map((b) => [b.id, b.vendor, b.logo, b.title, b.amountCents, b.billingCycle])).toEqual([
+      ['bill_1', 'Figma', 'figma', 'Figma - Yearly Plan', 15_000, 'yearly'],
+      ['bill_2', 'Adobe', 'adobe', 'Adobe Inc - Yearly Plan', 55_900, 'yearly'],
+      ['bill_3', 'Google', 'google', 'Google Workspace - Monthly Plan', 7_200, 'monthly'],
+    ])
+    for (const bill of seed.bills) {
+      expect(bill.dueDate > seed.today).toBe(true)
+      expect(bill.lastChargeDate <= seed.today).toBe(true)
+      expect(addMonths(bill.lastChargeDate, bill.billingCycle === 'yearly' ? 12 : 1)).toBe(bill.dueDate)
+      expect(bill.description.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('listBills', () => {
+  const withBills = (bills: unknown) =>
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), bills }))
+  const bill = (patch: Record<string, unknown> = {}) => ({ ...seed.bills[0], ...patch })
+
+  it('returns every bill by due date: Figma (May 25), Adobe (Jun 16), Google (Jun 18)', async () => {
+    const bills = await make().listBills({})
+    expect(bills.map((b) => [b.vendor, b.dueDate])).toEqual([
+      ['Figma', '2023-05-25'],
+      ['Adobe', '2023-06-16'],
+      ['Google', '2023-06-18'],
+    ])
+    await expect(make().listBills()).resolves.toEqual(bills)
+  })
+
+  it('truncates to the limit', async () => {
+    const bills = await make().listBills({ limit: 2 })
+    expect(bills.map((b) => b.vendor)).toEqual(['Figma', 'Adobe'])
+    await expect(make().listBills({ limit: 50 })).resolves.toHaveLength(3)
+  })
+
+  it.each([0, 51, 1.5, -1, Number.NaN])('rejects the limit %s with VALIDATION', async (limit) => {
+    const error = await rejection(make().listBills({ limit }))
+    expect(error.code).toBe('VALIDATION')
+  })
+
+  it('sorts shuffled storage by due date, keeping stored order for equal dates', async () => {
+    withBills([
+      bill({ id: 'late', dueDate: '2023-07-01' }),
+      bill({ id: 'sameA', dueDate: '2023-06-01' }),
+      bill({ id: 'early', dueDate: '2023-05-20' }),
+      bill({ id: 'sameB', dueDate: '2023-06-01' }),
+    ])
+    const bills = await make().listBills()
+    expect(bills.map((b) => b.id)).toEqual(['early', 'sameA', 'sameB', 'late'])
+  })
+
+  it('hands out copies, so callers cannot mutate adapter state', async () => {
+    const api = make()
+    const [first] = await api.listBills()
+    first!.amountCents = 1
+    await expect(api.listBills()).resolves.toEqual(seed.bills)
+  })
+
+  it('backfills an old v1 state without bills from the seed and writes it back', async () => {
+    const v1: Record<string, unknown> = seedJson()
+    delete v1.bills
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(v1))
+    await expect(make().listBills()).resolves.toEqual(seed.bills)
+    expect(stored().bills).toEqual(seed.bills)
+  })
+
+  it.each([
+    ['a string', 'x'],
+    ['an object', { bill_1: {} }],
+    ['null', null],
+  ])('replaces bills stored as %s with the seed', async (_name, value) => {
+    withBills(value)
+    await make().getToday()
+    expect(stored().bills).toEqual(seed.bills)
+  })
+
+  it('keeps an empty bill list', async () => {
+    withBills([])
+    await expect(make().listBills()).resolves.toEqual([])
+    expect(stored().bills).toEqual([])
+  })
+
+  it('drops invalid entries and repeated ids, and keeps the valid ones', async () => {
+    const good = bill({ id: 'ok' })
+    withBills([
+      good,
+      null,
+      'x',
+      bill({ id: '' }),
+      bill({ id: 'logo', logo: 'netflix' }),
+      bill({ id: 'cycle', billingCycle: 'weekly' }),
+      bill({ id: 'due', dueDate: '2023-02-30' }),
+      bill({ id: 'last', lastChargeDate: 'soon' }),
+      bill({ id: 'zero', amountCents: 0 }),
+      bill({ id: 'neg', amountCents: -100 }),
+      bill({ id: 'frac', amountCents: 1.5 }),
+      bill({ id: 'title', title: 7 }),
+      bill({ id: 'ok', vendor: 'Duplicate' }),
+    ])
+    await expect(make().listBills()).resolves.toEqual([good])
+    expect(stored().bills).toEqual([good])
+  })
+
+  it('does not rewrite clean stored bills on load', async () => {
+    const kept = new Set(['acc_3', 'acc_4', 'acc_5'])
+    localStorage.setItem(
+      MOCK_STORAGE_KEY,
+      JSON.stringify({
+        ...seedJson(),
+        accounts: seed.accounts.filter((a) => kept.has(a.id)),
+        transactions: seed.transactions.filter((t) => kept.has(t.accountId)),
+      }),
+    )
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await make().listBills()
+    expect(setItem).not.toHaveBeenCalled()
+    setItem.mockRestore()
   })
 })
 

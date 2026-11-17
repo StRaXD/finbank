@@ -6,10 +6,14 @@ import {
   type AccountType,
   ApiError,
   type BalanceSummary,
+  type Bill,
+  type BillingCycle,
+  type BillLogo,
   type CardNetwork,
   type ExpenseCategoryId,
   type GoogleLoginInput,
   type IsoDate,
+  type ListBillsInput,
   type ListTransactionsInput,
   type LoginInput,
   type Session,
@@ -314,6 +318,65 @@ function pageTransactions(all: readonly Transaction[], input: ListTransactionsIn
   }
 }
 
+/** The largest `listBills` limit; independent of the transaction page size. */
+const MAX_BILL_LIMIT = 50
+
+const BILL_LOGOS: readonly BillLogo[] = ['figma', 'adobe', 'google']
+const BILLING_CYCLES: readonly BillingCycle[] = ['monthly', 'yearly']
+
+/** A shape-checked bill, or `null`. */
+function normalizeBill(value: unknown): Bill | null {
+  if (!isPlainObject(value)) return null
+  const { id, vendor, logo, title, description, billingCycle, dueDate, lastChargeDate, amountCents } = value
+  if (typeof id !== 'string' || id === '') return null
+  if (typeof vendor !== 'string' || typeof title !== 'string' || typeof description !== 'string') return null
+  if (!BILL_LOGOS.includes(logo as BillLogo)) return null
+  if (!BILLING_CYCLES.includes(billingCycle as BillingCycle)) return null
+  const due = validIsoDate(dueDate)
+  const lastCharge = validIsoDate(lastChargeDate)
+  if (!due || !lastCharge) return null
+  if (typeof amountCents !== 'number' || !Number.isSafeInteger(amountCents) || amountCents <= 0) return null
+  // Same key order as the seed, so a clean stored entry round-trips byte for byte.
+  return {
+    id,
+    vendor,
+    logo: logo as BillLogo,
+    title,
+    description,
+    billingCycle: billingCycle as BillingCycle,
+    dueDate: due,
+    lastChargeDate: lastCharge,
+    amountCents,
+  }
+}
+
+/** A non-array value is replaced by the seed bills. Invalid entries and repeated ids are dropped. */
+function normalizeBills(value: unknown, fallback: Bill[]): Bill[] {
+  if (!Array.isArray(value)) return fallback
+  const seen = new Set<string>()
+  const bills: Bill[] = []
+  for (const entry of value) {
+    const bill = normalizeBill(entry)
+    if (!bill || seen.has(bill.id)) continue
+    seen.add(bill.id)
+    bills.push(bill)
+  }
+  return bills
+}
+
+/** Earliest due date first (stable, so equal dates keep stored order), truncated to `limit`. */
+function sortBills(all: readonly Bill[], input: ListBillsInput | undefined): Bill[] {
+  const limit = input?.limit
+  if (
+    limit !== undefined &&
+    (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > MAX_BILL_LIMIT)
+  ) {
+    throw new ApiError('VALIDATION', `The bill limit must be a whole number from 1 to ${MAX_BILL_LIMIT}.`)
+  }
+  const sorted = [...all].sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0))
+  return structuredClone(limit === undefined ? sorted : sorted.slice(0, limit))
+}
+
 /**
  * Reads the persisted state. A missing, unparseable or wrong-version entry falls back to the
  * seed (wrong versions are reseeded, not migrated). Missing or `null` top-level keys are filled
@@ -341,6 +404,7 @@ function loadState(storage: StorageLike): { state: MockState; dirty: boolean } {
   state.profile = normalizeProfile(state.profile, seeded.profile)
   state.accounts = normalizeAccounts(state.accounts, seeded.accounts)
   state.transactions = normalizeTransactions(state.transactions, seeded.transactions, state.accounts as Account[])
+  state.bills = normalizeBills(state.bills, seeded.bills)
   return { state: state as MockState, dirty: JSON.stringify(state) !== JSON.stringify(parsed) }
 }
 
@@ -487,5 +551,7 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
       }),
 
     listTransactions: (input: ListTransactionsInput) => call(() => pageTransactions(state().transactions, input)),
+
+    listBills: (input?: ListBillsInput) => call(() => sortBills(state().bills, input)),
   }
 }

@@ -62,6 +62,7 @@ describe('tokens.css', () => {
     ['--color-white', hex('FFFFFF')],
     ['--color-card', 'var(--color-white)'],
     ['--color-sidebar', 'var(--color-ink)'],
+    ['--color-brand-adobe', hex('E73D1C')],
     ['--color-overlay', fn('rgb', '0 0 0 / 13.5%')],
     ['--color-on-dark', 'var(--color-white)'],
     ['--color-on-dark-muted', fn('rgb', '255 255 255 / 70%')],

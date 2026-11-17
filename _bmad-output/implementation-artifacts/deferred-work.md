@@ -13,3 +13,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-2-remove-an-account-from-balances.md`
   summary: `ConfirmDialog` disables the focused Confirm button while `pending`, so keyboard focus drops to `<body>`. Keep focus inside the dialog (e.g. `aria-disabled` instead of `disabled`, or refocus Confirm or the error when pending ends).
   evidence: A disabled focused element loses focus in browsers. Story 2.2's remove flow is the first real pending caller, and after a failed removal the alert appears with focus outside the modal.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-5-upcoming-bills-page.md`
+  summary: The Adobe brand red `--color-brand-adobe` (#E73D1C) is about 4.1:1 on white, below WCAG AA for the 16px vendor name in `BillList`'s compact variant. Decide in Story 2.7, which first renders it, whether to darken the token for small text or render the compact name in ink.
+  evidence: 4.1:1 passes only as large text. The 108 table name is 24px, but the compact row uses `text-16 font-medium`.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-5-upcoming-bills-page.md`
+  summary: The mock adapter rewrites `finbank:mock:v1` on every load, because `normalizeAccount` (Story 2.1) emits `network` after `balanceCents` while the seed stores it before `accountNumber`, so the normalized JSON never equals the stored JSON.
+  evidence: A clean seed should round-trip with `dirty: false`. The 2.5 "does not rewrite clean stored bills" test has to trim the accounts that carry a network to avoid it. Fix by emitting the keys in seed order.

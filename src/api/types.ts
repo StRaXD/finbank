@@ -123,3 +123,29 @@ export type ListTransactionsInput = {
   /** Page size, an integer from 1 to 50. */
   limit: number
 }
+
+/** The brand mark a bill shows; each is an SVG in `src/assets/brands/`. */
+export type BillLogo = 'figma' | 'adobe' | 'google'
+
+export type BillingCycle = 'monthly' | 'yearly'
+
+/**
+ * One upcoming bill. `amountCents` is a positive magnitude; `lastChargeDate` is one billing cycle
+ * before `dueDate`.
+ */
+export type Bill = {
+  id: string
+  vendor: string
+  logo: BillLogo
+  title: string
+  description: string
+  billingCycle: BillingCycle
+  dueDate: IsoDate
+  lastChargeDate: IsoDate
+  amountCents: number
+}
+
+export type ListBillsInput = {
+  /** At most this many bills, an integer from 1 to 50. Omitted: every bill. */
+  limit?: number
+}

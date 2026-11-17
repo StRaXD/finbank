@@ -4,6 +4,7 @@ import { lazy, Suspense } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
 import { ForgotPasswordPage, LoginPage, SignupPage, type AuthPaths } from '../features/auth/index.ts'
 import { AccountDetailsPage, BalancesPage } from '../features/balances/index.ts'
+import { BillsPage } from '../features/bills/index.ts'
 import { TransactionsPage } from '../features/transactions/index.ts'
 import { AppShell } from './AppShell/AppShell.tsx'
 import { PageBusy } from './PageBusy.tsx'
@@ -61,7 +62,7 @@ export const routeObjects: RouteObject[] = [
           { path: routes.balances, element: <BalancesPage accountDetailsPath={routes.accountDetails} /> },
           { path: routePatterns.accountDetails, element: <AccountDetailsPage balancesPath={routes.balances} /> },
           { path: routes.transactions, element: <TransactionsPage /> },
-          { path: routes.bills, element: <PlaceholderPage title="Bills" /> },
+          { path: routes.bills, element: <BillsPage /> },
           { path: routes.expenses, element: <PlaceholderPage title="Expenses" /> },
           { path: routes.goals, element: <PlaceholderPage title="Goals" /> },
           { path: routes.settings, element: <PlaceholderPage title="Settings" /> },

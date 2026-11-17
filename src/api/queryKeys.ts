@@ -25,6 +25,9 @@ export const qk = {
     filter
       ? ([...root, 'transactions', { kind: filter.kind, accountId: filter.accountId, limit: filter.limit }] as const)
       : ([...root, 'transactions'] as const),
+  /** Without a limit: every bill, and the prefix of every bill list. */
+  bills: (limit?: number) =>
+    limit === undefined ? ([...root, 'bills'] as const) : ([...root, 'bills', { limit }] as const),
 }
 
 /** `'all'` clears the whole cache; otherwise the listed key prefixes are invalidated. */

@@ -123,7 +123,7 @@ describe('app shell', () => {
     expect(sidebar().querySelector('img[alt=""]')).toHaveAttribute('src', avatarPlaceholder)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     fireEvent.click(within(nav()).getByRole('link', { name: 'Bills' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Bills' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Upcoming Bills' })).toBeInTheDocument()
   })
 
   it('logs out to Login, clearing the session and the cached profile', async () => {
@@ -184,7 +184,8 @@ describe('app shell', () => {
     expect(router.state.location.pathname).toBe(routes.bills)
     expect(router.state.location.search).toBe('')
     expect(counted.calls.slice(before)).toEqual([])
-    expect(screen.getByRole('heading', { level: 1, name: 'Bills' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Upcoming Bills' })).toBeInTheDocument()
+    expect(activeLinks().map((l) => l.textContent)).toEqual(['Bills'])
   })
 
   it('has the landmarks and keeps controls in visual (tab) order', async () => {

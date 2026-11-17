@@ -46,7 +46,7 @@ describe('routing and session guard', () => {
       [routes.balances, 'Balances'],
       [routes.accountDetails('acc_1'), 'Account Details'],
       [routes.transactions, 'Recent Transaction'],
-      [routes.bills, 'Bills'],
+      [routes.bills, 'Upcoming Bills'],
       [routes.expenses, 'Expenses'],
       [routes.goals, 'Goals'],
       [routes.settings, 'Settings'],

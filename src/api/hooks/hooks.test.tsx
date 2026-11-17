@@ -12,6 +12,7 @@ import { useAccount } from './useAccount.ts'
 import { useAccounts } from './useAccounts.ts'
 import { useApi } from './useApi.ts'
 import { useBalanceSummary } from './useBalanceSummary.ts'
+import { useBills } from './useBills.ts'
 import { useLogin } from './useLogin.ts'
 import { useLoginWithGoogle } from './useLoginWithGoogle.ts'
 import { useLogout } from './useLogout.ts'
@@ -104,6 +105,18 @@ describe('query hooks', () => {
     expect(ids).toHaveLength(expenses.length)
     expect(new Set(ids).size).toBe(ids.length)
     expect(result.current.data!.pages.at(-1)!.nextCursor).toBeNull()
+  })
+
+  it('useBills resolves the bills by due date, keyed by limit', async () => {
+    const { wrapper, queryClient, api } = setup()
+    const spy = vi.spyOn(api, 'listBills')
+    const { result } = renderHook(() => ({ all: useBills(), two: useBills({ limit: 2 }) }), { wrapper })
+    await waitFor(() => expect(result.current.all.data).toEqual(seed.bills))
+    await waitFor(() => expect(result.current.two.data?.map((b) => b.vendor)).toEqual(['Figma', 'Adobe']))
+    expect(spy).toHaveBeenCalledWith({})
+    expect(spy).toHaveBeenCalledWith({ limit: 2 })
+    expect(queryClient.getQueryData(qk.bills())).toEqual(seed.bills)
+    expect(queryClient.getQueryData(qk.bills(2))).toHaveLength(2)
   })
 
   it('useSession is null when signed out', async () => {

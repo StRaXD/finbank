@@ -27,13 +27,21 @@ describe('Table', () => {
 
   it('uses the 72px rows by default and the compact rows with density="sm"', () => {
     const { unmount } = render(<Table columns={columns} rows={rows} rowKey={(r) => r.id} caption="Things" />)
-    for (const cell of cells()) expect(cell).toHaveClass('py-6')
+    for (const cell of cells()) expect(cell).toHaveClass('py-6', 'px-2')
+    for (const header of screen.getAllByRole('columnheader')) expect(header).toHaveClass('px-2', 'pb-4')
     unmount()
     render(<Table columns={columns} rows={rows} rowKey={(r) => r.id} caption="Things" density="sm" />)
     for (const cell of cells()) {
-      expect(cell).toHaveClass('py-3.75')
+      expect(cell).toHaveClass('py-3.75', 'px-2')
       expect(cell).not.toHaveClass('py-6')
     }
+    for (const header of screen.getAllByRole('columnheader')) expect(header).toHaveClass('px-2', 'pb-4')
+  })
+
+  it('pads tall rows with density="lg"', () => {
+    render(<Table columns={columns} rows={rows} rowKey={(r) => r.id} caption="Things" density="lg" />)
+    for (const cell of cells()) expect(cell).toHaveClass('py-8', 'px-0')
+    for (const header of screen.getAllByRole('columnheader')) expect(header).toHaveClass('pb-6', 'px-0')
   })
 
   it('fixes the layout with one col per column when widths are given', () => {

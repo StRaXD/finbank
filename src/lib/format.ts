@@ -14,7 +14,7 @@ import { assertCents } from './money'
 
 export type MoneyMode = 'whole' | 'exact'
 export type CompactMode = 'gauge' | 'axis'
-export type DateMode = 'row' | 'badge' | 'header' | 'axisDay' | 'weekday' | 'month'
+export type DateMode = 'row' | 'badge' | 'header' | 'axisDay' | 'weekday' | 'month' | 'day'
 export type MaskMode = 'groups' | 'tail4'
 
 const grouped = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0, useGrouping: true })
@@ -82,6 +82,7 @@ const DATE_PATTERNS: Record<DateMode, string> = {
   axisDay: 'MMM dd', // May 01
   weekday: 'dd EEE', // 14 Sun
   month: 'MMM', // Jan
+  day: 'd', // 5 (the day of the month, no padding)
 }
 
 /** Formats a calendar date for display. Throws on a malformed date or unknown mode. */
