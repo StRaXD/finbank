@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FinbankApi } from '../api/port.ts'
 import { qk } from '../api/queryKeys.ts'
@@ -54,6 +54,19 @@ describe('routing and session guard', () => {
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
       unmount()
     }
+  })
+
+  it('opens Account Details from a Balances card, with Balances still active in the nav', async () => {
+    const { router } = renderAt(routes.balances, await signedInApi())
+    const checking = await screen.findByRole('article', { name: 'Checking' })
+    fireEvent.click(within(checking).getByRole('link', { name: 'Details' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Account Details' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/balances/acc_2')
+    const active = screen
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('aria-current') === 'page')
+      .map((link) => link.textContent)
+    expect(active).toEqual(['Balances'])
   })
 
   it('redirects an unknown path to Overview', async () => {

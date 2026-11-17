@@ -9,6 +9,8 @@ export const qk = {
   today: () => [...root, 'today'] as const,
   session: () => [...root, 'session'] as const,
   profile: () => [...root, 'profile'] as const,
+  accounts: () => [...root, 'accounts'] as const,
+  balanceSummary: () => [...root, 'balanceSummary'] as const,
 }
 
 /** `'all'` clears the whole cache; otherwise the listed key prefixes are invalidated. */

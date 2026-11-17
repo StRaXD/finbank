@@ -35,7 +35,7 @@ const throwingStorage = (error: unknown = new DOMException('quota', 'QuotaExceed
   removeItem: () => {},
 })
 
-const seedJson = () => ({ version: 1, today: '2023-05-19', profile: seed.profile })
+const seedJson = () => ({ version: 1, today: '2023-05-19', profile: seed.profile, accounts: seed.accounts })
 
 beforeEach(() => {
   localStorage.clear()
@@ -58,7 +58,7 @@ describe('seed', () => {
 
   it('writes the seed through to storage as version 1 on first use', async () => {
     await make().getToday()
-    expect(stored()).toEqual({ version: 1, today: '2023-05-19', profile: seed.profile })
+    expect(stored()).toEqual({ version: 1, today: '2023-05-19', profile: seed.profile, accounts: seed.accounts })
   })
 
   it('hands out copies, so callers cannot mutate adapter state', async () => {
@@ -75,11 +75,16 @@ describe('persistence', () => {
       version: 1,
       today: '2024-02-29',
       profile: { ...seed.profile, fullName: 'Someone Else' },
+      accounts: [seed.accounts[2]],
     }
     localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(custom))
     const api = make()
     await expect(api.getToday()).resolves.toBe('2024-02-29')
     await expect(api.getProfile()).resolves.toMatchObject({ fullName: 'Someone Else' })
+    await expect(api.listAccounts()).resolves.toEqual([seed.accounts[2]])
+    await expect(api.getBalanceSummary()).resolves.toEqual({
+      totalBalanceCents: seed.accounts[2]!.balanceCents,
+    })
     expect(stored()).toEqual(custom)
   })
 
@@ -93,7 +98,7 @@ describe('persistence', () => {
     if (raw !== null) localStorage.setItem(MOCK_STORAGE_KEY, raw)
     const api = make()
     await expect(api.getToday()).resolves.toBe('2023-05-19')
-    expect(stored()).toEqual({ version: 1, today: '2023-05-19', profile: seed.profile })
+    expect(stored()).toEqual({ version: 1, today: '2023-05-19', profile: seed.profile, accounts: seed.accounts })
   })
 
   it('backfills missing top-level keys from the seed and keeps the rest', async () => {
@@ -101,7 +106,7 @@ describe('persistence', () => {
     const api = make()
     await expect(api.getToday()).resolves.toBe('2024-03-01')
     await expect(api.getProfile()).resolves.toEqual(seed.profile)
-    expect(stored()).toEqual({ version: 1, today: '2024-03-01', profile: seed.profile })
+    expect(stored()).toEqual({ version: 1, today: '2024-03-01', profile: seed.profile, accounts: seed.accounts })
   })
 
   it.each([
@@ -141,6 +146,113 @@ describe('persistence', () => {
   it('keeps serving reads when the write-back fails for another reason', async () => {
     const api = make({ storage: throwingStorage(new Error('disk')) })
     await expect(api.getToday()).resolves.toBe('2023-05-19')
+  })
+})
+
+describe('accounts', () => {
+  const seedTypes = ['creditCard', 'checking', 'savings', 'investment', 'loan']
+  const withAccounts = (accounts: unknown) =>
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), accounts }))
+  const account = (patch: Record<string, unknown> = {}) => ({ ...seed.accounts[1], ...patch })
+
+  it('lists the five seed accounts in seed order', async () => {
+    const accounts = await make().listAccounts()
+    expect(accounts.map((a) => a.id)).toEqual(['acc_1', 'acc_2', 'acc_3', 'acc_4', 'acc_5'])
+    expect(accounts.map((a) => a.type)).toEqual(seedTypes)
+    expect(accounts[0]).toMatchObject({ network: 'mastercard', bankName: 'AB Bank Ltd.' })
+    expect(accounts[0]!.accountNumber.endsWith('2598')).toBe(true)
+    expect(accounts[1]).toMatchObject({
+      network: 'visa',
+      bankName: 'AB Bank Ltd.',
+      branchName: 'Park Street Branch',
+      balanceCents: 2_505_600,
+    })
+  })
+
+  it('derives the seed Total Balance of $240,399', async () => {
+    await expect(make().getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 24_039_900 })
+  })
+
+  it('adds asset accounts and subtracts liability accounts', async () => {
+    withAccounts([
+      account({ id: 'a', type: 'checking', balanceCents: 1000 }),
+      account({ id: 'b', type: 'savings', balanceCents: 200 }),
+      account({ id: 'c', type: 'investment', balanceCents: 30 }),
+      account({ id: 'd', type: 'creditCard', balanceCents: 4 }),
+      account({ id: 'e', type: 'loan', balanceCents: 5000 }),
+    ])
+    await expect(make().getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 1230 - 5004 })
+  })
+
+  it('backfills a v1 state without accounts from the seed and writes it back', async () => {
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ version: 1, today: '2023-05-19', profile: seed.profile }))
+    await expect(make().listAccounts()).resolves.toEqual(seed.accounts)
+    expect(stored().accounts).toEqual(seed.accounts)
+  })
+
+  it('keeps an empty account list: no cards and a zero total', async () => {
+    withAccounts([])
+    const api = make()
+    await expect(api.listAccounts()).resolves.toEqual([])
+    await expect(api.getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 0 })
+    expect(stored().accounts).toEqual([])
+  })
+
+  it.each([['a string', 'x'], ['an object', { acc_1: {} }], ['a number', 3]])(
+    'replaces accounts stored as %s with the seed',
+    async (_name, value) => {
+      withAccounts(value)
+      await expect(make().listAccounts()).resolves.toEqual(seed.accounts)
+    },
+  )
+
+  it('drops invalid entries and repeated ids, and keeps the valid ones', async () => {
+    const good = account({ id: 'ok' })
+    withAccounts([
+      good,
+      null,
+      'x',
+      account({ id: '' }),
+      account({ id: 'type', type: 'crypto' }),
+      account({ id: 'bank', bankName: 3 }),
+      account({ id: 'branch', branchName: undefined }),
+      account({ id: 'net', network: 'amex' }),
+      account({ id: 'num', accountNumber: '12a4' }),
+      account({ id: 'short', accountNumber: '123' }),
+      account({ id: 'neg', balanceCents: -1 }),
+      account({ id: 'frac', balanceCents: 1.5 }),
+      account({ id: 'ok', bankName: 'Duplicate' }),
+    ])
+    await expect(make().listAccounts()).resolves.toEqual([good])
+    expect(stored().accounts).toEqual([good])
+  })
+
+  it('accepts an account without a network', async () => {
+    const plain = account({ id: 'plain', network: undefined })
+    withAccounts([plain])
+    const [loaded] = await make().listAccounts()
+    expect(loaded).toEqual(plain)
+    expect(loaded).not.toHaveProperty('network')
+  })
+
+  it('treats a stored null network as absent and keeps the account', async () => {
+    const plain = account({ id: 'nullnet', network: undefined })
+    withAccounts([{ ...plain, network: null }])
+    const [loaded] = await make().listAccounts()
+    expect(loaded).toEqual(plain)
+    expect(loaded).not.toHaveProperty('network')
+    expect(stored().accounts).toEqual([plain])
+  })
+
+  it('hands out copies, so callers cannot mutate adapter state', async () => {
+    const api = make()
+    const accounts = await api.listAccounts()
+    accounts[1]!.balanceCents = 1
+    accounts.pop()
+    const again = await api.listAccounts()
+    expect(again).toHaveLength(5)
+    expect(again[1]!.balanceCents).toBe(2_505_600)
+    await expect(api.getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 24_039_900 })
   })
 })
 

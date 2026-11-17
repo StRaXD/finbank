@@ -2,7 +2,11 @@
 import { toIsoDate } from '../../lib/dates.ts'
 import type { FinbankApi } from '../port.ts'
 import {
+  type Account,
+  type AccountType,
   ApiError,
+  type BalanceSummary,
+  type CardNetwork,
   type GoogleLoginInput,
   type IsoDate,
   type LoginInput,
@@ -132,6 +136,58 @@ function normalizeProfile(value: unknown, fallback: UserProfile): UserProfile {
   return profile
 }
 
+const ACCOUNT_TYPES: readonly AccountType[] = ['creditCard', 'checking', 'savings', 'investment', 'loan']
+const CARD_NETWORKS: readonly CardNetwork[] = ['mastercard', 'visa']
+
+/** Assets add to the Total Balance, liabilities subtract from it. */
+const ACCOUNT_SIGN: Record<AccountType, 1 | -1> = {
+  checking: 1,
+  savings: 1,
+  investment: 1,
+  creditCard: -1,
+  loan: -1,
+}
+
+function normalizeAccount(value: unknown): Account | null {
+  if (!isPlainObject(value)) return null
+  const { id, type, bankName, branchName, network, accountNumber, balanceCents } = value
+  if (typeof id !== 'string' || id === '') return null
+  if (!ACCOUNT_TYPES.includes(type as AccountType)) return null
+  if (typeof bankName !== 'string' || typeof branchName !== 'string') return null
+  if (network != null && !CARD_NETWORKS.includes(network as CardNetwork)) return null
+  if (typeof accountNumber !== 'string' || !/^\d{4,}$/.test(accountNumber)) return null
+  if (typeof balanceCents !== 'number' || !Number.isSafeInteger(balanceCents) || balanceCents < 0) {
+    return null
+  }
+  const account: Account = {
+    id,
+    type: type as AccountType,
+    bankName,
+    branchName,
+    accountNumber,
+    balanceCents,
+  }
+  if (network != null) account.network = network as CardNetwork
+  return account
+}
+
+/**
+ * A non-array value is replaced by the seed accounts. Invalid entries and repeated ids are
+ * dropped; an empty array is kept (the user may remove every account).
+ */
+function normalizeAccounts(value: unknown, fallback: Account[]): Account[] {
+  if (!Array.isArray(value)) return fallback
+  const seen = new Set<string>()
+  const accounts: Account[] = []
+  for (const entry of value) {
+    const account = normalizeAccount(entry)
+    if (!account || seen.has(account.id)) continue
+    seen.add(account.id)
+    accounts.push(account)
+  }
+  return accounts
+}
+
 /**
  * Reads the persisted state. A missing, unparseable or wrong-version entry falls back to the
  * seed (wrong versions are reseeded, not migrated). Missing or `null` top-level keys are filled
@@ -157,6 +213,7 @@ function loadState(storage: StorageLike): { state: MockState; dirty: boolean } {
   }
   state.today = validIsoDate(state.today) ?? seeded.today
   state.profile = normalizeProfile(state.profile, seeded.profile)
+  state.accounts = normalizeAccounts(state.accounts, seeded.accounts)
   return { state: state as MockState, dirty: JSON.stringify(state) !== JSON.stringify(parsed) }
 }
 
@@ -270,5 +327,15 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
       ),
 
     getProfile: () => call(() => structuredClone(state().profile)),
+
+    listAccounts: () => call(() => structuredClone(state().accounts)),
+
+    getBalanceSummary: () =>
+      call((): BalanceSummary => ({
+        totalBalanceCents: state().accounts.reduce(
+          (total, account) => total + ACCOUNT_SIGN[account.type] * account.balanceCents,
+          0,
+        ),
+      })),
   }
 }

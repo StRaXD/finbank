@@ -8,7 +8,9 @@ import { seed } from '../mock/seed.ts'
 import { qk } from '../queryKeys.ts'
 import { SessionProvider } from '../SessionProvider.tsx'
 import { useSessionContext } from '../sessionContext.ts'
+import { useAccounts } from './useAccounts.ts'
 import { useApi } from './useApi.ts'
+import { useBalanceSummary } from './useBalanceSummary.ts'
 import { useLogin } from './useLogin.ts'
 import { useLoginWithGoogle } from './useLoginWithGoogle.ts'
 import { useLogout } from './useLogout.ts'
@@ -55,6 +57,17 @@ describe('query hooks', () => {
     const { wrapper } = setup()
     const { result } = renderHook(() => useProfile(), { wrapper })
     await waitFor(() => expect(result.current.data).toEqual(seed.profile))
+  })
+
+  it('useAccounts and useBalanceSummary resolve the seeded accounts and derived total', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => ({ accounts: useAccounts(), summary: useBalanceSummary() }), {
+      wrapper,
+    })
+    await waitFor(() => expect(result.current.accounts.data).toEqual(seed.accounts))
+    await waitFor(() => expect(result.current.summary.data).toEqual({ totalBalanceCents: 24_039_900 }))
+    expect(queryClient.getQueryData(qk.accounts())).toEqual(seed.accounts)
+    expect(queryClient.getQueryData(qk.balanceSummary())).toEqual({ totalBalanceCents: 24_039_900 })
   })
 
   it('useSession is null when signed out', async () => {

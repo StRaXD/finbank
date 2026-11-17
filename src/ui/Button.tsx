@@ -1,38 +1,18 @@
 import type { ComponentPropsWithRef } from 'react'
 import googleLogo from '../assets/brands/google.svg'
+import { buttonClassName, buttonIconSize, type ButtonSize, type ButtonVariant } from './buttonStyles.ts'
 import { icons, type IconName } from './icons.ts'
 
-export type ButtonVariant = 'primary' | 'outline' | 'text' | 'google'
+export type { ButtonVariant } from './buttonStyles.ts'
 
 export type ButtonProps = Omit<ComponentPropsWithRef<'button'>, 'className'> & {
   variant?: ButtonVariant
   /** `sm` is the compact size used for "Details >" style actions. */
-  size?: 'md' | 'sm'
+  size?: ButtonSize
   fullWidth?: boolean
   leadingIcon?: IconName
   trailingIcon?: IconName
 }
-
-// Boxed variants share the grey disabled look of the grey "Login" in Components-1.png.
-const boxedDisabled = 'disabled:border-transparent disabled:bg-disabled disabled:text-muted'
-
-const variants: Record<ButtonVariant, string> = {
-  primary: `border border-transparent bg-primary font-bold text-white enabled:hover:brightness-90 ${boxedDisabled}`,
-  outline: `border border-primary bg-transparent font-medium text-primary enabled:hover:bg-primary/10 ${boxedDisabled}`,
-  text: 'font-semibold text-primary enabled:hover:underline disabled:text-faint',
-  google: `border border-transparent bg-google font-normal text-ink-2 enabled:hover:brightness-95 ${boxedDisabled}`,
-}
-
-const boxedSizes = {
-  md: 'h-12 gap-2 px-6 text-16',
-  sm: 'h-8 gap-1 px-3 text-12',
-} as const
-
-// The text variant has no padding box.
-const textSizes = {
-  md: 'gap-2 text-16',
-  sm: 'gap-1 text-14',
-} as const
 
 export function Button({
   variant = 'primary',
@@ -46,16 +26,8 @@ export function Button({
 }: ButtonProps) {
   const LeadingIcon = leadingIcon ? icons[leadingIcon] : undefined
   const TrailingIcon = trailingIcon ? icons[trailingIcon] : undefined
-  const iconSize = size === 'sm' ? 16 : 20
-  const className = [
-    'inline-flex cursor-pointer items-center justify-center rounded-button transition disabled:cursor-not-allowed',
-    variants[variant],
-    variant === 'text' ? textSizes[size] : boxedSizes[size],
-    variant === 'google' && size === 'md' ? 'gap-4' : '',
-    fullWidth ? 'w-full' : '',
-  ]
-    .filter(Boolean)
-    .join(' ')
+  const iconSize = buttonIconSize[size]
+  const className = buttonClassName({ variant, size, fullWidth })
 
   return (
     <button type={type} {...rest} className={className}>

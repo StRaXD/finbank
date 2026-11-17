@@ -32,6 +32,27 @@ export type UserProfile = {
   avatarUrl: string | null
 }
 
+export type AccountType = 'creditCard' | 'checking' | 'savings' | 'investment' | 'loan'
+
+export type CardNetwork = 'mastercard' | 'visa'
+
+/** One account. `balanceCents` is always a non-negative magnitude; the adapter signs it for totals. */
+export type Account = {
+  id: string
+  type: AccountType
+  bankName: string
+  branchName: string
+  network?: CardNetwork
+  /** The full account number, digits only. Screens mask it with `maskAccountNumber`. */
+  accountNumber: string
+  balanceCents: number
+}
+
+/** Derived by the adapter: assets (checking, savings, investment) minus liabilities (credit card, loan). */
+export type BalanceSummary = {
+  totalBalanceCents: number
+}
+
 export type LoginInput = {
   email: string
   password: string

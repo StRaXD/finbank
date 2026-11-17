@@ -1,4 +1,13 @@
-import type { GoogleLoginInput, IsoDate, LoginInput, Session, SignupInput, UserProfile } from './types.ts'
+import type {
+  Account,
+  BalanceSummary,
+  GoogleLoginInput,
+  IsoDate,
+  LoginInput,
+  Session,
+  SignupInput,
+  UserProfile,
+} from './types.ts'
 
 /** The single data port (AD-2/AD-3). Every adapter implements all of it. Later epics extend it. */
 export interface FinbankApi {
@@ -10,6 +19,9 @@ export interface FinbankApi {
   requestPasswordReset(email: string): Promise<void>
   getSession(): Promise<Session | null>
   getProfile(): Promise<UserProfile>
+  /** Every account, in stored (seed) order. */
+  listAccounts(): Promise<Account[]>
+  getBalanceSummary(): Promise<BalanceSummary>
 }
 
 /** Every port method name, for tests that must cover the whole port. */
@@ -22,6 +34,8 @@ export const FINBANK_API_METHODS = [
   'requestPasswordReset',
   'getSession',
   'getProfile',
+  'listAccounts',
+  'getBalanceSummary',
 ] as const satisfies readonly (keyof FinbankApi)[]
 
 // Compile-time guard: adding a port method without listing it above fails `tsc`.

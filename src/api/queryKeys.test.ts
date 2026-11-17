@@ -8,6 +8,8 @@ describe('qk', () => {
     expect(qk.today()).toEqual(['finbank', 'today'])
     expect(qk.session()).toEqual(['finbank', 'session'])
     expect(qk.profile()).toEqual(['finbank', 'profile'])
+    expect(qk.accounts()).toEqual(['finbank', 'accounts'])
+    expect(qk.balanceSummary()).toEqual(['finbank', 'balanceSummary'])
   })
 
   it('returns stable, equal shapes on each call', () => {
