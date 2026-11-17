@@ -1,0 +1,97 @@
+import type { ReactNode } from 'react'
+
+export type TableAlign = 'left' | 'center' | 'right'
+
+export type TableColumn<T> = {
+  key: string
+  /** Usually text; a node lets a column align its title with its cell content (Bills' Amount). */
+  header: ReactNode
+  align?: TableAlign
+  /** Column share of the table width (e.g. '22%'), so columns sit where the design puts them. */
+  width?: string
+  render: (row: T) => ReactNode
+}
+
+/**
+ * Body cell padding: `md` gives 72px rows (107. Transactions), `sm` about 54px (106. Account
+ * Details), `lg` 32px above and below tall content (162px rows in 108. Bills). In 108 the cells
+ * have no side inset (text starts at the divider) and the header row is taller, so `lg` also
+ * drops the horizontal padding and pads the header more.
+ */
+export type TableDensity = 'md' | 'sm' | 'lg'
+
+export type TableProps<T> = {
+  columns: readonly TableColumn<T>[]
+  rows: readonly T[]
+  rowKey: (row: T) => string
+  /** Names the table for assistive tech; visually hidden. */
+  caption: string
+  /** Body row density; defaults to `md`. */
+  density?: TableDensity
+}
+
+const cellPadding: Record<TableDensity, string> = {
+  md: 'px-2 py-6',
+  sm: 'px-2 py-3.75',
+  lg: 'px-0 py-8',
+}
+
+const headerPadding: Record<TableDensity, string> = {
+  md: 'px-2 pb-4',
+  sm: 'px-2 pb-4',
+  lg: 'px-0 pb-6',
+}
+
+const alignClass: Record<TableAlign, string> = {
+  left: 'text-left',
+  center: 'text-center',
+  right: 'text-right',
+}
+
+/**
+ * A semantic data table (measured from 107. Transactions.png): a bold header row and 72px body
+ * rows (about 54px with `density="sm"`, 106. Account Details.png), each separated by a divider.
+ * Column `width`s fix the layout so it does not follow content.
+ */
+export function Table<T>({ columns, rows, rowKey, caption, density = 'md' }: TableProps<T>) {
+  const fixed = columns.some((column) => column.width !== undefined)
+  return (
+    <table className={`w-full border-collapse ${fixed ? 'table-fixed' : ''}`}>
+      <caption className="sr-only">{caption}</caption>
+      {fixed && (
+        <colgroup>
+          {columns.map((column) => (
+            <col key={column.key} style={column.width ? { width: column.width } : undefined} />
+          ))}
+        </colgroup>
+      )}
+      <thead>
+        <tr className="border-b border-border">
+          {columns.map((column) => (
+            <th
+              key={column.key}
+              scope="col"
+              className={`${headerPadding[density]} text-16 font-bold text-ink ${alignClass[column.align ?? 'left']}`}
+            >
+              {column.header}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border">
+        {rows.map((row) => (
+          <tr key={rowKey(row)}>
+            {columns.map((column) => (
+              <td
+                key={column.key}
+                className={`${cellPadding[density]} text-16 ${alignClass[column.align ?? 'left']}`}
+              >
+                {column.render(row)}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}

@@ -38,7 +38,7 @@ describe('tokens.css', () => {
     '--color-ink': hex('191919'),
     '--color-ink-2': hex('525256'),
     '--color-muted': hex('666666'),
-    '--color-subtle': hex('878787'),
+    '--color-subtle': hex('707070'),
     '--color-faint': hex('9F9F9F'),
     '--color-border': hex('E8E8E8'),
     '--color-surface': hex('F4F5F7'),
@@ -62,6 +62,9 @@ describe('tokens.css', () => {
     ['--color-white', hex('FFFFFF')],
     ['--color-card', 'var(--color-white)'],
     ['--color-sidebar', 'var(--color-ink)'],
+    // Adobe's official brand red: 4.56:1 on white (FFFFFF), so the vendor name passes WCAG AA at every
+    // size (108's 24px name and 104's 16px compact name share it).
+    ['--color-brand-adobe', hex('EB1000')],
     ['--color-overlay', fn('rgb', '0 0 0 / 13.5%')],
     ['--color-on-dark', 'var(--color-white)'],
     ['--color-on-dark-muted', fn('rgb', '255 255 255 / 70%')],
@@ -113,4 +116,40 @@ describe('tokens.css', () => {
   it('drops the Tailwind default type scale', () => {
     expect(theme.get('--text-*')).toBe('initial')
   })
+
+  it('keeps the Adobe vendor name at WCAG AA contrast (>= 4.5:1) on white', () => {
+    const value = theme.get('--color-brand-adobe') ?? ''
+    expect(value).toMatch(/^#[0-9A-F]{6}$/i)
+    expect(contrastRatio(value, hex('FFFFFF'))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  // Text tokens must pass WCAG AA (>= 4.5:1) on both the card white and the page grey. `faint` is
+  // excluded: it is reserved for disabled controls, which WCAG 1.4.3 exempts.
+  // `brand-adobe` is checked on white only (the test above): it is 4.17:1 on the surface grey and is
+  // only ever rendered inside white bill cards.
+  it.each(['--color-ink', '--color-ink-2', '--color-muted', '--color-subtle'])(
+    '%s reaches WCAG AA contrast on white and on the surface grey',
+    (name) => {
+      const value = theme.get(name) ?? ''
+      const surface = theme.get('--color-surface') ?? ''
+      expect(value).toMatch(/^#[0-9A-F]{6}$/i)
+      expect(surface).toMatch(/^#[0-9A-F]{6}$/i)
+      expect(contrastRatio(value, hex('FFFFFF'))).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(value, surface)).toBeGreaterThanOrEqual(4.5)
+    },
+  )
 })
+
+/** WCAG 2 relative luminance of a `#RRGGBB` colour. */
+function luminance(color: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = Number.parseInt(color.slice(i, i + 2), 16) / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+}
+
+function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (hi! + 0.05) / (lo! + 0.05)
+}

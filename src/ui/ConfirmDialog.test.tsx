@@ -93,4 +93,30 @@ describe('ConfirmDialog', () => {
     expect(onCancel).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
+
+  it('shows no alert without an error', () => {
+    renderDialog()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows the error as a danger line under the message, with Confirm still enabled', () => {
+    const onConfirm = vi.fn()
+    render(
+      <ConfirmDialog
+        open
+        title="Remove account?"
+        message="This cannot be undone."
+        error="Your browser storage is full."
+        onConfirm={onConfirm}
+        onCancel={() => {}}
+      />,
+    )
+    const alert = within(screen.getByRole('dialog')).getByRole('alert')
+    expect(alert).toHaveTextContent('Your browser storage is full.')
+    expect(alert).toHaveClass('text-danger')
+    const message = screen.getByText('This cannot be undone.')
+    expect(message.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+  })
 })

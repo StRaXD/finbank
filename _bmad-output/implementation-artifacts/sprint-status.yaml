@@ -29,13 +29,13 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 15:43
-last_updated: 11-17-2026 11:40
+last_updated: 11-17-2026 23:59
 project: Finbank
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-1: in-progress
+  epic-1: done
   1-1-scaffold-the-project-with-the-agreed-starter-and-tooling: done
   1-2-design-tokens-typography-and-brand-assets: done
   1-3-form-primitives-button-inputs-checkbox-and-form-status: done
@@ -47,14 +47,14 @@ development_status:
   1-9-card-async-states-modal-and-confirmdialog-primitives: done
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-balances-page-with-account-cards: backlog
-  2-2-remove-an-account-from-balances: backlog
-  2-3-transactions-page-with-tabs-and-load-more: backlog
-  2-4-account-details-with-transaction-history-and-remove: backlog
-  2-5-upcoming-bills-page: backlog
-  2-6-overview-page-with-greeting-and-total-balance-carousel: backlog
-  2-7-overview-upcoming-bill-and-recent-transaction-widgets: backlog
+  epic-2: in-progress
+  2-1-balances-page-with-account-cards: review
+  2-2-remove-an-account-from-balances: review
+  2-3-transactions-page-with-tabs-and-load-more: review
+  2-4-account-details-with-transaction-history-and-remove: review
+  2-5-upcoming-bills-page: review
+  2-6-overview-page-with-greeting-and-total-balance-carousel: review
+  2-7-overview-upcoming-bill-and-recent-transaction-widgets: review
   epic-2-retrospective: optional
 
   epic-3: backlog

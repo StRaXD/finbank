@@ -217,7 +217,7 @@ From the architecture spine:
 - All formatting goes through `lib/format` (AD-10).
 - Tokens live in `styles/tokens.css` under `@theme`. Tokens read from JavaScript use `@theme static`. Hex literals are not allowed outside tokens (AD-11).
 - UI primitives live in `src/ui`. Inputs need a label and charts need a summary. Domain components each have one owner (AD-12).
-- Modals render into `#content-overlay-root`. The shell is `inert` while a modal is open. Removing from Account Details navigates first, then mutates (AD-13).
+- Modals render into `#content-overlay-root`. The shell is `inert` while a modal is open. Removing from Account Details mutates first, then replaces the route with Balances only on success; a failure stays on the page with the error (AD-13, revised 2026-11-17).
 - One route table, a `RequireSession` layout route, and a `routes` constants object (AD-14).
 - Forms use react-hook-form with zod, and a shared `FormStatus` component for success messages (AD-15).
 - `lib/chartScale` provides `createTickScale` and the `BAR_TICKS` and `SAVING_TICKS` constants (AD-16).
@@ -835,7 +835,8 @@ So that I can check what happened in that account.
 
 **Given** the user clicks "Remove" and confirms
 **When** the removal runs
-**Then** the app navigates to `/balances` first and then fires `removeAccount` (AD-13).
+**Then** `removeAccount` runs while the user stays on Account Details, and the app replaces the route with `/balances` only after it succeeds (AD-13, revised 2026-11-17).
+**And** if the removal fails, the user stays on Account Details and the dialog shows the error.
 **And** the account and its transactions are gone (FR17).
 **And** the account no longer appears on Balances.
 

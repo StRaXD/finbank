@@ -20,7 +20,8 @@
   --color-ink: #191919;
   --color-ink-2: #525256;
   --color-muted: #666666;
-  --color-subtle: #878787;
+  /* Darkened from the PNG's #878787 (3.59:1) for WCAG AA text: 4.95:1 on white, 4.54:1 on surface. */
+  --color-subtle: #707070;
   --color-faint: #9F9F9F;
   --color-border: #E8E8E8;
   --color-surface: #F4F5F7;
@@ -38,6 +39,9 @@
   /* Semantic fill for disabled controls; currently matches the Google button grey. */
   --color-disabled: var(--color-google);
   --color-sidebar: var(--color-ink);
+  /* Vendor brand colours for bill logos. Adobe's official brand red: 4.56:1 on white, so the
+     vendor name passes WCAG AA at every size (the #E73D1C sampled from 108 was only 4.13:1). */
+  --color-brand-adobe: #EB1000;
   /* Modal dim over the content column, measured from 110.2. Goals.png (#F4F5F7 -> #D3D4D6,
      white -> #DDDDDD): black at about 13.5%. */
   --color-overlay: rgb(0 0 0 / 13.5%);

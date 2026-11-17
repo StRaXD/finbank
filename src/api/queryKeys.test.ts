@@ -8,6 +8,23 @@ describe('qk', () => {
     expect(qk.today()).toEqual(['finbank', 'today'])
     expect(qk.session()).toEqual(['finbank', 'session'])
     expect(qk.profile()).toEqual(['finbank', 'profile'])
+    expect(qk.accounts()).toEqual(['finbank', 'accounts'])
+    expect(qk.account('acc_2')).toEqual(['finbank', 'accounts', 'acc_2'])
+    expect(qk.balanceSummary()).toEqual(['finbank', 'balanceSummary'])
+    expect(qk.transactions()).toEqual(['finbank', 'transactions'])
+    expect(qk.transactions({ kind: 'revenue', accountId: 'acc_2', limit: 10 })).toEqual([
+      'finbank',
+      'transactions',
+      { kind: 'revenue', accountId: 'acc_2', limit: 10 },
+    ])
+    expect(qk.bills()).toEqual(['finbank', 'bills'])
+    expect(qk.bills(2)).toEqual(['finbank', 'bills', { limit: 2 }])
+  })
+
+  it('never puts the cursor in a transactions key', () => {
+    const filter = { kind: 'expense', limit: 5, cursor: '10' } as Parameters<typeof qk.transactions>[0]
+    expect(qk.transactions(filter)).toEqual(['finbank', 'transactions', { kind: 'expense', accountId: undefined, limit: 5 }])
+    expect(JSON.stringify(qk.transactions(filter))).not.toContain('cursor')
   })
 
   it('returns stable, equal shapes on each call', () => {
@@ -16,13 +33,30 @@ describe('qk', () => {
 })
 
 describe('invalidationMap', () => {
-  it('clears the whole cache on every identity change', () => {
+  it('clears the whole cache on every identity change and lists keys for removeAccount', () => {
     expect(invalidationMap).toEqual({
       login: 'all',
       loginWithGoogle: 'all',
       signup: 'all',
       logout: 'all',
+      removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions()],
     })
+  })
+
+  it('invalidates accounts, the balance summary and every transaction list on removeAccount', async () => {
+    const client = new QueryClient()
+    client.setQueryData(qk.accounts(), [])
+    client.setQueryData(qk.account('acc_2'), null)
+    client.setQueryData(qk.transactions({ limit: 10 }), { pages: [], pageParams: [] })
+    client.setQueryData(qk.balanceSummary(), { totalBalanceCents: 0 })
+    client.setQueryData(qk.profile(), { fullName: 'x' })
+    await applyInvalidation(client, 'removeAccount')
+    expect(client.getQueryState(qk.accounts())?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.account('acc_2'))?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.balanceSummary())?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.transactions({ limit: 10 }))?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.profile())?.isInvalidated).toBe(false)
+    expect(client.getQueryData(qk.profile())).toEqual({ fullName: 'x' })
   })
 
   it("applies 'all' by emptying the cache", async () => {

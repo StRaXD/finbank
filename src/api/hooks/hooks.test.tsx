@@ -8,15 +8,21 @@ import { seed } from '../mock/seed.ts'
 import { qk } from '../queryKeys.ts'
 import { SessionProvider } from '../SessionProvider.tsx'
 import { useSessionContext } from '../sessionContext.ts'
+import { useAccount } from './useAccount.ts'
+import { useAccounts } from './useAccounts.ts'
 import { useApi } from './useApi.ts'
+import { useBalanceSummary } from './useBalanceSummary.ts'
+import { useBills } from './useBills.ts'
 import { useLogin } from './useLogin.ts'
 import { useLoginWithGoogle } from './useLoginWithGoogle.ts'
 import { useLogout } from './useLogout.ts'
 import { useProfile } from './useProfile.ts'
+import { useRemoveAccount } from './useRemoveAccount.ts'
 import { useRequestPasswordReset } from './useRequestPasswordReset.ts'
 import { useSession } from './useSession.ts'
 import { useSignup } from './useSignup.ts'
 import { useToday } from './useToday.ts'
+import { useTransactions } from './useTransactions.ts'
 
 function setup() {
   const api = createMockApi({
@@ -55,6 +61,62 @@ describe('query hooks', () => {
     const { wrapper } = setup()
     const { result } = renderHook(() => useProfile(), { wrapper })
     await waitFor(() => expect(result.current.data).toEqual(seed.profile))
+  })
+
+  it('useAccounts and useBalanceSummary resolve the seeded accounts and derived total', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => ({ accounts: useAccounts(), summary: useBalanceSummary() }), {
+      wrapper,
+    })
+    await waitFor(() => expect(result.current.accounts.data).toEqual(seed.accounts))
+    await waitFor(() => expect(result.current.summary.data).toEqual({ totalBalanceCents: 24_039_900 }))
+    expect(queryClient.getQueryData(qk.accounts())).toEqual(seed.accounts)
+    expect(queryClient.getQueryData(qk.balanceSummary())).toEqual({ totalBalanceCents: 24_039_900 })
+  })
+
+  it('useAccount resolves one account by id, and null for an unknown id', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => ({ known: useAccount('acc_2'), unknown: useAccount('nope') }), { wrapper })
+    await waitFor(() => expect(result.current.known.data).toEqual(seed.accounts[1]))
+    await waitFor(() => expect(result.current.unknown.isSuccess).toBe(true))
+    expect(result.current.unknown.data).toBeNull()
+    expect(queryClient.getQueryData(qk.account('acc_2'))).toEqual(seed.accounts[1])
+  })
+
+  it('useTransactions chains pages through nextCursor, keyed without the cursor', async () => {
+    const { wrapper, queryClient, api } = setup()
+    const spy = vi.spyOn(api, 'listTransactions')
+    const { result } = renderHook(() => useTransactions({ kind: 'expense', limit: 10 }), { wrapper })
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(1))
+    expect(spy).toHaveBeenLastCalledWith({ kind: 'expense', accountId: undefined, limit: 10, cursor: undefined })
+    const first = result.current.data!.pages[0]!
+    expect(first.items).toHaveLength(10)
+    expect(first.items[0]!.item).toBe('GTR 5')
+    expect(result.current.hasNextPage).toBe(true)
+
+    await act(() => result.current.fetchNextPage())
+    expect(spy).toHaveBeenLastCalledWith({ kind: 'expense', accountId: undefined, limit: 10, cursor: first.nextCursor })
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2))
+    expect(queryClient.getQueryData(qk.transactions({ kind: 'expense', limit: 10 }))).toBeDefined()
+
+    while (result.current.hasNextPage) await act(() => result.current.fetchNextPage())
+    const ids = result.current.data!.pages.flatMap((page) => page.items.map((t) => t.id))
+    const expenses = seed.transactions.filter((t) => t.kind === 'expense')
+    expect(ids).toHaveLength(expenses.length)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(result.current.data!.pages.at(-1)!.nextCursor).toBeNull()
+  })
+
+  it('useBills resolves the bills by due date, keyed by limit', async () => {
+    const { wrapper, queryClient, api } = setup()
+    const spy = vi.spyOn(api, 'listBills')
+    const { result } = renderHook(() => ({ all: useBills(), two: useBills({ limit: 2 }) }), { wrapper })
+    await waitFor(() => expect(result.current.all.data).toEqual(seed.bills))
+    await waitFor(() => expect(result.current.two.data?.map((b) => b.vendor)).toEqual(['Figma', 'Adobe']))
+    expect(spy).toHaveBeenCalledWith({})
+    expect(spy).toHaveBeenCalledWith({ limit: 2 })
+    expect(queryClient.getQueryData(qk.bills())).toEqual(seed.bills)
+    expect(queryClient.getQueryData(qk.bills(2))).toHaveLength(2)
   })
 
   it('useSession is null when signed out', async () => {
@@ -156,6 +218,24 @@ describe('mutation hooks', () => {
     await act(() => result.current.mutateAsync('a@b.co'))
     await act(() => result.current.mutateAsync('bad').catch(() => {}))
     await waitFor(() => expect(result.current.error).toMatchObject({ code: 'VALIDATION' }))
+  })
+
+  it('useRemoveAccount refetches accounts and the balance summary before it settles', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(
+      () => ({ accounts: useAccounts(), summary: useBalanceSummary(), remove: useRemoveAccount() }),
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.accounts.data).toHaveLength(5))
+    await waitFor(() => expect(result.current.summary.data).toEqual({ totalBalanceCents: 24_039_900 }))
+
+    await act(() => result.current.remove.mutateAsync('acc_2'))
+
+    // Read straight after it settles: the mutation resolved only once the active queries refetched.
+    const ids = queryClient.getQueryData<{ id: string }[]>(qk.accounts())?.map((a) => a.id)
+    expect(ids).toEqual(['acc_1', 'acc_3', 'acc_4', 'acc_5'])
+    expect(queryClient.getQueryData(qk.balanceSummary())).toEqual({ totalBalanceCents: 21_534_300 })
+    await waitFor(() => expect(result.current.summary.data).toEqual({ totalBalanceCents: 21_534_300 }))
   })
 
   it('mutations call the adapter from ApiProvider', async () => {

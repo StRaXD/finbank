@@ -3,6 +3,10 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
 import { ForgotPasswordPage, LoginPage, SignupPage, type AuthPaths } from '../features/auth/index.ts'
+import { AccountDetailsPage, BalancesPage } from '../features/balances/index.ts'
+import { BillsPage } from '../features/bills/index.ts'
+import { OverviewPage } from '../features/overview/index.ts'
+import { TransactionsPage } from '../features/transactions/index.ts'
 import { AppShell } from './AppShell/AppShell.tsx'
 import { PageBusy } from './PageBusy.tsx'
 import { PlaceholderPage } from './PlaceholderPage.tsx'
@@ -55,11 +59,20 @@ export const routeObjects: RouteObject[] = [
       {
         element: <AppShell />,
         children: [
-          { path: routes.overview, element: <PlaceholderPage title="Overview" /> },
-          { path: routes.balances, element: <PlaceholderPage title="Balances" /> },
-          { path: routePatterns.accountDetails, element: <PlaceholderPage title="Account Details" /> },
-          { path: routes.transactions, element: <PlaceholderPage title="Transactions" /> },
-          { path: routes.bills, element: <PlaceholderPage title="Bills" /> },
+          {
+            path: routes.overview,
+            element: (
+              <OverviewPage
+                accountDetailsPath={routes.accountDetails}
+                billsPath={routes.bills}
+                transactionsPath={routes.transactions}
+              />
+            ),
+          },
+          { path: routes.balances, element: <BalancesPage accountDetailsPath={routes.accountDetails} /> },
+          { path: routePatterns.accountDetails, element: <AccountDetailsPage balancesPath={routes.balances} /> },
+          { path: routes.transactions, element: <TransactionsPage /> },
+          { path: routes.bills, element: <BillsPage /> },
           { path: routes.expenses, element: <PlaceholderPage title="Expenses" /> },
           { path: routes.goals, element: <PlaceholderPage title="Goals" /> },
           { path: routes.settings, element: <PlaceholderPage title="Settings" /> },

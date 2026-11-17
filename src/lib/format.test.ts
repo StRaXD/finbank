@@ -126,6 +126,8 @@ describe('formatDate', () => {
     ['2023-05-20', 'weekday', '20 Sat'],
     ['2023-05-01', 'weekday', '01 Mon'],
     ['2023-12-31', 'month', 'Dec'],
+    ['2023-05-25', 'day', '25'],
+    ['2023-06-05', 'day', '5'],
   ] as const)('%s %s → %s', (date, mode, expected) => {
     expect(formatDate(toIsoDate(date), mode)).toBe(expected)
   })

@@ -222,7 +222,7 @@ graph TD
   - `Modal` and `ConfirmDialog` portal into `#content-overlay-root`, which `AppShell` renders inside the content column. The overlay dims only that column.
   - While a modal is open, `AppShell` sets `inert` on the sidebar and top bar.
   - `Modal` traps focus, closes on Esc and on overlay click, and returns focus to the element that opened it.
-  - A removal from Account Details navigates to `/balances` first and only then fires the mutation.
+  - A removal from Account Details keeps the user on the page while the mutation runs, with the confirm dialog open and pending. Only after it succeeds does the app replace the route with `/balances`, so Back never returns to the removed account. A failure keeps the user on Account Details with the error shown in the dialog, and Confirm can be retried. While the removal settles, the page keeps rendering the account being removed, so it never shows "Account not found" behind the dialog. *(Revised 2026-11-17 by human decision during Story 2.4. It replaces "navigate to `/balances` first, then fire the mutation", which hid failures.)*
 
 ### AD-14: Routing follows one route table
 

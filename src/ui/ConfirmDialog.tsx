@@ -11,6 +11,8 @@ export type ConfirmDialogProps = {
   onCancel: () => void
   /** While true, both buttons are disabled and Esc, the X and an overlay click are ignored. */
   pending?: boolean
+  /** An inline danger line under the message (e.g. a failed confirm); Confirm stays retryable. */
+  error?: string
 }
 
 /**
@@ -26,6 +28,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   pending = false,
+  error,
 }: ConfirmDialogProps) {
   return (
     <Modal
@@ -36,6 +39,11 @@ export function ConfirmDialog({
       }}
     >
       <p className="text-16 text-muted">{message}</p>
+      {error && (
+        <p role="alert" className="mt-4 text-14 text-danger">
+          {error}
+        </p>
+      )}
       <div className="mt-8 flex justify-center gap-4">
         <Button variant="outline" disabled={pending} onClick={onCancel}>
           {cancelLabel}
