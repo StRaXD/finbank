@@ -18,13 +18,26 @@ describe('qk', () => {
 })
 
 describe('invalidationMap', () => {
-  it('clears the whole cache on every identity change', () => {
+  it('clears the whole cache on every identity change and lists keys for removeAccount', () => {
     expect(invalidationMap).toEqual({
       login: 'all',
       loginWithGoogle: 'all',
       signup: 'all',
       logout: 'all',
+      removeAccount: [qk.accounts(), qk.balanceSummary()],
     })
+  })
+
+  it('invalidates only accounts and the balance summary on removeAccount', async () => {
+    const client = new QueryClient()
+    client.setQueryData(qk.accounts(), [])
+    client.setQueryData(qk.balanceSummary(), { totalBalanceCents: 0 })
+    client.setQueryData(qk.profile(), { fullName: 'x' })
+    await applyInvalidation(client, 'removeAccount')
+    expect(client.getQueryState(qk.accounts())?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.balanceSummary())?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.profile())?.isInvalidated).toBe(false)
+    expect(client.getQueryData(qk.profile())).toEqual({ fullName: 'x' })
   })
 
   it("applies 'all' by emptying the cache", async () => {

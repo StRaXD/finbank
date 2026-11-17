@@ -27,5 +27,6 @@ export function createHttpApi(options: HttpApiOptions = {}): FinbankApi {
     getProfile: notImplemented('getProfile'),
     listAccounts: notImplemented('listAccounts'),
     getBalanceSummary: notImplemented('getBalanceSummary'),
+    removeAccount: notImplemented('removeAccount'),
   }
 }

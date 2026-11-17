@@ -337,5 +337,16 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
           0,
         ),
       })),
+
+    removeAccount: (id: string) =>
+      call(() => {
+        const prev = state()
+        if (!prev.accounts.some((account) => account.id === id)) return
+        // Story 2.3: also drop this account's transactions here (AD-6).
+        const next: MockState = { ...prev, accounts: prev.accounts.filter((account) => account.id !== id) }
+        // Write first: a failed write leaves both memory and storage unchanged.
+        writeItem(storage, MOCK_STORAGE_KEY, JSON.stringify(next))
+        current = next
+      }),
   }
 }

@@ -15,6 +15,7 @@ import { useLogin } from './useLogin.ts'
 import { useLoginWithGoogle } from './useLoginWithGoogle.ts'
 import { useLogout } from './useLogout.ts'
 import { useProfile } from './useProfile.ts'
+import { useRemoveAccount } from './useRemoveAccount.ts'
 import { useRequestPasswordReset } from './useRequestPasswordReset.ts'
 import { useSession } from './useSession.ts'
 import { useSignup } from './useSignup.ts'
@@ -169,6 +170,24 @@ describe('mutation hooks', () => {
     await act(() => result.current.mutateAsync('a@b.co'))
     await act(() => result.current.mutateAsync('bad').catch(() => {}))
     await waitFor(() => expect(result.current.error).toMatchObject({ code: 'VALIDATION' }))
+  })
+
+  it('useRemoveAccount refetches accounts and the balance summary before it settles', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(
+      () => ({ accounts: useAccounts(), summary: useBalanceSummary(), remove: useRemoveAccount() }),
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.accounts.data).toHaveLength(5))
+    await waitFor(() => expect(result.current.summary.data).toEqual({ totalBalanceCents: 24_039_900 }))
+
+    await act(() => result.current.remove.mutateAsync('acc_2'))
+
+    // Read straight after it settles: the mutation resolved only once the active queries refetched.
+    const ids = queryClient.getQueryData<{ id: string }[]>(qk.accounts())?.map((a) => a.id)
+    expect(ids).toEqual(['acc_1', 'acc_3', 'acc_4', 'acc_5'])
+    expect(queryClient.getQueryData(qk.balanceSummary())).toEqual({ totalBalanceCents: 21_534_300 })
+    await waitFor(() => expect(result.current.summary.data).toEqual({ totalBalanceCents: 21_534_300 }))
   })
 
   it('mutations call the adapter from ApiProvider', async () => {

@@ -22,6 +22,8 @@ export interface FinbankApi {
   /** Every account, in stored (seed) order. */
   listAccounts(): Promise<Account[]>
   getBalanceSummary(): Promise<BalanceSummary>
+  /** Removes an account and persists it. An unknown id resolves as a no-op (idempotent). */
+  removeAccount(id: string): Promise<void>
 }
 
 /** Every port method name, for tests that must cover the whole port. */
@@ -36,6 +38,7 @@ export const FINBANK_API_METHODS = [
   'getProfile',
   'listAccounts',
   'getBalanceSummary',
+  'removeAccount',
 ] as const satisfies readonly (keyof FinbankApi)[]
 
 // Compile-time guard: adding a port method without listing it above fails `tsc`.

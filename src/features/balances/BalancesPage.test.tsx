@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ApiProvider } from '../../api/ApiProvider.tsx'
 import type { FinbankApi } from '../../api/port.ts'
 import { ApiError, type Account } from '../../api/types.ts'
@@ -54,8 +54,11 @@ const accounts: Account[] = [
 
 const detailsPath = (id: string) => `/details/${id}`
 
-function renderPage(listAccounts: FinbankApi['listAccounts']) {
-  const api = { listAccounts } as FinbankApi
+function renderPage(
+  listAccounts: FinbankApi['listAccounts'],
+  removeAccount: FinbankApi['removeAccount'] = () => Promise.resolve(),
+) {
+  const api = { listAccounts, removeAccount } as FinbankApi
   const router = createMemoryRouter(
     [
       { path: '/balances', element: <BalancesPage accountDetailsPath={detailsPath} /> },
@@ -72,6 +75,27 @@ function renderPage(listAccounts: FinbankApi['listAccounts']) {
     </ApiProvider>,
   )
   return { router }
+}
+
+/** A stateful hand-built adapter: listAccounts reflects removals; `control.fail` makes removals reject. */
+function statefulApi() {
+  let list = structuredClone(accounts)
+  const control = { fail: null as ApiError | null }
+  const removeAccount = vi.fn((id: string) => {
+    if (control.fail) return Promise.reject(control.fail)
+    list = list.filter((a) => a.id !== id)
+    return Promise.resolve()
+  })
+  const listAccounts = () => Promise.resolve(structuredClone(list))
+  return { listAccounts, removeAccount, control }
+}
+
+async function openRemove(name: string) {
+  const card = await screen.findByRole('article', { name })
+  const remove = within(card).getByRole('button', { name: 'Remove' })
+  remove.focus()
+  fireEvent.click(remove)
+  return { remove, dialog: screen.getByRole('dialog', { name: 'Remove account?' }) }
 }
 
 const loaded = () => Promise.resolve(structuredClone(accounts))
@@ -137,10 +161,9 @@ describe('BalancesPage', () => {
     expect(router.state.location.pathname).toBe('/details/acc_2')
   })
 
-  it('keeps Remove, Add Accounts and Edit Accounts inert', async () => {
+  it('keeps Add Accounts and Edit Accounts inert', async () => {
     const { router } = renderPage(loaded)
-    const cards = await screen.findAllByTestId('account-card')
-    fireEvent.click(within(cards[0]!).getByRole('button', { name: 'Remove' }))
+    await screen.findAllByTestId('account-card')
     fireEvent.click(screen.getByRole('button', { name: 'Add Accounts' }))
     fireEvent.click(screen.getByRole('button', { name: 'Edit Accounts' }))
     expect(screen.getAllByTestId('account-card')).toHaveLength(5)
@@ -162,5 +185,134 @@ describe('BalancesPage', () => {
     fail = false
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(screen.getAllByTestId('account-card')).toHaveLength(5))
+  })
+
+  describe('removing an account', () => {
+    it('opens a dialog that names the account', async () => {
+      renderPage(loaded)
+      const { dialog } = await openRemove('Checking')
+      expect(
+        within(dialog).getByText('Your Checking account at AB Bank Ltd. (693 456 699****) will be removed.'),
+      ).toBeInTheDocument()
+      expect(within(dialog).getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+      expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+      expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it.each([
+      ['Cancel', () => fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))],
+      ['Esc', () => fireEvent.keyDown(document.body, { key: 'Escape' })],
+      ['the X', () => fireEvent.click(screen.getByRole('button', { name: 'Close' }))],
+    ])('changes nothing on %s and returns focus to Remove', async (_name, close) => {
+      const api = statefulApi()
+      renderPage(api.listAccounts, api.removeAccount)
+      const { remove } = await openRemove('Checking')
+      close()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(api.removeAccount).not.toHaveBeenCalled()
+      expect(screen.getAllByTestId('account-card')).toHaveLength(5)
+      expect(remove).toHaveFocus()
+    })
+
+    it('removes the card on confirm, closes the dialog and focuses the page title', async () => {
+      const api = statefulApi()
+      renderPage(api.listAccounts, api.removeAccount)
+      const { dialog } = await openRemove('Checking')
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(api.removeAccount).toHaveBeenCalledTimes(1)
+      expect(api.removeAccount).toHaveBeenCalledWith('acc_2')
+      expect(screen.queryByRole('article', { name: 'Checking' })).not.toBeInTheDocument()
+      expect(screen.getAllByTestId('account-card')).toHaveLength(4)
+      expect(screen.getByRole('heading', { level: 1, name: 'Balances' })).toHaveFocus()
+    })
+
+    it('disables both buttons and ignores Esc and a second Remove while the removal is pending', async () => {
+      const api = statefulApi()
+      let finish: () => void = () => {}
+      const removeAccount = vi.fn(
+        (id: string) =>
+          new Promise<void>((resolve) => {
+            finish = () => {
+              void api.removeAccount(id).then(resolve)
+            }
+          }),
+      )
+      renderPage(api.listAccounts, removeAccount)
+      const { dialog } = await openRemove('Checking')
+      const remove = within(dialog).getByRole('button', { name: 'Remove' })
+      fireEvent.click(remove)
+      await waitFor(() => expect(remove).toBeDisabled())
+      expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+      fireEvent.keyDown(document.body, { key: 'Escape' })
+      fireEvent.click(remove)
+      expect(screen.getByRole('dialog', { name: 'Remove account?' })).toBeInTheDocument()
+      expect(removeAccount).toHaveBeenCalledTimes(1)
+
+      finish()
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(screen.queryByRole('article', { name: 'Checking' })).not.toBeInTheDocument()
+      expect(screen.getAllByTestId('account-card')).toHaveLength(4)
+    })
+
+    it('sends one removal for a double click on Remove', async () => {
+      const api = statefulApi()
+      let finish: () => void = () => {}
+      const removeAccount = vi.fn(
+        (id: string) =>
+          new Promise<void>((resolve) => {
+            finish = () => {
+              void api.removeAccount(id).then(resolve)
+            }
+          }),
+      )
+      renderPage(api.listAccounts, removeAccount)
+      const { dialog } = await openRemove('Checking')
+      const remove = within(dialog).getByRole('button', { name: 'Remove' })
+      fireEvent.click(remove)
+      fireEvent.click(remove)
+      await waitFor(() => expect(remove).toBeDisabled())
+      expect(removeAccount).toHaveBeenCalledTimes(1)
+
+      finish()
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(screen.getAllByTestId('account-card')).toHaveLength(4)
+      expect(removeAccount).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the dialog open with an alert on failure, clears it on reopen, and retries', async () => {
+      const api = statefulApi()
+      api.control.fail = new ApiError('STORAGE_FULL', 'Your browser storage is full. Free some space and try again.')
+      renderPage(api.listAccounts, api.removeAccount)
+      const { dialog } = await openRemove('Checking')
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Your browser storage is full.')
+      expect(screen.getByRole('dialog', { name: 'Remove account?' })).toBeInTheDocument()
+      expect(screen.getAllByTestId('account-card')).toHaveLength(5)
+
+      // Reopening starts clean.
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+      const reopened = (await openRemove('Checking')).dialog
+      expect(within(reopened).queryByRole('alert')).not.toBeInTheDocument()
+
+      // Fails again, then a retry from the same dialog succeeds.
+      fireEvent.click(within(reopened).getByRole('button', { name: 'Remove' }))
+      expect(await within(reopened).findByRole('alert')).toBeInTheDocument()
+      api.control.fail = null
+      fireEvent.click(within(reopened).getByRole('button', { name: 'Remove' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(screen.getAllByTestId('account-card')).toHaveLength(4)
+    })
+
+    it('shows the empty line after removing the last account', async () => {
+      const api = statefulApi()
+      renderPage(api.listAccounts, api.removeAccount)
+      for (const name of ['Credit Card', 'Checking', 'Savings', 'Investment', 'Loan']) {
+        const { dialog } = await openRemove(name)
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      }
+      expect(await screen.findByText('No accounts yet.')).toBeInTheDocument()
+    })
   })
 })

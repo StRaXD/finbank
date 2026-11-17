@@ -69,6 +69,21 @@ describe('routing and session guard', () => {
     expect(active).toEqual(['Balances'])
   })
 
+  it('removes an account from Balances, persisted for a fresh adapter, with the chrome inert meanwhile', async () => {
+    renderAt(routes.balances, await signedInApi())
+    const checking = await screen.findByRole('article', { name: 'Checking' })
+    fireEvent.click(within(checking).getByRole('button', { name: 'Remove' }))
+    const dialog = screen.getByRole('dialog', { name: 'Remove account?' })
+    expect(document.getElementById('content-overlay-root')?.contains(dialog)).toBe(true)
+    expect(screen.getByRole('navigation', { name: 'Main', hidden: true }).closest('aside')).toHaveAttribute('inert')
+    expect(screen.getByRole('banner', { hidden: true })).toHaveAttribute('inert')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByRole('article', { name: 'Checking' })).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('account-card')).toHaveLength(4)
+    await expect(createTestApi().listAccounts()).resolves.toHaveLength(4)
+  })
+
   it('redirects an unknown path to Overview', async () => {
     const { router } = renderAt(`${routes.overview}no-such-page`, await signedInApi())
     expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument()

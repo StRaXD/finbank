@@ -12,7 +12,7 @@ export type AccountCardProps = {
   account: Account
   /** Where "Details" goes: the account's Account Details page. */
   detailsHref: string
-  /** Called by "Remove". Story 2.2 supplies it; until then "Remove" does nothing. */
+  /** Called by "Remove", with this card's account. */
   onRemove?: (account: Account) => void
 }
 

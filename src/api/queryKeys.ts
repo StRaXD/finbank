@@ -22,6 +22,8 @@ export const invalidationMap = {
   loginWithGoogle: 'all',
   signup: 'all',
   logout: 'all',
+  // Story 2.3 adds qk.transactions() here (AD-6).
+  removeAccount: [qk.accounts(), qk.balanceSummary()],
 } as const satisfies Record<string, InvalidationTarget>
 
 export type InvalidatingMutation = keyof typeof invalidationMap
@@ -44,7 +46,7 @@ export async function applyInvalidation(
   mutation: InvalidatingMutation,
   options?: { session: Session | null },
 ): Promise<void> {
-  // Widened on purpose: today every entry is 'all', later epics add key lists.
+  // Widened on purpose: identity changes are 'all', domain mutations list key prefixes.
   const target = invalidationMap[mutation] as InvalidationTarget
   if (target === 'all') {
     await queryClient.cancelQueries()

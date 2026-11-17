@@ -256,6 +256,68 @@ describe('accounts', () => {
   })
 })
 
+describe('removeAccount', () => {
+  it('removes the account, updates the summary and persists the change', async () => {
+    const api = make()
+    await api.removeAccount('acc_2')
+    const accounts = await api.listAccounts()
+    expect(accounts.map((a) => a.id)).toEqual(['acc_1', 'acc_3', 'acc_4', 'acc_5'])
+    await expect(api.getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 24_039_900 - 2_505_600 })
+    expect(stored().accounts.map((a: { id: string }) => a.id)).not.toContain('acc_2')
+  })
+
+  it('keeps the account removed for a new adapter over the same storage', async () => {
+    await make().removeAccount('acc_2')
+    const accounts = await make().listAccounts()
+    expect(accounts).toHaveLength(4)
+    expect(accounts.map((a) => a.id)).not.toContain('acc_2')
+  })
+
+  it('resolves as a no-op for an unknown id, and when removing twice, without writing', async () => {
+    const api = make()
+    await api.listAccounts()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await expect(api.removeAccount('nope')).resolves.toBeUndefined()
+    expect(setItem).not.toHaveBeenCalled()
+    expect(await api.listAccounts()).toEqual(seed.accounts)
+    expect(stored().accounts).toEqual(seed.accounts)
+    await api.removeAccount('acc_1')
+    expect(setItem).toHaveBeenCalledTimes(1)
+    await expect(api.removeAccount('acc_1')).resolves.toBeUndefined()
+    expect(setItem).toHaveBeenCalledTimes(1)
+    setItem.mockRestore()
+    expect(await api.listAccounts()).toHaveLength(4)
+  })
+
+  it.each([
+    ['STORAGE_FULL', new DOMException('quota', 'QuotaExceededError')],
+    ['UNKNOWN', new Error('boom')],
+  ])('rejects %s on a failed write and leaves memory and storage unchanged', async (code, thrown) => {
+    const api = make()
+    await api.listAccounts()
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw thrown
+    })
+    const error = await rejection(api.removeAccount('acc_2'))
+    setItem.mockRestore()
+    expect(error.code).toBe(code)
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+    expect((await api.listAccounts()).map((a) => a.id)).toContain('acc_2')
+    await expect(api.getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 24_039_900 })
+  })
+
+  it('removes the last account: an empty list and a zero total', async () => {
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), accounts: [seed.accounts[1]] }))
+    const api = make()
+    await api.removeAccount('acc_2')
+    await expect(api.listAccounts()).resolves.toEqual([])
+    await expect(api.getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 0 })
+    expect(stored().accounts).toEqual([])
+    await expect(make().listAccounts()).resolves.toEqual([])
+  })
+})
+
 describe('default stores', () => {
   function blockStorage(name: 'localStorage' | 'sessionStorage') {
     const original = Object.getOwnPropertyDescriptor(globalThis, name)
