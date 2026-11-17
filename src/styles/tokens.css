@@ -42,8 +42,11 @@
   /* On dark surfaces (sidebar). */
   --color-on-dark: var(--color-white);
   --color-on-dark-muted: rgb(255 255 255 / 70%);
-  --color-on-dark-hover: rgb(255 255 255 / 8%);
-  --color-on-dark-divider: rgb(210 210 210 / 25%);
+  /* Measured from 105. Balances.png over the #191919 sidebar: Logout label ~#C5C5C5,
+     Logout/hover fill #262626, divider #2B2B2B. */
+  --color-on-dark-soft: rgb(255 255 255 / 75%);
+  --color-on-dark-hover: rgb(255 255 255 / 5.6%);
+  --color-on-dark-divider: rgb(210 210 210 / 9.7%);
 
   /* Focus ring. */
   --color-focus-ring: var(--color-primary);

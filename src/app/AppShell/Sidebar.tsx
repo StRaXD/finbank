@@ -43,7 +43,7 @@ export function Sidebar({ inert }: { inert: boolean }) {
         type="button"
         onClick={() => logout.mutate()}
         disabled={logout.isPending}
-        className={`${itemBase} mt-auto w-full shrink-0 cursor-pointer bg-on-dark-hover text-on-dark-muted disabled:cursor-not-allowed`}
+        className={`${itemBase} mt-auto w-full shrink-0 cursor-pointer bg-on-dark-hover text-on-dark-soft disabled:cursor-not-allowed`}
       >
         <LogoutIcon aria-hidden="true" data-icon="logout" size={24} className="shrink-0" />
         Logout
