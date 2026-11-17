@@ -3,7 +3,7 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
 import { ForgotPasswordPage, LoginPage, SignupPage, type AuthPaths } from '../features/auth/index.ts'
-import { AppLayout } from './AppLayout.tsx'
+import { AppShell } from './AppShell/AppShell.tsx'
 import { PageBusy } from './PageBusy.tsx'
 import { PlaceholderPage } from './PlaceholderPage.tsx'
 import { RedirectIfSession } from './RedirectIfSession.tsx'
@@ -47,7 +47,7 @@ export const routeObjects: RouteObject[] = [
     element: <RequireSession />,
     children: [
       {
-        element: <AppLayout />,
+        element: <AppShell />,
         children: [
           { path: routes.overview, element: <PlaceholderPage title="Overview" /> },
           { path: routes.balances, element: <PlaceholderPage title="Balances" /> },

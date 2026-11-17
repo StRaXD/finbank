@@ -2,7 +2,7 @@
 // zero-latency mock adapter.
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router'
+import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router'
 import { ApiProvider } from '../api/ApiProvider.tsx'
 import { createMockApi } from '../api/mock/mockApi.ts'
 import type { FinbankApi } from '../api/port.ts'
@@ -19,8 +19,9 @@ export function createTestApi(overrides: Partial<FinbankApi> = {}): FinbankApi {
   return { ...api, ...overrides }
 }
 
-export function renderAt(path: string, api: FinbankApi = createTestApi()) {
-  const router = createMemoryRouter(routeObjects, { initialEntries: [path] })
+/** Renders `path` over the real route table, or over `routes` when a test needs its own table. */
+export function renderAt(path: string, api: FinbankApi = createTestApi(), routes: RouteObject[] = routeObjects) {
+  const router = createMemoryRouter(routes, { initialEntries: [path] })
   const queryClient = createQueryClient()
   const result = render(
     <ApiProvider api={api}>
@@ -31,7 +32,7 @@ export function renderAt(path: string, api: FinbankApi = createTestApi()) {
       </QueryClientProvider>
     </ApiProvider>,
   )
-  return { ...result, router, api }
+  return { ...result, router, api, queryClient }
 }
 
 /**

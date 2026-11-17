@@ -41,7 +41,7 @@ describe('tokens.css', () => {
     '--color-subtle': hex('878787'),
     '--color-faint': hex('9F9F9F'),
     '--color-border': hex('E8E8E8'),
-    '--color-surface': hex('F3F3F3'),
+    '--color-surface': hex('F4F5F7'),
     '--color-danger': hex('E73D1C'),
     '--color-positive': hex('4DAF6E'),
   }

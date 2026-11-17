@@ -16,6 +16,8 @@ export const routes = {
   expenses: '/expenses',
   goals: '/goals',
   settings: '/settings',
+  /** The user block's "View profile" link: Settings on its Account tab. */
+  viewProfile: '/settings?tab=account',
   /** Dev-only token and component specimen (Stories 1.2/1.3); `undefined` (and absent) in production. */
   specimen: import.meta.env.DEV ? '/__specimen' : undefined,
 } as const

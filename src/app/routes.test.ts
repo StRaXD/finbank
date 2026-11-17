@@ -11,6 +11,10 @@ describe('routes', () => {
     expect(() => routes.accountDetails('')).toThrow(/non-empty/)
   })
 
+  it('points View profile at the Settings Account tab', () => {
+    expect(routes.viewProfile).toBe(`${routes.settings}?tab=account`)
+  })
+
   it('defines the specimen path in dev', () => {
     expect(routes.specimen).toBeDefined()
   })

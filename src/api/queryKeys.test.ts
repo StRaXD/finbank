@@ -47,4 +47,32 @@ describe('invalidationMap', () => {
     expect(statuses).not.toHaveLength(0)
     expect(statuses).not.toContain('pending')
   })
+
+  it('drops even mounted queries without refetching them when signing out', async () => {
+    const client = new QueryClient()
+    client.setQueryData(qk.session(), { userId: 'usr_1', persistent: true })
+    let profileFetches = 0
+    const observer = new QueryObserver(client, {
+      queryKey: qk.profile(),
+      queryFn: () => {
+        profileFetches += 1
+        return { fullName: 'x' }
+      },
+    })
+    const unsubscribe = observer.subscribe(() => {})
+    await waitForData(client)
+    const fetchesBefore = profileFetches
+    await applyInvalidation(client, 'logout', { session: null })
+    await Promise.resolve()
+    unsubscribe()
+    expect(profileFetches).toBe(fetchesBefore)
+    expect(client.getQueryData(qk.profile())).toBeUndefined()
+    expect(client.getQueryData(qk.session())).toBeNull()
+    expect(client.getQueryCache().getAll().map((q) => q.queryKey)).toEqual([qk.session()])
+  })
 })
+
+async function waitForData(client: QueryClient) {
+  for (let i = 0; i < 20 && client.getQueryData(qk.profile()) === undefined; i++) await Promise.resolve()
+  expect(client.getQueryData(qk.profile())).toBeDefined()
+}

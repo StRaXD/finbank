@@ -32,7 +32,10 @@ export type InvalidatingMutation = keyof typeof invalidationMap
  * not touched: credential-carrying mutations set `gcTime: 0` instead.
  *
  * With `options.session` (identity changes), the session query is seeded with it instead of being
- * reset, so it never passes through `pending` and the route guards never blank the page.
+ * reset, so it never passes through `pending` and the route guards never blank the page. When
+ * that session is `null` (signed out), every other query is removed instead of reset, even a
+ * mounted one, so it is not refetched in place (a still-mounted observer that re-renders may
+ * re-create its own query, as RequireSession's `useToday` does once).
  */
 export async function applyInvalidation(
   queryClient: QueryClient,
@@ -49,8 +52,17 @@ export async function applyInvalidation(
       return
     }
     const sessionHash = hashKey(qk.session())
+    const notSession = (query: { queryHash: string }) => query.queryHash !== sessionHash
     queryClient.setQueryData(qk.session(), options.session)
-    await queryClient.resetQueries({ predicate: (query) => query.queryHash !== sessionHash })
+    if (options.session === null) {
+      // Signed out: every non-session query is removed rather than reset, so signed-in data such
+      // as the shell's profile is not refetched or kept. An observer that re-renders before the
+      // guards unmount it can still re-create its query: RequireSession's `useToday` refetches
+      // today once after logout.
+      queryClient.removeQueries({ predicate: notSession })
+      return
+    }
+    await queryClient.resetQueries({ predicate: notSession })
     return
   }
   await Promise.all(target.map((queryKey) => queryClient.invalidateQueries({ queryKey })))
