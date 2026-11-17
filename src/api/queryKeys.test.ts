@@ -9,6 +9,7 @@ describe('qk', () => {
     expect(qk.session()).toEqual(['finbank', 'session'])
     expect(qk.profile()).toEqual(['finbank', 'profile'])
     expect(qk.accounts()).toEqual(['finbank', 'accounts'])
+    expect(qk.account('acc_2')).toEqual(['finbank', 'accounts', 'acc_2'])
     expect(qk.balanceSummary()).toEqual(['finbank', 'balanceSummary'])
     expect(qk.transactions()).toEqual(['finbank', 'transactions'])
     expect(qk.transactions({ kind: 'revenue', accountId: 'acc_2', limit: 10 })).toEqual([
@@ -43,11 +44,13 @@ describe('invalidationMap', () => {
   it('invalidates accounts, the balance summary and every transaction list on removeAccount', async () => {
     const client = new QueryClient()
     client.setQueryData(qk.accounts(), [])
+    client.setQueryData(qk.account('acc_2'), null)
     client.setQueryData(qk.transactions({ limit: 10 }), { pages: [], pageParams: [] })
     client.setQueryData(qk.balanceSummary(), { totalBalanceCents: 0 })
     client.setQueryData(qk.profile(), { fullName: 'x' })
     await applyInvalidation(client, 'removeAccount')
     expect(client.getQueryState(qk.accounts())?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.account('acc_2'))?.isInvalidated).toBe(true)
     expect(client.getQueryState(qk.balanceSummary())?.isInvalidated).toBe(true)
     expect(client.getQueryState(qk.transactions({ limit: 10 }))?.isInvalidated).toBe(true)
     expect(client.getQueryState(qk.profile())?.isInvalidated).toBe(false)

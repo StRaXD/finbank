@@ -8,6 +8,7 @@ import { seed } from '../mock/seed.ts'
 import { qk } from '../queryKeys.ts'
 import { SessionProvider } from '../SessionProvider.tsx'
 import { useSessionContext } from '../sessionContext.ts'
+import { useAccount } from './useAccount.ts'
 import { useAccounts } from './useAccounts.ts'
 import { useApi } from './useApi.ts'
 import { useBalanceSummary } from './useBalanceSummary.ts'
@@ -70,6 +71,15 @@ describe('query hooks', () => {
     await waitFor(() => expect(result.current.summary.data).toEqual({ totalBalanceCents: 24_039_900 }))
     expect(queryClient.getQueryData(qk.accounts())).toEqual(seed.accounts)
     expect(queryClient.getQueryData(qk.balanceSummary())).toEqual({ totalBalanceCents: 24_039_900 })
+  })
+
+  it('useAccount resolves one account by id, and null for an unknown id', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => ({ known: useAccount('acc_2'), unknown: useAccount('nope') }), { wrapper })
+    await waitFor(() => expect(result.current.known.data).toEqual(seed.accounts[1]))
+    await waitFor(() => expect(result.current.unknown.isSuccess).toBe(true))
+    expect(result.current.unknown.data).toBeNull()
+    expect(queryClient.getQueryData(qk.account('acc_2'))).toEqual(seed.accounts[1])
   })
 
   it('useTransactions chains pages through nextCursor, keyed without the cursor', async () => {

@@ -187,6 +187,43 @@ describe('TransactionList compact', () => {
     expect(screen.queryByRole('button', { name: 'Load More' })).not.toBeInTheDocument()
   })
 
+  it('renders the history variant for one account, with compact rows and Load More', async () => {
+    const rows = fixture.map((t, i) => (i === 1 ? { ...t, status: 'pending' as const } : t))
+    const list = pagedList(rows)
+    renderWith(list, <TransactionList variant="history" accountId="acc_2" limit={10} loadMore />)
+    const table = await screen.findByRole('table', { name: 'Transactions History' })
+    expect(list).toHaveBeenCalledWith({ kind: undefined, accountId: 'acc_2', limit: 10, cursor: undefined })
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      'Date',
+      'Status',
+      'Transaction Type',
+      'Receipt',
+      'Amount',
+    ])
+    expect(bodyRows()).toHaveLength(10)
+    const accountRows = rows.filter((t) => t.accountId === 'acc_2')
+    const first = within(bodyRows()[0]!).getAllByRole('cell')
+    const t = accountRows[0]!
+    expect(first.map((cell) => cell.textContent)).toEqual([
+      '27 Apr 2023',
+      'Pending',
+      t.kind === 'revenue' ? 'Credit' : 'Debit',
+      '8C52d5DKDJ5',
+      '$10.01',
+    ])
+    const aligns = ['text-left', 'text-center', 'text-center', 'text-center', 'text-right']
+    first.forEach((cell, i) => expect(cell).toHaveClass(aligns[i]!))
+    expect(first[0]).toHaveClass('py-3.75')
+    expect(within(first[4]!).getByText('$10.01')).toHaveClass('font-bold')
+    expect(table.querySelector('[data-icon]')).toBeNull()
+    expect(within(bodyRows()[1]!).getAllByRole('cell')[1]).toHaveTextContent('Complete')
+    expect(bodyRows().map((row) => within(row).getAllByRole('cell')[2]!.textContent)).toContain('Credit')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load More' }))
+    await waitFor(() => expect(bodyRows()).toHaveLength(accountRows.length))
+    expect(screen.queryByRole('button', { name: 'Load More' })).not.toBeInTheDocument()
+  })
+
   it('filters by account', async () => {
     const list = pagedList()
     renderWith(list, <TransactionList variant="table" accountId="acc_2" limit={10} />)

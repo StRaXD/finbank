@@ -13,6 +13,12 @@ export const qk = {
   session: () => [...root, 'session'] as const,
   profile: () => [...root, 'profile'] as const,
   accounts: () => [...root, 'accounts'] as const,
+  /**
+   * One account, under the `accounts` prefix so `removeAccount`'s invalidation covers it. Prefix
+   * matches on `qk.accounts()` (getQueriesData, setQueriesData, removeQueries) also see these
+   * `Account | null` entries next to the `Account[]` list.
+   */
+  account: (id: string) => [...root, 'accounts', id] as const,
   balanceSummary: () => [...root, 'balanceSummary'] as const,
   /** Without a filter: the prefix of every transaction list. */
   transactions: (filter?: TransactionsFilter) =>

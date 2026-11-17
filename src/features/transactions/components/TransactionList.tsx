@@ -8,8 +8,11 @@ import { LoadMore } from '../../../ui/LoadMore.tsx'
 import { Table, type TableColumn } from '../../../ui/Table.tsx'
 
 export type TransactionListProps = {
-  /** `table` for the full pages, `compact` for the Overview widget (104). */
-  variant: 'table' | 'compact'
+  /**
+   * `table` for the Transactions page (107), `history` for an account's history on Account
+   * Details (106), `compact` for the Overview widget (104).
+   */
+  variant: 'table' | 'history' | 'compact'
   kind?: TransactionKind
   accountId?: string
   /** Page size: 10 on the full pages, 5 on Overview. */
@@ -67,6 +70,48 @@ const columns: readonly TableColumn<Transaction>[] = [
   },
 ]
 
+const statusLabels: Record<Transaction['status'], string> = { complete: 'Complete', pending: 'Pending' }
+const typeLabels: Record<Transaction['type'], string> = { credit: 'Credit', debit: 'Debit' }
+
+// Widths measured from 106. Account Details.png: Status, Transaction Type and Receipt centre at
+// about 32%, 54% and 77% of the table; no icons.
+const historyColumns: readonly TableColumn<Transaction>[] = [
+  {
+    key: 'date',
+    header: 'Date',
+    width: '22%',
+    render: (t) => <span className="whitespace-nowrap text-muted">{formatDate(t.date, 'row')}</span>,
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    align: 'center',
+    width: '21%',
+    render: (t) => <span className="text-muted">{statusLabels[t.status]}</span>,
+  },
+  {
+    key: 'type',
+    header: 'Transaction Type',
+    align: 'center',
+    width: '22%',
+    render: (t) => <span className="text-muted">{typeLabels[t.type]}</span>,
+  },
+  {
+    key: 'receipt',
+    header: 'Receipt',
+    align: 'center',
+    width: '23%',
+    render: (t) => <span className="text-muted">{t.receiptId}</span>,
+  },
+  {
+    key: 'amount',
+    header: 'Amount',
+    align: 'right',
+    width: '12%',
+    render: (t) => <span className="font-bold text-ink">{formatMoney(t.amountCents, 'exact')}</span>,
+  },
+]
+
 function CompactRows({ rows }: { rows: readonly Transaction[] }) {
   return (
     <ul className="flex flex-col divide-y divide-border">
@@ -103,6 +148,16 @@ export function TransactionList({ variant, kind, accountId, limit, loadMore = fa
         const rows = data.pages.flatMap((page) => page.items)
         let list: ReactNode
         if (variant === 'compact') list = <CompactRows rows={rows} />
+        else if (variant === 'history')
+          list = (
+            <Table
+              columns={historyColumns}
+              rows={rows}
+              rowKey={(t) => t.id}
+              caption="Transactions History"
+              density="sm"
+            />
+          )
         else list = <Table columns={columns} rows={rows} rowKey={(t) => t.id} caption="Transactions" />
         return (
           <>

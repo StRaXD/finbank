@@ -11,12 +11,22 @@ export type TableColumn<T> = {
   render: (row: T) => ReactNode
 }
 
+/** Body row height: `md` 72px (107. Transactions), `sm` about 54px (106. Account Details). */
+export type TableDensity = 'md' | 'sm'
+
 export type TableProps<T> = {
   columns: readonly TableColumn<T>[]
   rows: readonly T[]
   rowKey: (row: T) => string
   /** Names the table for assistive tech; visually hidden. */
   caption: string
+  /** Body row density; defaults to `md`. */
+  density?: TableDensity
+}
+
+const cellPadding: Record<TableDensity, string> = {
+  md: 'py-6',
+  sm: 'py-3.75',
 }
 
 const alignClass: Record<TableAlign, string> = {
@@ -27,9 +37,10 @@ const alignClass: Record<TableAlign, string> = {
 
 /**
  * A semantic data table (measured from 107. Transactions.png): a bold header row and 72px body
- * rows, each separated by a divider. Column `width`s fix the layout so it does not follow content.
+ * rows (about 54px with `density="sm"`, 106. Account Details.png), each separated by a divider.
+ * Column `width`s fix the layout so it does not follow content.
  */
-export function Table<T>({ columns, rows, rowKey, caption }: TableProps<T>) {
+export function Table<T>({ columns, rows, rowKey, caption, density = 'md' }: TableProps<T>) {
   const fixed = columns.some((column) => column.width !== undefined)
   return (
     <table className={`w-full border-collapse ${fixed ? 'table-fixed' : ''}`}>
@@ -58,7 +69,10 @@ export function Table<T>({ columns, rows, rowKey, caption }: TableProps<T>) {
         {rows.map((row) => (
           <tr key={rowKey(row)}>
             {columns.map((column) => (
-              <td key={column.key} className={`px-2 py-6 text-16 ${alignClass[column.align ?? 'left']}`}>
+              <td
+                key={column.key}
+                className={`px-2 ${cellPadding[density]} text-16 ${alignClass[column.align ?? 'left']}`}
+              >
                 {column.render(row)}
               </td>
             ))}

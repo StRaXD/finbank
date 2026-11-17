@@ -1,6 +1,8 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FinbankApi } from '../api/port.ts'
+import { seed } from '../api/mock/seed.ts'
+import { formatDate, formatMoney } from '../lib/format.ts'
 import { qk } from '../api/queryKeys.ts'
 import { ApiError, type IsoDate } from '../api/types.ts'
 import { routeObjects } from './routeObjects.tsx'
@@ -82,6 +84,45 @@ describe('routing and session guard', () => {
     expect(screen.queryByRole('article', { name: 'Checking' })).not.toBeInTheDocument()
     expect(screen.getAllByTestId('account-card')).toHaveLength(4)
     await expect(createTestApi().listAccounts()).resolves.toHaveLength(4)
+  })
+
+  it('removes an account from its Account Details, landing on Balances, and drops its transactions', async () => {
+    const { router } = renderAt(routes.balances, await signedInApi())
+    const checking = await screen.findByRole('article', { name: 'Checking' })
+    fireEvent.click(within(checking).getByRole('link', { name: 'Details' }))
+    const details = await screen.findByTestId('account-details')
+    expect(router.state.location.pathname).toBe(routes.accountDetails('acc_2'))
+    expect(within(details).getByText('Park Street Branch')).toBeInTheDocument()
+    expect(within(details).getByText('693 456 699****')).toBeInTheDocument()
+    expect(within(details).getByText('$25,056.00')).toBeInTheDocument()
+    expect(await screen.findByRole('table', { name: 'Transactions History' })).toBeInTheDocument()
+
+    fireEvent.click(within(details).getByRole('button', { name: 'Remove' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Remove account?' })).getByRole('button', { name: 'Remove' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Balances' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe(routes.balances)
+    await waitFor(() => expect(screen.getAllByTestId('account-card')).toHaveLength(4))
+    expect(screen.queryByRole('article', { name: 'Checking' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await act(() => router.navigate(routes.transactions))
+    await screen.findByRole('table', { name: 'Transactions' })
+    for (let more = screen.queryByRole('button', { name: 'Load More' }); more; ) {
+      const count = within(screen.getByRole('table')).getAllByRole('row').length
+      fireEvent.click(more)
+      await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row').length).toBeGreaterThan(count))
+      more = screen.queryByRole('button', { name: 'Load More' })
+    }
+    const rowText = within(screen.getByRole('table'))
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => row.textContent)
+    expect(rowText.length).toBeGreaterThan(10)
+    // 107 shows no receipt ids, so match whole rows: exactly the seed rows of the other accounts, in order.
+    const rowOf = (t: (typeof seed.transactions)[number]) =>
+      `${t.item}${t.shop}${formatDate(t.date, 'row')}${t.paymentMethod}${formatMoney(t.amountCents, 'exact')}`
+    expect(seed.transactions.some((t) => t.accountId === 'acc_2')).toBe(true)
+    expect(rowText).toEqual(seed.transactions.filter((t) => t.accountId !== 'acc_2').map(rowOf))
   })
 
   it('shows Transactions newest first, and drops a removed account’s rows', async () => {

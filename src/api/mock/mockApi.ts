@@ -457,6 +457,12 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
 
     listAccounts: () => call(() => structuredClone(state().accounts)),
 
+    getAccount: (id: string) =>
+      call(() => {
+        const account = state().accounts.find((candidate) => candidate.id === id)
+        return account ? structuredClone(account) : null
+      }),
+
     getBalanceSummary: () =>
       call((): BalanceSummary => ({
         totalBalanceCents: state().accounts.reduce(

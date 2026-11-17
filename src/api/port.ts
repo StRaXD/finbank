@@ -23,6 +23,8 @@ export interface FinbankApi {
   getProfile(): Promise<UserProfile>
   /** Every account, in stored (seed) order. */
   listAccounts(): Promise<Account[]>
+  /** One account (a copy), or `null` for an unknown id. */
+  getAccount(id: string): Promise<Account | null>
   getBalanceSummary(): Promise<BalanceSummary>
   /** Removes an account and persists it. An unknown id resolves as a no-op (idempotent). */
   removeAccount(id: string): Promise<void>
@@ -44,6 +46,7 @@ export const FINBANK_API_METHODS = [
   'getSession',
   'getProfile',
   'listAccounts',
+  'getAccount',
   'getBalanceSummary',
   'removeAccount',
   'listTransactions',

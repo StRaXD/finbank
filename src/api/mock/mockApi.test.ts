@@ -263,6 +263,17 @@ describe('accounts', () => {
     expect(again[1]!.balanceCents).toBe(2_505_600)
     await expect(api.getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 24_039_900 })
   })
+
+  it('getAccount returns a copy of the stored account, or null for an unknown id', async () => {
+    const api = make()
+    const account = await api.getAccount('acc_2')
+    expect(account).toEqual(seed.accounts[1])
+    account!.balanceCents = 1
+    await expect(api.getAccount('acc_2')).resolves.toEqual(seed.accounts[1])
+    await expect(api.getAccount('nope')).resolves.toBeNull()
+    await api.removeAccount('acc_2')
+    await expect(api.getAccount('acc_2')).resolves.toBeNull()
+  })
 })
 
 describe('removeAccount', () => {
