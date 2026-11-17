@@ -1,11 +1,12 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router'
 import { useAccounts } from '../../api/hooks/useAccounts.ts'
 import type { Account } from '../../api/types.ts'
 import { AsyncSection } from '../../ui/AsyncSection.tsx'
 import { AccountCard } from './components/AccountCard.tsx'
 import { AddAccountsCard } from './components/AddAccountsCard.tsx'
 import { RemoveAccountDialog } from './components/RemoveAccountDialog.tsx'
-import type { AccountDetailsPath } from './paths.ts'
+import type { AccountDetailsPath, BalancesLocationState } from './paths.ts'
 
 export type BalancesPageProps = {
   /** Builds an account's Account Details URL (owned by the app's route table). */
@@ -17,6 +18,11 @@ export function BalancesPage({ accountDetailsPath }: BalancesPageProps) {
   const accounts = useAccounts()
   const [removing, setRemoving] = useState<Account | null>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
+  const focusHeading = (useLocation().state as BalancesLocationState | null)?.focusHeading === true
+  // Arriving from a removal on Account Details: its Remove button is gone, so focus the title.
+  useEffect(() => {
+    if (focusHeading) headingRef.current?.focus()
+  }, [focusHeading])
   return (
     <div className="flex flex-col gap-4">
       <h1 ref={headingRef} tabIndex={-1} className="text-22 font-normal text-subtle focus-visible:outline-none">

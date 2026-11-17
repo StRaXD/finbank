@@ -125,8 +125,8 @@ export function SignupPage({ paths }: { paths: AuthPaths }) {
         </Button>
       </div>
 
-      {/* `faint`, not `muted`: the PNG's grey here is much lighter than `muted`, which `faint` matches. */}
-      <p className="mt-10 text-center text-16 text-faint">
+      {/* `subtle`, not `muted`: the PNG's grey here is lighter than `muted`; `faint` matched it but fails WCAG AA. */}
+      <p className="mt-10 text-center text-16 text-subtle">
         Already have an account?{' '}
         <Link to={paths.login} className={linkClass}>
           Sign in here

@@ -244,6 +244,8 @@ describe('AccountDetailsPage', () => {
     observer.disconnect()
     expect(flashedNotFound).toBe(false)
     expect(router.state.location.pathname).toBe('/balances')
+    // Tells Balances to focus its title: the Remove button left with this page.
+    expect(router.state.location.state).toEqual({ focusHeading: true })
     // Replaced, not pushed: Back never returns to the removed account's details.
     expect(router.state.historyAction).toBe('REPLACE')
     await act(() => router.navigate(-1))

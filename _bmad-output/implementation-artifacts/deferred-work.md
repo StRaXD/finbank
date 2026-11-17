@@ -22,3 +22,14 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-7-overview-upcoming-bill-and-recent-transaction-widgets.md`
   summary: The `--color-faint` text token (#9F9F9F) is about 2.6:1 on white, below WCAG AA, and is used for secondary text on Bills (Last Charge, descriptions), Transactions and elsewhere. Story 2.7 moved only its own compact "Last Charge" line to `text-muted`. Decide design-wide whether to darken the token or switch those uses, and add a contrast test for text tokens on white.
   evidence: Computed contrast of #9F9F9F on #FFFFFF is about 2.6:1. Story 2.7 resolved the earlier Adobe red item (now #EB1000, 4.56:1, tested).
+
+## Deferred from: code review of epic-2-context.md (Epic 2 final review, 2026-11-17)
+- source_spec: `_bmad-output/implementation-artifacts/epic-2-final-review.md`
+  summary: The Load More fallback message "Could not load more transactions." for an empty error message is untested (`TransactionList.tsx:172`).
+  evidence: The only failure test uses a non-empty `ApiError` message. Adapters always send copy today.
+- source_spec: `_bmad-output/implementation-artifacts/epic-2-final-review.md`
+  summary: No page sets `document.title` (WCAG 2.4.2 Page Titled). Every screen is announced under the same static title.
+  evidence: Pre-existing from the Epic 1 routing. None of Overview, Balances, Account Details, Transactions or Bills updates the title.
+- source_spec: `_bmad-output/implementation-artifacts/epic-2-final-review.md`
+  summary: Stored expenses without a `category` pass `normalizeTransaction`. Epic 3 must decide whether category totals require a category.
+  evidence: The Epic 2 contract makes `category` optional. The seed tags every expense.

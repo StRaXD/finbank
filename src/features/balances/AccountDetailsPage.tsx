@@ -11,6 +11,7 @@ import { EmptyState } from '../../ui/EmptyState.tsx'
 import { TransactionList } from '../transactions/index.ts'
 import { accountTypeLabels } from './accountTypeLabels.ts'
 import { RemoveAccountDialog } from './components/RemoveAccountDialog.tsx'
+import type { BalancesLocationState } from './paths.ts'
 
 export type AccountDetailsPageProps = {
   /** The Balances URL (owned by the app's route table): the not-found link and where removal lands. */
@@ -92,8 +93,11 @@ export function AccountDetailsPage({ balancesPath }: AccountDetailsPageProps) {
       <RemoveAccountDialog
         account={removing}
         onClose={() => setRemoving(null)}
-        // Only after success, and replaced: Back never returns to the removed account's URL.
-        onRemoved={() => void navigate(balancesPath, { replace: true })}
+        // Only after success, and replaced: Back never returns to the removed account's URL. The
+        // Remove button goes with this page, so Balances focuses its title rather than <body>.
+        onRemoved={() =>
+          void navigate(balancesPath, { replace: true, state: { focusHeading: true } satisfies BalancesLocationState })
+        }
       />
     </div>
   )

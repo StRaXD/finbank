@@ -76,6 +76,22 @@ describe('Tabs', () => {
     expect(screen.getAllByRole('tab').filter((t) => t.getAttribute('tabindex') === '0')).toHaveLength(1)
   })
 
+  it.each(['ArrowRight', 'ArrowLeft', 'Home', 'End'])(
+    'leaves %s with a modifier held to the browser',
+    (key) => {
+      const onChange = vi.fn()
+      render(<Harness onChange={onChange} />)
+      tab('All').focus()
+      for (const modifier of ['altKey', 'ctrlKey', 'metaKey', 'shiftKey'] as const) {
+        const notPrevented = fireEvent.keyDown(tab('All'), { key, [modifier]: true })
+        expect(notPrevented, modifier).toBe(true)
+      }
+      expect(onChange).not.toHaveBeenCalled()
+      expect(tab('All')).toHaveFocus()
+      expect(tab('All')).toHaveAttribute('aria-selected', 'true')
+    },
+  )
+
   it('ignores other keys', () => {
     const onChange = vi.fn()
     render(<Harness onChange={onChange} />)

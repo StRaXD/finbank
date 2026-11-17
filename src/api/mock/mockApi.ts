@@ -170,16 +170,17 @@ function normalizeAccount(value: unknown): Account | null {
   if (typeof balanceCents !== 'number' || !Number.isSafeInteger(balanceCents) || balanceCents < 0) {
     return null
   }
-  const account: Account = {
+  // Keys in seed order, so a clean stored seed round-trips byte for byte and loading does not
+  // rewrite storage.
+  return {
     id,
     type: type as AccountType,
     bankName,
     branchName,
+    ...(network != null && { network: network as CardNetwork }),
     accountNumber,
     balanceCents,
   }
-  if (network != null) account.network = network as CardNetwork
-  return account
 }
 
 /**

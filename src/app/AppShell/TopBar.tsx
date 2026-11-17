@@ -29,7 +29,7 @@ export function TopBar({ inert }: { inert: boolean }) {
           Hello {firstName}
         </p>
       )}
-      <div className="flex items-center gap-1 text-14 text-faint">
+      <div className="flex items-center gap-1 text-14 text-subtle">
         <Chevrons aria-hidden="true" data-icon="chevronsRight" size={24} />
         {/* RequireSession renders the shell only once today has loaded. */}
         {today.data !== undefined && <span>{formatDate(today.data, 'header')}</span>}
@@ -61,7 +61,7 @@ export function TopBar({ inert }: { inert: boolean }) {
             type="text"
             placeholder="Search here"
             autoComplete="off"
-            className="min-w-0 flex-1 bg-transparent text-16 text-ink placeholder:text-faint focus-visible:outline-none"
+            className="min-w-0 flex-1 bg-transparent text-16 text-ink placeholder:text-subtle focus-visible:outline-none"
           />
           <SearchIcon aria-hidden="true" data-icon="search" size={24} className="shrink-0 text-ink-2" />
         </form>

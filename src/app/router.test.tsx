@@ -128,20 +128,26 @@ describe('routing and session guard', () => {
 
     fireEvent.click(within(details).getByRole('button', { name: 'Remove' }))
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Remove account?' })).getByRole('button', { name: 'Remove' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Balances' })).toBeInTheDocument()
+    const balancesHeading = await screen.findByRole('heading', { level: 1, name: 'Balances' })
     expect(router.state.location.pathname).toBe(routes.balances)
+    // The Remove button left with Account Details: focus lands on the Balances title, not <body>.
+    await waitFor(() => expect(balancesHeading).toHaveFocus())
     await waitFor(() => expect(screen.getAllByTestId('account-card')).toHaveLength(4))
+    expect(balancesHeading).toHaveFocus()
     expect(screen.queryByRole('article', { name: 'Checking' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     await act(() => router.navigate(routes.transactions))
     await screen.findByRole('table', { name: 'Transactions' })
-    for (let more = screen.queryByRole('button', { name: 'Load More' }); more; ) {
+    // Capped, so a Load More that never disappears fails instead of hanging.
+    let more = screen.queryByRole('button', { name: 'Load More' })
+    for (let clicks = 0; more && clicks < 20; clicks++) {
       const count = within(screen.getByRole('table')).getAllByRole('row').length
       fireEvent.click(more)
       await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row').length).toBeGreaterThan(count))
       more = screen.queryByRole('button', { name: 'Load More' })
     }
+    expect(more, 'Load More still shown after 20 pages').toBeNull()
     const rowText = within(screen.getByRole('table'))
       .getAllByRole('row')
       .slice(1)

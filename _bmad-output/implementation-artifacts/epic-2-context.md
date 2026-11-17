@@ -20,7 +20,7 @@ Let users see where their money is. When this epic is done, Balances lists every
 
 - **One dataset, derived aggregates:** all screens read the single seeded mock dataset. The same account, transaction or bill shows identical amounts and dates on Overview and on its own page. Totals are calculated, never hard-coded. Seed values don't have to match the Figma placeholders, which are inconsistent with each other.
 - **Total Balance:** asset accounts (Checking, Savings, Investment) minus liability accounts (Credit Card, Loan). It is shown with the "All Accounts" label.
-- **Balances:** a 3-column grid of five account cards (one of each type), in seed order, then an action card with "Add Accounts" (primary) and "Edit Accounts" (text link). Both are inert. Each account card has a "Remove" text link and a "Details >" button that goes to Account Details.
+- **Balances:** a 3-column grid of five account cards (one of each type), in seed order, then an action card with "Add Accounts" (primary) and "Edit Accounts" (grey text, as in 105). Both are inert. Each account card has a "Remove" text link and a "Details >" button that goes to Account Details.
 - **Remove account:** a `ConfirmDialog` that names the account. Cancel changes nothing. Confirm removes the account and its transactions, persists the change across reloads, and updates every screen, including the Overview carousel and total. Removing from Account Details goes back to Balances.
 - **Account Details:** Bank Name, Account Type, Balance, Branch Name and masked Account Number, matching the account's Balances card. "Edit Details" is inert. The Balances nav item stays active. "Transactions History" has the columns Date, Status, Transaction Type, Receipt and Amount, for this account only. An unknown id shows "Account not found" with a link back to Balances.
 - **Transactions page:** titled "Recent Transaction", with All/Revenue/Expenses tabs and the columns Items (icon and name), Shop Name, Date, Payment Method and Amount. No sorting or filtering.
@@ -43,10 +43,10 @@ Let users see where their money is. When this epic is done, Balances lists every
   - IDs are opaque strings such as `acc_1` and `txn_42`, and every date is relative to mock today, `2023-05-19`.
 - **Pagination:** `useTransactions` uses `useInfiniteQuery` with a page size of 10. The cursor is never part of the query key.
 - **Invalidation:** `removeAccount` invalidates `accounts`, `balanceSummary` and `transactions`, through `invalidationMap` only. The mock adapter also deletes the removed account's transactions.
-- **Removal from Account Details:** navigate to `/balances` first, then fire the mutation, so the page never renders a missing account.
+- **Removal from Account Details:** stay on the page while `removeAccount` runs. On success, replace the route with `/balances`. On failure, stay and show the error in the dialog (revised AD-13, 2026-11-17).
 - **One owner per component:**
   - `AccountCard` is owned by `features/balances`, `TransactionList` by `features/transactions` and `BillList` by `features/bills`. Each is exported from its feature's `index.ts`.
-  - `TransactionList` and `BillList` each have a `table` variant and a `compact` variant (for Overview).
+  - `TransactionList` has `table` (107), `history` (106 Account Details columns: Date, Status, Transaction Type, Receipt, Amount) and `compact` (Overview) variants. `BillList` has `table` and `compact` variants.
   - `features/overview` composes these exports and reuses the detail-screen hooks: `useAccounts()`, `useBalanceSummary()`, `useBills({ limit: 2 })` and `useTransactions({ kind, limit: 5 })`.
 - **New primitives in `src/ui`:** `Tabs`, `Table`, `LoadMore`, `DateBadge` and `Carousel`. Transaction tab state stays local to the component.
 - **Tests:** unit tests for the total-balance calculation, and for `removeAccount` removing the account and updating the balance summary. Add React Testing Library coverage for the new interactive primitives where it adds value.
@@ -55,10 +55,11 @@ Let users see where their money is. When this epic is done, Balances lists every
 
 - **Carousel:** teal-filled account cards (type, `tail4` masked number, whole balance, network logo, ↗ button to Account Details). "Previous" and "Next" text buttons, one dot per account, "Previous" disabled on the first slide and "Next" disabled on the last.
 - **Tabs:** the active tab has teal text and a 2px teal underline.
-- **Rows:** list rows have dividers. Transaction items have a category icon in a grey square. On Overview, the item name sits above the shop, and the amount sits above the date, right-aligned.
+- **Rows:** list rows have dividers. Transaction items have a category icon: bare in the Transactions table (107), in a grey square in the Overview rows (104). On Overview, the item name sits above the shop, and the amount sits above the date, right-aligned.
 - **Bill rows:** a `DateBadge` with the month above the day, the vendor logo and name, the title, "Last Charge - {date}" on Overview, and the amount in an outlined box.
-- **Section titles** sit above the cards. "View All >" is a teal text link in the card header.
-- **Brand logos:** Mastercard, VISA, Figma and Adobe SVGs come from the Epic 1 brand assets.
+- **Section titles** sit above the cards. "View All >" is a grey text link with a chevron in the card header (104). Each has a distinct accessible name ("View All bills" / "View All transactions").
+- **Brand logos:** Mastercard, VISA, Figma, Adobe and Google SVGs come from the Epic 1 brand assets. The Adobe name uses `--color-brand-adobe` #EB1000 (4.56:1 on white, WCAG AA).
+- **Text contrast:** secondary text uses `subtle` (#707070, AA on white and on the page grey). `faint` is reserved for disabled states (final-review decision, 2026-11-17).
 
 ## Cross-Story Dependencies
 

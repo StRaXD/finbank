@@ -110,6 +110,32 @@ describe('TransactionsPage', () => {
     expect(screen.queryByRole('button', { name: 'Load More' })).not.toBeInTheDocument()
   })
 
+  it('moves focus into the list, not <body>, when a focused Load More loads the last page', async () => {
+    renderWith(pagedList())
+    await screen.findByRole('table')
+    const button = () => screen.getByRole('button', { name: 'Load More' })
+    button().focus()
+    fireEvent.click(button())
+    await waitFor(() => expect(bodyRows()).toHaveLength(20))
+    // A page that is not the last keeps the button, and its focus.
+    expect(button()).toHaveFocus()
+    fireEvent.click(button())
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Load More' })).not.toBeInTheDocument())
+    await waitFor(() => expect(document.activeElement).not.toBe(document.body))
+    expect(document.activeElement).toContainElement(screen.getByRole('table'))
+    expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('leaves focus alone when Load More was clicked without focus', async () => {
+    renderWith(pagedList())
+    await screen.findByRole('table')
+    fireEvent.click(screen.getByRole('button', { name: 'Load More' }))
+    await waitFor(() => expect(bodyRows()).toHaveLength(20))
+    fireEvent.click(screen.getByRole('button', { name: 'Load More' }))
+    await waitFor(() => expect(bodyRows()).toHaveLength(23))
+    expect(document.activeElement).toBe(document.body)
+  })
+
   it('filters by tab, and going back to All restarts at the newest rows', async () => {
     const list = pagedList()
     renderWith(list)

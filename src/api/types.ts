@@ -52,6 +52,7 @@ export type Account = {
 
 /** Derived by the adapter: assets (checking, savings, investment) minus liabilities (credit card, loan). */
 export type BalanceSummary = {
+  /** Signed: negative when liabilities exceed assets (rendered as "-$…"). */
   totalBalanceCents: number
 }
 

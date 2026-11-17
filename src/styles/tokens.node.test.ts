@@ -38,7 +38,7 @@ describe('tokens.css', () => {
     '--color-ink': hex('191919'),
     '--color-ink-2': hex('525256'),
     '--color-muted': hex('666666'),
-    '--color-subtle': hex('878787'),
+    '--color-subtle': hex('707070'),
     '--color-faint': hex('9F9F9F'),
     '--color-border': hex('E8E8E8'),
     '--color-surface': hex('F4F5F7'),
@@ -122,6 +122,22 @@ describe('tokens.css', () => {
     expect(value).toMatch(/^#[0-9A-F]{6}$/i)
     expect(contrastRatio(value, hex('FFFFFF'))).toBeGreaterThanOrEqual(4.5)
   })
+
+  // Text tokens must pass WCAG AA (>= 4.5:1) on both the card white and the page grey. `faint` is
+  // excluded: it is reserved for disabled controls, which WCAG 1.4.3 exempts.
+  // `brand-adobe` is checked on white only (the test above): it is 4.17:1 on the surface grey and is
+  // only ever rendered inside white bill cards.
+  it.each(['--color-ink', '--color-ink-2', '--color-muted', '--color-subtle'])(
+    '%s reaches WCAG AA contrast on white and on the surface grey',
+    (name) => {
+      const value = theme.get(name) ?? ''
+      const surface = theme.get('--color-surface') ?? ''
+      expect(value).toMatch(/^#[0-9A-F]{6}$/i)
+      expect(surface).toMatch(/^#[0-9A-F]{6}$/i)
+      expect(contrastRatio(value, hex('FFFFFF'))).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(value, surface)).toBeGreaterThanOrEqual(4.5)
+    },
+  )
 })
 
 /** WCAG 2 relative luminance of a `#RRGGBB` colour. */

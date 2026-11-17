@@ -16,7 +16,7 @@ export type TabsProps<Id extends string = string> = {
 /**
  * A controlled WAI-ARIA tablist (measured from 107. Transactions.png): semibold ink-2 labels, the
  * selected one teal over a 2px teal underline. Roving tabindex; Left/Right (wrapping), Home and
- * End move focus and select at once (automatic activation).
+ * End move focus and select at once (automatic activation); modified keys are left to the browser.
  */
 export function Tabs<Id extends string>({ tabs, value, onChange, label, panelId }: TabsProps<Id>) {
   const baseId = useId()
@@ -30,6 +30,8 @@ export function Tabs<Id extends string>({ tabs, value, onChange, label, panelId 
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    // Leave modified keys (Alt+Left is browser Back) to the browser.
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
     const last = tabs.length - 1
     const target = {
       ArrowRight: index === last ? 0 : index + 1,

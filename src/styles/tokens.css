@@ -20,7 +20,8 @@
   --color-ink: #191919;
   --color-ink-2: #525256;
   --color-muted: #666666;
-  --color-subtle: #878787;
+  /* Darkened from the PNG's #878787 (3.59:1) for WCAG AA text: 4.95:1 on white, 4.54:1 on surface. */
+  --color-subtle: #707070;
   --color-faint: #9F9F9F;
   --color-border: #E8E8E8;
   --color-surface: #F4F5F7;

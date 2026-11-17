@@ -51,6 +51,11 @@ beforeEach(() => {
   sessionStorage.clear()
 })
 
+// Restores every `setItem` spy even when an assertion fails before an inline restore.
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('seed', () => {
   it('serves mock today and the single seeded user', async () => {
     const api = make()
@@ -180,6 +185,16 @@ describe('accounts', () => {
     })
   })
 
+  it('does not rewrite clean stored accounts, including card accounts with a network, on load', async () => {
+    expect(seed.accounts.some((a) => a.network)).toBe(true)
+    withAccounts(seed.accounts)
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await make().listAccounts()
+    expect(setItem).not.toHaveBeenCalled()
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+  })
+
   it('derives the seed Total Balance of $240,399', async () => {
     await expect(make().getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 24_039_900 })
   })
@@ -294,7 +309,6 @@ describe('removeAccount', () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem')
     await api.removeAccount('acc_1')
     expect(setItem).toHaveBeenCalledTimes(1)
-    setItem.mockRestore()
     const { items } = await api.listTransactions({ limit: 50 })
     expect(items.some((t) => t.accountId === 'acc_1')).toBe(false)
     await expect(api.listTransactions({ accountId: 'acc_1', limit: 10 })).resolves.toEqual({
@@ -326,7 +340,6 @@ describe('removeAccount', () => {
     expect(setItem).toHaveBeenCalledTimes(1)
     await expect(api.removeAccount('acc_1')).resolves.toBeUndefined()
     expect(setItem).toHaveBeenCalledTimes(1)
-    setItem.mockRestore()
     expect(await api.listAccounts()).toHaveLength(4)
   })
 
@@ -640,17 +653,13 @@ describe('transactions in storage', () => {
   })
 
   it('does not rewrite clean stored transactions on load', async () => {
-    // Accounts without a network: their normalized key order matches storage byte for byte.
-    const kept = new Set(['acc_3', 'acc_4', 'acc_5'])
-    withState({
-      accounts: seed.accounts.filter((a) => kept.has(a.id)),
-      transactions: seed.transactions.filter((t) => kept.has(t.accountId)),
-    })
+    // The full seed, including card accounts with a `network`: normalized key order matches
+    // storage byte for byte.
+    withState({})
     const before = localStorage.getItem(MOCK_STORAGE_KEY)
     const setItem = vi.spyOn(Storage.prototype, 'setItem')
     await make().listTransactions({ limit: 10 })
     expect(setItem).not.toHaveBeenCalled()
-    setItem.mockRestore()
     expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
   })
 })
@@ -767,19 +776,10 @@ describe('listBills', () => {
   })
 
   it('does not rewrite clean stored bills on load', async () => {
-    const kept = new Set(['acc_3', 'acc_4', 'acc_5'])
-    localStorage.setItem(
-      MOCK_STORAGE_KEY,
-      JSON.stringify({
-        ...seedJson(),
-        accounts: seed.accounts.filter((a) => kept.has(a.id)),
-        transactions: seed.transactions.filter((t) => kept.has(t.accountId)),
-      }),
-    )
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(seedJson()))
     const setItem = vi.spyOn(Storage.prototype, 'setItem')
     await make().listBills()
     expect(setItem).not.toHaveBeenCalled()
-    setItem.mockRestore()
   })
 })
 

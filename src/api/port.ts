@@ -27,6 +27,10 @@ export interface FinbankApi {
   listAccounts(): Promise<Account[]>
   /** One account (a copy), or `null` for an unknown id. */
   getAccount(id: string): Promise<Account | null>
+  /**
+   * Assets minus liabilities over every account. `totalBalanceCents` is signed: negative when
+   * liabilities exceed assets.
+   */
   getBalanceSummary(): Promise<BalanceSummary>
   /** Removes an account and persists it. An unknown id resolves as a no-op (idempotent). */
   removeAccount(id: string): Promise<void>

@@ -88,7 +88,7 @@ describe('BillsPage', () => {
     expect(cells[1]!.querySelector('img[data-logo="figma"]')).not.toBeNull()
     expect(within(cells[1]!).getByText('Figma')).toBeInTheDocument()
     expect(within(cells[2]!).getByText('Figma - Yearly Plan')).toHaveClass('font-bold')
-    expect(within(cells[2]!).getByText('Figma plan blurb.')).toHaveClass('text-faint')
+    expect(within(cells[2]!).getByText('Figma plan blurb.')).toHaveClass('text-subtle')
     expect(cells[3]).toHaveTextContent('25 May 2022')
     expect(cells[3]).toHaveClass('text-center')
     expect(cells[4]).toHaveClass('text-right')

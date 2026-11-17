@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useTransactions } from '../../../api/hooks/useTransactions.ts'
 import type { Transaction, TransactionKind } from '../../../api/types.ts'
 import { formatDate, formatMoney } from '../../../lib/format.ts'
@@ -140,6 +140,20 @@ function CompactRows({ rows }: { rows: readonly Transaction[] }) {
  */
 export function TransactionList({ variant, kind, accountId, limit, loadMore = false }: TransactionListProps) {
   const query = useTransactions({ kind, accountId, limit })
+  const listRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  // Set when Load More is pressed while it has focus. If that load turns out to be the last page,
+  // the button unmounts and focus would drop to <body>: move it to the list instead.
+  const refocusList = useRef(false)
+  const { hasNextPage, isFetchingNextPage } = query
+
+  useEffect(() => {
+    if (isFetchingNextPage || !refocusList.current) return
+    refocusList.current = false
+    const active = document.activeElement
+    if (!hasNextPage && (active === null || active === document.body)) listRef.current?.focus()
+  }, [hasNextPage, isFetchingNextPage])
+
   return (
     <AsyncSection
       query={query}
@@ -163,14 +177,22 @@ export function TransactionList({ variant, kind, accountId, limit, loadMore = fa
         else list = <Table columns={columns} rows={rows} rowKey={(t) => t.id} caption="Transactions" />
         return (
           <>
-            {list}
+            {/* Focus target when the last Load More unmounts; not in the tab order. */}
+            <div ref={listRef} tabIndex={-1} className="focus-visible:outline-none">
+              {list}
+            </div>
             {loadMore && (
-              <LoadMore
-                hasMore={query.hasNextPage}
-                loading={query.isFetchingNextPage}
-                onClick={() => void query.fetchNextPage()}
-                error={query.isFetchNextPageError ? query.error?.message || 'Could not load more transactions.' : undefined}
-              />
+              <div ref={loadMoreRef}>
+                <LoadMore
+                  hasMore={hasNextPage}
+                  loading={isFetchingNextPage}
+                  onClick={() => {
+                    refocusList.current = loadMoreRef.current?.contains(document.activeElement) ?? false
+                    void query.fetchNextPage()
+                  }}
+                  error={query.isFetchNextPageError ? query.error?.message || 'Could not load more transactions.' : undefined}
+                />
+              </div>
             )}
           </>
         )

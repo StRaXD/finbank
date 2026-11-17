@@ -1,7 +1,7 @@
 // Internal: shared class strings for the bordered input fields.
 
 export const fieldBase =
-  'h-12 w-full rounded-input border bg-transparent text-16 text-ink-2 placeholder:text-faint disabled:cursor-not-allowed disabled:text-faint'
+  'h-12 w-full rounded-input border bg-transparent text-16 text-ink-2 placeholder:text-subtle disabled:cursor-not-allowed disabled:text-faint'
 
 /**
  * `:placeholder-shown` only matches inputs that have a placeholder, so fields default it to a

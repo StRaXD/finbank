@@ -43,7 +43,7 @@ const columns: readonly TableColumn<Bill>[] = [
     render: (b) => (
       <div className="flex max-w-68 flex-col gap-2">
         <span className="text-18 font-bold text-ink">{b.title}</span>
-        <span className="text-14 leading-5.5 text-faint">{b.description}</span>
+        <span className="text-14 leading-5.5 text-subtle">{b.description}</span>
       </div>
     ),
   },
@@ -52,7 +52,7 @@ const columns: readonly TableColumn<Bill>[] = [
     header: 'Last Charge',
     align: 'center',
     width: '19.1%',
-    render: (b) => <span className="whitespace-nowrap text-faint">{formatDate(b.lastChargeDate, 'row')}</span>,
+    render: (b) => <span className="whitespace-nowrap text-subtle">{formatDate(b.lastChargeDate, 'row')}</span>,
   },
   {
     key: 'amount',

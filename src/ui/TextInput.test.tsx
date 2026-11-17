@@ -10,7 +10,7 @@ describe('TextInput', () => {
     expect(input.tagName).toBe('INPUT')
     expect(input).toHaveAttribute('type', 'text')
     expect(input).toHaveAttribute('placeholder', 'johndoe@email.com')
-    expect(input).toHaveClass('h-12', 'rounded-input', 'border-border', 'placeholder:text-faint', 'text-ink-2')
+    expect(input).toHaveClass('h-12', 'rounded-input', 'border-border', 'placeholder:text-subtle', 'text-ink-2')
   })
 
   it('uses the default border, turning ink-2 when focused or filled', () => {

@@ -1,7 +1,7 @@
 ---
 title: 'Story 2.7: Overview Upcoming Bill and Recent Transaction widgets'
 type: 'feature'
-created: '2026-11-18'
+created: '2026-11-17'
 status: 'done'
 baseline_commit: '71498d4908a5118a0096b21ca9d20ac8fa5a72ed'
 route: 'dispatch'
