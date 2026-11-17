@@ -1,0 +1,132 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc", "import"],
+  "ignorePatterns": ["_bmad/**", "_bmad-output/**", ".claude/**", "design-reference/**"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "import/no-cycle": "error",
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "regex": "^[.][.]?/(.*/)?api/(mock|http)([./]|$)",
+            "message": "AD-1: only src/app (and src/api itself) may import the mock or http adapters. Use the ApiProvider and api/hooks instead."
+          }
+        ]
+      }
+    ],
+    "no-restricted-globals": [
+      "error",
+      { "name": "Date", "message": "AD-9: only src/lib/dates.ts and src/lib/format.ts may use Date. Use lib/dates (toIsoDate, isoDateOf) for dates and lib/format for display." },
+      { "name": "Intl", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use Intl. Use lib/format helpers." }
+    ],
+    "no-restricted-properties": [
+      "error",
+      { "property": "toFixed", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use toFixed. Use lib/format helpers." },
+      { "object": "globalThis", "property": "Date", "message": "AD-9: only src/lib/dates.ts and src/lib/format.ts may use Date." },
+      { "object": "globalThis", "property": "Intl", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use Intl." },
+      { "object": "window", "property": "Date", "message": "AD-9: only src/lib/dates.ts and src/lib/format.ts may use Date." },
+      { "object": "window", "property": "Intl", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use Intl." },
+      { "object": "self", "property": "Date", "message": "AD-9: only src/lib/dates.ts and src/lib/format.ts may use Date." },
+      { "object": "self", "property": "Intl", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use Intl." },
+      { "property": "toLocaleString", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use toLocaleString. Use lib/format helpers." },
+      { "property": "toLocaleDateString", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use toLocaleDateString. Use lib/format helpers." },
+      { "property": "toLocaleTimeString", "message": "AD-10: only src/lib/dates.ts and src/lib/format.ts may use toLocaleTimeString. Use lib/format helpers." }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/app/**"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["src/features/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^[.][.]?/(.*/)?app(/|$)",
+                "message": "AD-1: features may import only ui, api and lib."
+              },
+              {
+                "regex": "^[.][.]?/(.*/)?api/(mock|http)([./]|$)",
+                "message": "AD-1: only src/app (and src/api itself) may import the mock or http adapters. Use the ApiProvider and api/hooks instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/ui/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^[.][.]?/(.*/)?(app|features)(/|$)",
+                "message": "AD-1: ui may import only lib (and `import type` from api/types)."
+              },
+              {
+                "regex": "^[.][.]?/(.*/)?api/types([.]ts)?$",
+                "allowTypeImports": true,
+                "message": "AD-1: ui may import from api/types with `import type` only."
+              },
+              {
+                "group": ["**/api", "**/api/**", "!**/api/types", "!**/api/types.ts"],
+                "message": "AD-1: ui may not import from api (only `import type` from api/types)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/lib/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^[.][.]?/(.*/)?(app|features|ui|api)(/|$)",
+                "message": "AD-1: lib is the bottom layer and may not import app, features, ui or api."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/api/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^[.][.]?/(.*/)?(app|features|ui)(/|$)",
+                "message": "AD-1: api may import only lib."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/lib/dates.ts", "src/lib/format.ts"],
+      "rules": {
+        "no-restricted-globals": "off",
+        "no-restricted-properties": "off"
+      }
+    }
+  ]
+}

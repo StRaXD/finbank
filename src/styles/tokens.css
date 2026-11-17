@@ -1,0 +1,95 @@
+/*
+ * Finbank design tokens: the single source of truth (AD-11).
+ * Values come from design-reference/design-system/Typography-color.png.
+ * Hex literals and arbitrary colour / font-size utilities are banned everywhere
+ * else in src/ (enforced by src/design-literals.node.test.ts).
+ */
+
+/*
+ * Chart-readable colours. `static` makes Tailwind always emit these as CSS
+ * variables, so JS (charts in later epics) can read them even when no utility
+ * uses them.
+ */
+@theme static {
+  /* Drop Tailwind's default palette: app code may use Finbank tokens only. */
+  --color-*: initial;
+
+  --color-primary: #299D91;
+
+  /* Neutrals, darkest to lightest. */
+  --color-ink: #191919;
+  --color-ink-2: #525256;
+  --color-muted: #666666;
+  --color-subtle: #878787;
+  --color-faint: #9F9F9F;
+  --color-border: #E8E8E8;
+  --color-surface: #F4F5F7;
+
+  --color-danger: #E73D1C;
+  --color-positive: #4DAF6E;
+}
+
+@theme {
+  /* Surfaces. */
+  --color-white: #FFFFFF;
+  --color-card: var(--color-white);
+  /* "Continue with Google" / disabled button fill, sampled from Login and Components-1 PNGs. */
+  --color-google: #E4E7EB;
+  /* Semantic fill for disabled controls; currently matches the Google button grey. */
+  --color-disabled: var(--color-google);
+  --color-sidebar: var(--color-ink);
+  /* Modal dim over the content column, measured from 110.2. Goals.png (#F4F5F7 -> #D3D4D6,
+     white -> #DDDDDD): black at about 13.5%. */
+  --color-overlay: rgb(0 0 0 / 13.5%);
+
+  /* On dark surfaces (sidebar). */
+  --color-on-dark: var(--color-white);
+  --color-on-dark-muted: rgb(255 255 255 / 70%);
+  /* Measured from 105. Balances.png over the #191919 sidebar: Logout label ~#C5C5C5,
+     Logout/hover fill #262626, divider #2B2B2B. */
+  --color-on-dark-soft: rgb(255 255 255 / 75%);
+  --color-on-dark-hover: rgb(255 255 255 / 5.6%);
+  --color-on-dark-divider: rgb(210 210 210 / 9.7%);
+
+  /* Focus ring. */
+  --color-focus-ring: var(--color-primary);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Typography: Inter (self-hosted via @fontsource-variable/inter). */
+  --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, sans-serif;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* Type scale: size / line-height steps. Tailwind defaults are dropped. */
+  --text-*: initial;
+  --text-12: 12px;
+  --text-12--line-height: 16px;
+  --text-14: 14px;
+  --text-14--line-height: 20px;
+  --text-16: 16px;
+  --text-16--line-height: 24px;
+  --text-18: 18px;
+  --text-18--line-height: 24px;
+  --text-20: 20px;
+  --text-20--line-height: 28px;
+  --text-22: 22px;
+  --text-22--line-height: 32px;
+  --text-24: 24px;
+  --text-24--line-height: 28px;
+
+  /* Card surface. Shadow is estimated from the screen PNGs (no Figma source). */
+  --radius-card: 8px;
+
+  /* Control radii (Components-1.png, 101. Login.png). */
+  --radius-button: 4px;
+  --radius-input: 8px;
+  --radius-checkbox: 2px;
+  /* Modal panel corner, measured from 110.2. Goals.png. */
+  --radius-modal: 16px;
+  --shadow-card: 0 20px 25px rgb(118 118 118 / 10%);
+}
