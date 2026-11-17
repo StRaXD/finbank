@@ -11,7 +11,7 @@ export function TopBar({ inert }: { inert: boolean }) {
   const { chevronsRight: Chevrons, bell: Bell, search: SearchIcon } = icons
 
   return (
-    <header inert={inert} className="flex h-22 shrink-0 items-center border-b border-border pr-8 pl-6">
+    <header inert={inert} className="relative z-50 flex h-22 shrink-0 items-center border-b border-border bg-surface pr-8 pl-6">
       <div className="flex items-center gap-1 text-14 text-faint">
         <Chevrons aria-hidden="true" data-icon="chevronsRight" size={24} />
         {/* RequireSession renders the shell only once today has loaded. */}

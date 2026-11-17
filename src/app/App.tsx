@@ -1,9 +1,14 @@
 // Stories 1.2/1.3 token and component specimen, served only in dev at `routes.specimen`.
 import wordmarkTeal from '../assets/brands/wordmark-teal.svg'
 import wordmarkWhite from '../assets/brands/wordmark-white.svg'
+import { useState } from 'react'
+import { AsyncSection, type AsyncQuery } from '../ui/AsyncSection.tsx'
 import { Button } from '../ui/Button.tsx'
+import { Card } from '../ui/Card.tsx'
 import { Checkbox } from '../ui/Checkbox.tsx'
+import { ConfirmDialog } from '../ui/ConfirmDialog.tsx'
 import { FormStatus } from '../ui/FormStatus.tsx'
+import { Modal } from '../ui/Modal.tsx'
 import { PasswordInput } from '../ui/PasswordInput.tsx'
 import { TextInput } from '../ui/TextInput.tsx'
 
@@ -44,6 +49,49 @@ const darkSwatches = [
   { name: 'on-dark-muted', className: 'bg-on-dark-muted' },
   { name: 'on-dark-hover', className: 'bg-on-dark-hover' },
 ] as const
+
+// Static query states for the AsyncSection specimen (no API involved).
+const noop = () => {}
+const loadingQuery: AsyncQuery<string[]> = { status: 'pending', data: undefined, error: null, isFetching: true, refetch: noop }
+const emptyQuery: AsyncQuery<string[]> = { status: 'success', data: [], error: null, isFetching: false, refetch: noop }
+const errorQuery: AsyncQuery<string[]> = {
+  status: 'error',
+  data: undefined,
+  error: { message: 'Could not load transactions.' },
+  isFetching: false,
+  refetch: noop,
+}
+const isEmptyList = (items: string[]) => items.length === 0
+
+function OverlaySpecimen() {
+  const [modalOpen, setModalOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <Button onClick={() => setModalOpen(true)}>Open modal</Button>
+      <Button variant="outline" onClick={() => setConfirmOpen(true)}>
+        Open confirm dialog
+      </Button>
+      {/* Mirrors the "Target Amounts" modal in 110.2. Goals.png. */}
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)}>
+        <div className="flex flex-col gap-8">
+          <TextInput label="Target Amounts" placeholder="$500000" />
+          <div className="flex justify-center">
+            <Button onClick={() => setModalOpen(false)}>Save</Button>
+          </div>
+        </div>
+      </Modal>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Remove account?"
+        message="This account and its transactions will be removed."
+        confirmLabel="Remove"
+        onConfirm={() => setConfirmOpen(false)}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </div>
+  )
+}
 
 function App() {
   return (
@@ -188,6 +236,46 @@ function App() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section aria-labelledby="cards-heading" data-testid="specimen-cards" className="flex flex-col gap-8">
+        <h2 id="cards-heading" className="text-20 font-semibold">
+          Cards, async states and dialogs
+        </h2>
+        <div className="grid grid-cols-3 gap-6">
+          <Card
+            title="Upcoming Bill"
+            actions={
+              <Button variant="text" size="sm" trailingIcon="chevronRight">
+                View All
+              </Button>
+            }
+          >
+            <p className="text-16 text-ink">Card with a title and actions</p>
+          </Card>
+          <Card title="Total Balance">
+            <p className="text-16 text-ink">Card with a title only</p>
+          </Card>
+          <Card>
+            <p className="text-16 text-ink">Card without a title</p>
+          </Card>
+          <Card title="Loading">
+            <AsyncSection query={loadingQuery} isEmpty={isEmptyList} emptyMessage="No transactions yet.">
+              {(items) => <p>{items.join(', ')}</p>}
+            </AsyncSection>
+          </Card>
+          <Card title="Empty">
+            <AsyncSection query={emptyQuery} isEmpty={isEmptyList} emptyMessage="No transactions yet.">
+              {(items) => <p>{items.join(', ')}</p>}
+            </AsyncSection>
+          </Card>
+          <Card title="Error">
+            <AsyncSection query={errorQuery} isEmpty={isEmptyList} emptyMessage="No transactions yet.">
+              {(items) => <p>{items.join(', ')}</p>}
+            </AsyncSection>
+          </Card>
+        </div>
+        <OverlaySpecimen />
       </section>
     </main>
   )

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 15:43
-last_updated: 11-17-2026 09:55
+last_updated: 11-17-2026 10:50
 project: Finbank
 project_key: NOKEY
 tracking_system: file-system
@@ -44,7 +44,7 @@ development_status:
   1-6-routing-session-guard-and-login-screen: review
   1-7-signup-and-forgot-password-screens: review
   1-8-app-shell-sidebar-top-bar-user-block-and-logout: review
-  1-9-card-async-states-modal-and-confirmdialog-primitives: backlog
+  1-9-card-async-states-modal-and-confirmdialog-primitives: review
   epic-1-retrospective: optional
 
   epic-2: backlog

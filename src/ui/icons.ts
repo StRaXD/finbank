@@ -17,6 +17,7 @@ import {
   Search,
   Settings,
   Wallet,
+  X,
 } from 'lucide-react'
 
 export const icons = {
@@ -39,6 +40,8 @@ export const icons = {
   bell: Bell,
   search: Search,
   kebab: EllipsisVertical,
+  // Modal close (110.2. Goals.png).
+  close: X,
 } as const
 
 export type IconName = keyof typeof icons

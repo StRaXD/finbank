@@ -38,6 +38,9 @@
   /* Semantic fill for disabled controls; currently matches the Google button grey. */
   --color-disabled: var(--color-google);
   --color-sidebar: var(--color-ink);
+  /* Modal dim over the content column, measured from 110.2. Goals.png (#F4F5F7 -> #D3D4D6,
+     white -> #DDDDDD): black at about 13.5%. */
+  --color-overlay: rgb(0 0 0 / 13.5%);
 
   /* On dark surfaces (sidebar). */
   --color-on-dark: var(--color-white);
@@ -86,5 +89,7 @@
   --radius-button: 4px;
   --radius-input: 8px;
   --radius-checkbox: 2px;
+  /* Modal panel corner, measured from 110.2. Goals.png. */
+  --radius-modal: 16px;
   --shadow-card: 0 20px 25px rgb(118 118 118 / 10%);
 }

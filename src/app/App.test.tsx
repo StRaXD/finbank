@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import wordmarkTeal from '../assets/brands/wordmark-teal.svg'
 import wordmarkWhite from '../assets/brands/wordmark-white.svg'
@@ -40,5 +40,26 @@ describe('App token specimen', () => {
     expect(section.getByLabelText('Password')).toHaveAttribute('type', 'password')
     expect(section.getByLabelText('Keep me signed in')).toBeChecked()
     expect(section.getByRole('status')).toHaveTextContent('Profile updated')
+  })
+
+  it('renders the cards, the three async states and the dialog openers', () => {
+    render(<App />)
+    const section = within(screen.getByTestId('specimen-cards'))
+    expect(section.getByRole('heading', { level: 2, name: 'Upcoming Bill' })).toBeInTheDocument()
+    expect(section.getByRole('button', { name: 'View All' })).toBeInTheDocument()
+    expect(section.getByText('Card without a title')).toBeInTheDocument()
+    expect(section.getByText('Loading…').parentElement).toHaveAttribute('aria-busy', 'true')
+    expect(section.getByText('No transactions yet.')).toBeInTheDocument()
+    expect(section.getByRole('alert')).toHaveTextContent('Could not load transactions.')
+
+    fireEvent.click(section.getByRole('button', { name: 'Open modal' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('Target Amounts')
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    fireEvent.click(section.getByRole('button', { name: 'Open confirm dialog' }))
+    expect(screen.getByRole('dialog', { name: 'Remove account?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

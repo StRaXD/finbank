@@ -62,6 +62,7 @@ describe('tokens.css', () => {
     ['--color-white', hex('FFFFFF')],
     ['--color-card', 'var(--color-white)'],
     ['--color-sidebar', 'var(--color-ink)'],
+    ['--color-overlay', fn('rgb', '0 0 0 / 13.5%')],
     ['--color-on-dark', 'var(--color-white)'],
     ['--color-on-dark-muted', fn('rgb', '255 255 255 / 70%')],
     ['--color-on-dark-soft', fn('rgb', '255 255 255 / 75%')],
@@ -76,6 +77,7 @@ describe('tokens.css', () => {
     ['--radius-button', '4px'],
     ['--radius-input', '8px'],
     ['--radius-checkbox', '2px'],
+    ['--radius-modal', '16px'],
     ['--shadow-card', `0 20px 25px ${fn('rgb', '118 118 118 / 10%')}`],
   ])('%s is %s', (name, value) => {
     expect(norm(theme.get(name))).toBe(norm(value))

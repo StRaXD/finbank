@@ -7,3 +7,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-8-app-shell-sidebar-top-bar-user-block-and-logout.md`
   summary: Story 1.9's Modal overlay must stay viewport-bounded (sticky or fixed within the content column), not `absolute inset-0` over the full scroll height of `<main>`.
   evidence: Unverified (medium if true). `#content-overlay-root` is an unpositioned child of `relative` `<main>`. Settle it by rendering a Modal on a page taller than the viewport.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-9-card-async-states-modal-and-confirmdialog-primitives.md`
+  summary: `Modal` without a `title` has no accessible name. Add an `aria-label`-style prop when Epic 4 builds the untitled form modals (Adjust Savings Goal, Adjust Category Limit).
+  evidence: `aria-labelledby` is set only when `title` is given. The design's form modals (110.1/110.2) show no visible heading.
