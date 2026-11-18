@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { Dropdown, type DropdownVariant } from './Dropdown.tsx'
@@ -10,7 +10,7 @@ const options = [
 
 type Period = (typeof options)[number]['value']
 
-function Harness({ onChange, variant = 'plain' }: { onChange?: (value: Period) => void; variant?: DropdownVariant }) {
+function Harness({ onChange, variant = 'plain' }: { onChange?: (value: Period) => void; variant?: Exclude<DropdownVariant, 'field'> }) {
   const [value, setValue] = useState<Period>('year')
   return (
     <>
@@ -168,5 +168,140 @@ describe('Dropdown', () => {
     fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Tab' })
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(trigger()).toHaveFocus()
+  })
+})
+
+const typeOptions = [
+  { value: 'checking', label: 'Checking' },
+  { value: 'savings', label: 'Savings' },
+] as const
+
+type Kind = (typeof typeOptions)[number]['value']
+
+function FieldHarness({
+  initial = '',
+  error,
+  onBlur,
+  onChange,
+  buttonRef,
+}: {
+  initial?: Kind | ''
+  error?: string
+  onBlur?: () => void
+  onChange?: (value: Kind) => void
+  buttonRef?: (node: HTMLButtonElement | null) => void
+}) {
+  const [value, setValue] = useState<Kind | ''>(initial)
+  return (
+    <>
+      <Dropdown
+        variant="field"
+        label="Account Type"
+        placeholder="Select type…"
+        name="type"
+        options={typeOptions}
+        value={value}
+        error={error}
+        onBlur={onBlur}
+        ref={buttonRef}
+        onChange={(next) => {
+          onChange?.(next)
+          setValue(next)
+        }}
+      />
+      <button type="button">Outside</button>
+    </>
+  )
+}
+
+const combobox = () => screen.getByRole('combobox', { name: 'Account Type' })
+
+describe('Dropdown field variant', () => {
+  it('is a 56px bordered combobox named by its visible label, showing the placeholder in subtle', () => {
+    render(<FieldHarness />)
+    expect(combobox()).toHaveAccessibleName('Account Type')
+    expect(screen.getByText('Account Type')).toBeVisible()
+    expect(screen.getByText('Account Type')).toHaveClass('text-16', 'font-medium', 'text-ink-2', 'mb-2')
+    expect(combobox()).toHaveClass('h-14', 'w-full', 'px-6', 'border', 'rounded-input', 'border-border')
+    expect(combobox()).toHaveAttribute('name', 'type')
+    expect(combobox()).toHaveAttribute('aria-haspopup', 'listbox')
+    expect(combobox()).not.toHaveAttribute('aria-invalid')
+    expect(combobox()).not.toHaveAttribute('aria-describedby')
+    expect(combobox()).not.toHaveAttribute('aria-required')
+    const placeholder = within(combobox()).getByText('Select type…')
+    expect(placeholder).toHaveClass('text-subtle')
+  })
+
+  it('opens with no option selected and a full-width popup, then shows the pick in ink-2', () => {
+    const onChange = vi.fn()
+    render(<FieldHarness onChange={onChange} />)
+    fireEvent.click(combobox())
+    const listbox = screen.getByRole('listbox', { name: 'Account Type' })
+    expect(listbox).toHaveClass('left-0', 'right-0')
+    expect(listbox).not.toHaveClass('min-w-full')
+    for (const option of screen.getAllByRole('option')) expect(option).toHaveAttribute('aria-selected', 'false')
+    expect(listbox).toHaveAttribute('aria-activedescendant', screen.getAllByRole('option')[0]!.id)
+    fireEvent.click(screen.getByRole('option', { name: 'Savings' }))
+    expect(onChange).toHaveBeenCalledWith('savings')
+    expect(within(combobox()).getByText('Savings')).toHaveClass('text-ink-2')
+    expect(combobox()).toHaveClass('border-ink-2')
+    expect(combobox()).toHaveFocus()
+  })
+
+  it('does not toggle the list when the label is clicked', () => {
+    render(<FieldHarness />)
+    fireEvent.click(screen.getByText('Account Type'))
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('attaches the trigger to a new ref passed on a later render', () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const props = { variant: 'field', label: 'Account Type', placeholder: 'Select type…', options: typeOptions, value: '', onChange: () => {} } as const
+    const { rerender } = render(<Dropdown {...props} ref={first} />)
+    expect(first).toHaveBeenLastCalledWith(combobox())
+    rerender(<Dropdown {...props} ref={second} />)
+    expect(second).toHaveBeenLastCalledWith(combobox())
+  })
+
+  it('passes required to the combobox as aria-required', () => {
+    render(<Dropdown variant="field" label="Account Type" placeholder="Select type…" options={typeOptions} value="" onChange={() => {}} required />)
+    expect(combobox()).toHaveAttribute('aria-required', 'true')
+  })
+
+  it('links its error with aria-invalid and aria-describedby', () => {
+    render(<FieldHarness error="Choose an account type." />)
+    expect(combobox()).toHaveAttribute('aria-invalid', 'true')
+    expect(combobox()).toHaveAccessibleDescription('Choose an account type.')
+    expect(combobox()).toHaveClass('border-danger')
+  })
+
+  it('shows the placeholder for an unknown value instead of falling back to option 0', () => {
+    render(<FieldHarness initial={'loan' as Kind} />)
+    expect(within(combobox()).getByText('Select type…')).toBeInTheDocument()
+  })
+
+  it('hands the trigger to ref and calls onBlur only when focus leaves the control', () => {
+    const onBlur = vi.fn()
+    let node: HTMLButtonElement | null = null
+    render(<FieldHarness onBlur={onBlur} buttonRef={(n) => (node = n)} />)
+    expect(node).toBe(combobox())
+    combobox().focus()
+    fireEvent.click(combobox())
+    // Focus moved from the trigger to the list: still inside.
+    expect(onBlur).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' })
+    expect(onBlur).not.toHaveBeenCalled()
+    screen.getByRole('button', { name: 'Outside' }).focus()
+    expect(onBlur).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks Escape in the open list as handled, so an enclosing modal stays open', () => {
+    render(<FieldHarness initial="checking" />)
+    fireEvent.click(combobox())
+    const handled = !fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' })
+    expect(handled).toBe(true)
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(within(combobox()).getByText('Checking')).toBeInTheDocument()
   })
 })

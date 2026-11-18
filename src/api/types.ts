@@ -3,7 +3,7 @@ import type { IsoDate, YearMonth } from '../lib/dates.ts'
 
 export type { IsoDate, YearMonth } from '../lib/dates.ts'
 
-export type ApiErrorCode = 'VALIDATION' | 'STORAGE_FULL' | 'NOT_IMPLEMENTED' | 'UNKNOWN'
+export type ApiErrorCode = 'VALIDATION' | 'NOT_FOUND' | 'STORAGE_FULL' | 'NOT_IMPLEMENTED' | 'UNKNOWN'
 
 /** The only error an adapter throws. UI copy comes from `message`; forms map `fieldErrors` to `setError`. */
 export class ApiError extends Error {
@@ -81,7 +81,8 @@ export const CONFIRM_PASSWORD_MISMATCH_MESSAGE = "Passwords don't match."
 
 export type AccountType = 'creditCard' | 'checking' | 'savings' | 'investment' | 'loan'
 
-export type CardNetwork = 'mastercard' | 'visa'
+/** `other`: a card on any other network, shown with a neutral card icon (no brand logo). */
+export type CardNetwork = 'visa' | 'mastercard' | 'other'
 
 /** One account. `balanceCents` is always a non-negative magnitude; the adapter signs it for totals. */
 export type Account = {
@@ -94,6 +95,44 @@ export type Account = {
   accountNumber: string
   balanceCents: number
 }
+
+/** A new account: every field but the id, which the adapter assigns. */
+export type AccountInput = Omit<Account, 'id'>
+
+/** An account edit. The type is chosen only when adding, and never changes afterwards. */
+export type AccountUpdate = Omit<AccountInput, 'type'>
+
+/** The account types that carry a card, and so a required `network`. */
+export const CARD_ACCOUNT_TYPES = ['creditCard', 'checking'] as const satisfies readonly AccountType[]
+
+/** Whether accounts of `type` carry a card network. */
+export function hasCardNetwork(type: AccountType): boolean {
+  return (CARD_ACCOUNT_TYPES as readonly AccountType[]).includes(type)
+}
+
+/** The longest bank or branch name accepted, after trimming. */
+export const ACCOUNT_NAME_MAX = 60
+
+/** The fewest and most digits an account number may have. */
+export const ACCOUNT_NUMBER_DIGITS = [8, 19] as const
+
+/** An account number as typed, with its spaces and dashes removed ("1234 5678-9012" → "123456789012"). */
+export function stripAccountNumber(value: string): string {
+  return value.replace(/[\s-]/g, '')
+}
+
+/** The account form errors, shared by the form and the adapter. */
+export const ACCOUNT_TYPE_REQUIRED_MESSAGE = 'Choose an account type.'
+export const ACCOUNT_TYPE_IMMUTABLE_MESSAGE = "Account type can't be changed."
+export const BANK_NAME_REQUIRED_MESSAGE = 'Enter the bank name.'
+export const BRANCH_NAME_REQUIRED_MESSAGE = 'Enter the branch name.'
+export const ACCOUNT_NAME_LENGTH_MESSAGE = `Use ${ACCOUNT_NAME_MAX} characters or fewer.`
+export const CARD_NETWORK_REQUIRED_MESSAGE = 'Choose a card network.'
+export const ACCOUNT_NUMBER_REQUIRED_MESSAGE = 'Enter the account number.'
+export const ACCOUNT_NUMBER_FORMAT_MESSAGE = `Enter ${ACCOUNT_NUMBER_DIGITS[0]}–${ACCOUNT_NUMBER_DIGITS[1]} digits.`
+export const ACCOUNT_NUMBER_TAKEN_MESSAGE = 'An account with this number already exists.'
+export const BALANCE_REQUIRED_MESSAGE = 'Enter an amount, like 1,234.50.'
+export const BALANCE_NEGATIVE_MESSAGE = "Amount can't be negative."
 
 /** Derived by the adapter: assets (checking, savings, investment) minus liabilities (credit card, loan). */
 export type BalanceSummary = {

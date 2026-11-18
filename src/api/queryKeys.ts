@@ -55,6 +55,9 @@ export const invalidationMap = {
   signup: 'all',
   logout: 'all',
   removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions(), qk.categorySummaries(), qk.comparison()],
+  // A new account has no transactions, and an edit never touches them.
+  createAccount: [qk.accounts(), qk.balanceSummary()],
+  updateAccount: [qk.accounts(), qk.balanceSummary()],
   updateSavingsGoal: [qk.savingsGoal(), qk.savingSummary()],
   updateCategoryLimit: [qk.categoryLimits()],
   updateProfile: [qk.profile()],

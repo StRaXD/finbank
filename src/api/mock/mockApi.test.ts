@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FinbankApi } from '../port.ts'
-import { ApiError, type ExpenseCategoryId, type IsoDate, type ListTransactionsInput, type SavingsGoal, type Transaction, type YearMonth } from '../types.ts'
+import { type AccountInput, ApiError, type ExpenseCategoryId, type IsoDate, type ListTransactionsInput, type SavingsGoal, type Transaction, type YearMonth } from '../types.ts'
 import {
   createMemoryStorage,
   createMockApi,
@@ -48,6 +48,7 @@ const seedJson = () => ({
   bills: seed.bills,
   savingsGoals: seed.savingsGoals,
   categoryLimits: seed.categoryLimits,
+  nextAccountNumber: 6,
 })
 
 beforeEach(() => {
@@ -98,6 +99,7 @@ describe('persistence', () => {
       bills: [seed.bills[1]],
       savingsGoals: [{ month: '2024-02', targetCents: 50_000, achievedCents: 60_000 }],
       categoryLimits: seed.categoryLimits.map((limit) => ({ ...limit, limitCents: limit.limitCents + 1 })),
+      nextAccountNumber: 7,
     }
     localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(custom))
     const api = make()
@@ -378,6 +380,248 @@ describe('removeAccount', () => {
     await expect(api.getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 0 })
     expect(stored().accounts).toEqual([])
     await expect(make().listAccounts()).resolves.toEqual([])
+  })
+})
+
+describe('createAccount', () => {
+  const input = (patch: Partial<Record<keyof AccountInput, unknown>> = {}) =>
+    ({
+      type: 'checking',
+      bankName: ' City Bank ',
+      branchName: 'Main',
+      network: 'visa',
+      accountNumber: '1234 5678-9012',
+      balanceCents: 150_000,
+      ...patch,
+    }) as AccountInput
+
+  it('normalises, appends acc_6 last, adds no transactions and persists in seed key order', async () => {
+    const api = make()
+    const before = await api.listTransactions({ limit: 50 })
+    const created = await api.createAccount(input())
+    expect(created).toEqual({
+      id: 'acc_6',
+      type: 'checking',
+      bankName: 'City Bank',
+      branchName: 'Main',
+      network: 'visa',
+      accountNumber: '123456789012',
+      balanceCents: 150_000,
+    })
+    expect(Object.keys(created)).toEqual(['id', 'type', 'bankName', 'branchName', 'network', 'accountNumber', 'balanceCents'])
+    expect((await api.listAccounts()).map((a) => a.id)).toEqual(['acc_1', 'acc_2', 'acc_3', 'acc_4', 'acc_5', 'acc_6'])
+    await expect(api.getAccount('acc_6')).resolves.toEqual(created)
+    await expect(api.getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 24_039_900 + 150_000 })
+    await expect(api.listTransactions({ limit: 50 })).resolves.toEqual(before)
+    await expect(api.listTransactions({ accountId: 'acc_6', limit: 10 })).resolves.toEqual({ items: [], nextCursor: null })
+    expect(stored().accounts.at(-1)).toEqual(created)
+    expect(stored().nextAccountNumber).toBe(7)
+    expect(stored().transactions).toEqual(seed.transactions)
+  })
+
+  it('subtracts a liability from the total', async () => {
+    const api = make()
+    await api.createAccount(input({ type: 'loan', network: undefined, balanceCents: 200_000 }))
+    await expect(api.getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 24_039_900 - 200_000 })
+  })
+
+  it('accepts the Other network on a card', async () => {
+    const created = await make().createAccount(input({ type: 'creditCard', network: 'other' }))
+    expect(created.network).toBe('other')
+  })
+
+  it.each(['savings', 'investment', 'loan'] as const)('drops a network sent for %s', async (type) => {
+    const created = await make().createAccount(input({ type, network: 'visa' }))
+    expect(created).not.toHaveProperty('network')
+    expect(stored().accounts.at(-1)).not.toHaveProperty('network')
+  })
+
+  it('does not rewrite storage on a reload after a create', async () => {
+    await make().createAccount(input())
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const accounts = await make().listAccounts()
+    expect(accounts.at(-1)!.id).toBe('acc_6')
+    expect(setItem).not.toHaveBeenCalled()
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+  })
+
+  it('never reuses an id: acc_6 after removing acc_5, and acc_10 after acc_9', async () => {
+    const api = make()
+    await api.removeAccount('acc_5')
+    await expect(api.createAccount(input())).resolves.toMatchObject({ id: 'acc_6' })
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), nextAccountNumber: 9 }))
+    const other = make()
+    await expect(other.createAccount(input({ accountNumber: '11112222' }))).resolves.toMatchObject({ id: 'acc_9' })
+    await expect(other.createAccount(input({ accountNumber: '11112223' }))).resolves.toMatchObject({ id: 'acc_10' })
+  })
+
+  it.each([
+    ['missing', undefined, 6],
+    ['not a number', 'x', 6],
+    ['zero', 0, 6],
+    ['below the highest stored id', 3, 6],
+  ])('fills nextAccountNumber on load when it is %s', async (_name, value, expected) => {
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), nextAccountNumber: value }))
+    await make().listAccounts()
+    expect(stored().nextAccountNumber).toBe(expected)
+  })
+
+  it('fills nextAccountNumber past the highest stored acc_<n>', async () => {
+    const { nextAccountNumber: _omit, ...rest } = seedJson()
+    void _omit
+    localStorage.setItem(
+      MOCK_STORAGE_KEY,
+      JSON.stringify({ ...rest, accounts: [...seed.accounts, { ...seed.accounts[2], id: 'acc_12', accountNumber: '99998888' }] }),
+    )
+    await expect(make().createAccount(input())).resolves.toMatchObject({ id: 'acc_13' })
+  })
+
+  it('keeps a clean stored nextAccountNumber without rewriting', async () => {
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(seedJson()))
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await make().listAccounts()
+    expect(setItem).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['no type', { type: undefined }, { type: 'Choose an account type.' }],
+    ['an unknown type', { type: 'crypto' }, { type: 'Choose an account type.' }],
+    ['a blank bank name', { bankName: '   ' }, { bankName: 'Enter the bank name.' }],
+    ['a blank branch name', { branchName: '' }, { branchName: 'Enter the branch name.' }],
+    ['a 61-character bank name', { bankName: 'B'.repeat(61) }, { bankName: 'Use 60 characters or fewer.' }],
+    ['a 61-character branch name', { branchName: ` ${'B'.repeat(61)} ` }, { branchName: 'Use 60 characters or fewer.' }],
+    ['no network on a card', { network: undefined }, { network: 'Choose a card network.' }],
+    ['an unknown network on a card', { type: 'creditCard', network: 'amex' }, { network: 'Choose a card network.' }],
+    ['a blank number', { accountNumber: ' - ' }, { accountNumber: 'Enter the account number.' }],
+    ['7 digits', { accountNumber: '1234 567' }, { accountNumber: 'Enter 8–19 digits.' }],
+    ['a letter', { accountNumber: '12a45678' }, { accountNumber: 'Enter 8–19 digits.' }],
+    ['20 digits', { accountNumber: '1'.repeat(20) }, { accountNumber: 'Enter 8–19 digits.' }],
+    ["acc_1's number, spaced", { accountNumber: '3388 4556 8860 2598' }, { accountNumber: 'An account with this number already exists.' }],
+    ['no balance', { balanceCents: undefined }, { balanceCents: 'Enter an amount, like 1,234.50.' }],
+    ['a fractional balance', { balanceCents: 1.5 }, { balanceCents: 'Enter an amount, like 1,234.50.' }],
+    ['a negative balance', { balanceCents: -500 }, { balanceCents: "Amount can't be negative." }],
+  ])('rejects %s with VALIDATION and writes nothing', async (_name, patch, fieldErrors) => {
+    const api = make()
+    await api.listAccounts()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const error = await rejection(api.createAccount(input(patch)))
+    expect(error.code).toBe('VALIDATION')
+    expect(error.fieldErrors).toEqual(fieldErrors)
+    expect(setItem).not.toHaveBeenCalled()
+    await expect(api.listAccounts()).resolves.toHaveLength(5)
+  })
+
+  it('accepts 8 and 19 digits and a 60-character name', async () => {
+    const api = make()
+    await expect(api.createAccount(input({ accountNumber: '12345678', bankName: 'B'.repeat(60) }))).resolves.toMatchObject({
+      accountNumber: '12345678',
+      bankName: 'B'.repeat(60),
+    })
+    await expect(api.createAccount(input({ accountNumber: '1'.repeat(19) }))).resolves.toMatchObject({ id: 'acc_7' })
+  })
+
+  it.each([
+    ['STORAGE_FULL', new DOMException('quota', 'QuotaExceededError')],
+    ['UNKNOWN', new Error('boom')],
+  ])('rejects %s on a failed write and leaves memory and storage unchanged', async (code, thrown) => {
+    const api = make()
+    await api.listAccounts()
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw thrown
+    })
+    const error = await rejection(api.createAccount(input()))
+    setItem.mockRestore()
+    expect(error.code).toBe(code)
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+    await expect(api.listAccounts()).resolves.toHaveLength(5)
+    // The id was not consumed.
+    await expect(api.createAccount(input())).resolves.toMatchObject({ id: 'acc_6' })
+  })
+})
+
+describe('updateAccount', () => {
+  const update = (patch: Record<string, unknown> = {}) => {
+    const { id: _id, type: _type, ...rest } = seed.accounts[1]!
+    void _id
+    void _type
+    return { ...rest, ...patch } as Parameters<FinbankApi['updateAccount']>[1]
+  }
+
+  it("edits acc_2 in place: same id, type and position, and its transactions byte for byte", async () => {
+    const api = make()
+    await api.listAccounts()
+    const transactionsBefore = JSON.stringify(stored().transactions)
+    const updated = await api.updateAccount('acc_2', update({ bankName: ' New Bank ', balanceCents: 5_600, accountNumber: '6934-5669-91234' }))
+    expect(updated).toEqual({ ...seed.accounts[1], bankName: 'New Bank', balanceCents: 5_600 })
+    expect(Object.keys(updated)).toEqual(Object.keys(seed.accounts[1]!))
+    expect((await api.listAccounts()).map((a) => a.id)).toEqual(['acc_1', 'acc_2', 'acc_3', 'acc_4', 'acc_5'])
+    expect(JSON.stringify(stored().transactions)).toBe(transactionsBefore)
+    expect(stored().accounts[1]).toEqual(updated)
+    await expect(api.getBalanceSummary()).resolves.toEqual({ totalBalanceCents: 24_039_900 - 2_505_600 + 5_600 })
+  })
+
+  it('does not rewrite storage on a reload after an update', async () => {
+    await make().updateAccount('acc_2', update({ bankName: 'New Bank' }))
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await expect(make().getAccount('acc_2')).resolves.toMatchObject({ bankName: 'New Bank' })
+    expect(setItem).not.toHaveBeenCalled()
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+  })
+
+  it('builds the stored account only from the allowed fields', async () => {
+    const updated = await make().updateAccount('acc_2', update({ id: 'acc_99', extra: 'x' }))
+    expect(updated).toEqual(seed.accounts[1])
+    expect(stored().accounts[1]).toEqual(seed.accounts[1])
+  })
+
+  it('accepts the stored type, and rejects a different one without writing', async () => {
+    const api = make()
+    await expect(api.updateAccount('acc_2', update({ type: 'checking' }))).resolves.toEqual(seed.accounts[1])
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const error = await rejection(api.updateAccount('acc_2', update({ type: 'loan' })))
+    expect(error.code).toBe('VALIDATION')
+    expect(error.fieldErrors).toEqual({ type: "Account type can't be changed." })
+    expect(setItem).not.toHaveBeenCalled()
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+  })
+
+  it('excludes the account itself from the uniqueness check, but not the others', async () => {
+    const api = make()
+    await expect(api.updateAccount('acc_2', update({ accountNumber: '6934566991234' }))).resolves.toBeDefined()
+    const error = await rejection(api.updateAccount('acc_2', update({ accountNumber: '3388455688602598' })))
+    expect(error.fieldErrors).toEqual({ accountNumber: 'An account with this number already exists.' })
+  })
+
+  it('uses the stored type for the network rule', async () => {
+    const api = make()
+    const error = await rejection(api.updateAccount('acc_2', update({ network: undefined })))
+    expect(error.fieldErrors).toEqual({ network: 'Choose a card network.' })
+    const savings = await api.updateAccount('acc_3', { ...update(), accountNumber: '13345688681234', network: 'visa' })
+    expect(savings).not.toHaveProperty('network')
+    expect(savings.type).toBe('savings')
+  })
+
+  it('rejects an unknown id with NOT_FOUND', async () => {
+    const error = await rejection(make().updateAccount('nope', update()))
+    expect(error.code).toBe('NOT_FOUND')
+  })
+
+  it('rejects STORAGE_FULL on a failed write and leaves memory and storage unchanged', async () => {
+    const api = make()
+    await api.listAccounts()
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError')
+    })
+    const error = await rejection(api.updateAccount('acc_2', update({ bankName: 'New Bank' })))
+    setItem.mockRestore()
+    expect(error.code).toBe('STORAGE_FULL')
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+    await expect(api.getAccount('acc_2')).resolves.toEqual(seed.accounts[1])
   })
 })
 

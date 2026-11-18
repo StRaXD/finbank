@@ -1,5 +1,7 @@
 import type {
   Account,
+  AccountInput,
+  AccountUpdate,
   BalanceSummary,
   Bill,
   CategoryLimit,
@@ -67,6 +69,25 @@ export interface FinbankApi {
   getBalanceSummary(): Promise<BalanceSummary>
   /** Removes an account and persists it. An unknown id resolves as a no-op (idempotent). */
   removeAccount(id: string): Promise<void>
+  /**
+   * Adds an account last, persists it and resolves with a copy. Names are trimmed, spaces and
+   * dashes are removed from the number, and `network` is dropped for a type without a card. Rules:
+   * a known type; bank and branch names required and at most `ACCOUNT_NAME_MAX` characters;
+   * `network` (visa, mastercard or other) required for credit card and checking; the number 8–19
+   * digits and unique across all accounts; `balanceCents` non-negative safe integer cents. A failed
+   * rule rejects with `VALIDATION` and `fieldErrors` keyed by input field. The id is the next
+   * `acc_<n>`, never reused. No transaction is added. A failed write rejects with `STORAGE_FULL`
+   * when storage is full (`UNKNOWN` otherwise) and leaves the stored accounts unchanged.
+   */
+  createAccount(input: AccountInput): Promise<Account>
+  /**
+   * Edits an account in place, persists it and resolves with a copy: same id, type and list
+   * position, and its transactions untouched. The same normalisation and rules as `createAccount`,
+   * with the stored type deciding whether `network` applies; the uniqueness check excludes the
+   * account itself. A `type` that differs from the stored one rejects with `VALIDATION` and
+   * `fieldErrors.type`. An unknown id rejects with `NOT_FOUND`. Failed writes as `createAccount`.
+   */
+  updateAccount(id: string, input: AccountUpdate): Promise<Account>
   /**
    * One page of transactions, newest first (equal dates keep stored order), optionally filtered
    * by kind and account. A bad `limit` or cursor rejects with `VALIDATION`.
@@ -145,6 +166,8 @@ export const FINBANK_API_METHODS = [
   'getAccount',
   'getBalanceSummary',
   'removeAccount',
+  'createAccount',
+  'updateAccount',
   'listTransactions',
   'listBills',
   'listCategorySummaries',

@@ -154,11 +154,11 @@ This document breaks the Finbank frontend down into epics and stories. It draws 
 
 **Account management (Epic 6, added 2026-11-18)** [no design; 110.2 modal pattern]
 - FR36: Add account. A shared modal with these fields:
-  - Account Type, Bank Name, Branch Name, Card Network (Visa/Mastercard; Credit Card and Checking only), Account Number and Balance.
+  - Account Type, Bank Name, Branch Name, Card Network (Visa/Mastercard/Other; Credit Card and Checking only), Account Number and Balance.
   - All required; the number is 8–19 digits and unique; the balance is at least 0.
   - The account is persisted and appears last on Balances, in the Overview carousel and total, and in Account Details, with no reload.
   - New accounts have no transactions.
-  - Visa and Mastercard use their logos; any other or missing network uses a neutral fallback, never a wrong logo.
+  - Visa and Mastercard use their logos; "Other" and any unknown or missing network use a neutral card icon, never a wrong logo.
 - FR37: Edit account, from the Balances edit mode ("Edit Accounts" / "Done") or from Account Details ("Edit Details").
   - The type is immutable after creation.
   - The number stays unique.
@@ -1418,7 +1418,7 @@ So that all my accounts are tracked in Finbank.
 - Account Type (Dropdown: Credit Card, Checking, Savings, Investment, Loan)
 - Bank Name
 - Branch Name
-- Card Network (Visa / Mastercard, shown only for Credit Card and Checking)
+- Card Network (Visa / Mastercard / Other, shown only for Credit Card and Checking)
 - Account Number
 - Balance (`MoneyInput`, labelled "Amount owed" for Credit Card and Loan)
 
@@ -1438,12 +1438,21 @@ So that all my accounts are tracked in Finbank.
 **When** Save is pressed
 **Then** `STORAGE_FULL` shows inline, the modal stays open with the values kept, and nothing changes.
 
-**And** a card shows the Visa or Mastercard logo only for that network; any other or missing network shows a neutral fallback, never a wrong logo.
+**And** a card shows the Visa or Mastercard logo only for that network; "Other" and any unknown or missing network show a neutral card icon, never a wrong logo.
 **And** X, Esc and an overlay click discard the form, and are ignored while saving. A second Save is dropped. Focus stays inside the modal while saving.
 **And** groundwork: the Goals modal shell and the `fieldErrors` → `setError` mapping move into one shared, tested `ui` form-modal primitive. Both Goals modals and the Account modal use it. Goals behaviour and pixels are unchanged.
 **And** the port gains `createAccount(input)` and `updateAccount(id, input)` (mock implemented; http `notImplemented`). `invalidationMap` gains both → `accounts`, `balanceSummary`.
 **And** tests cover the mock (validation, uniqueness, id, persistence across a fresh adapter, `STORAGE_FULL`), the form rules, the logo fallback, and a full-app add flow across Balances, Overview, Account Details and a reload.
 **And** the modal matches the 110.2 pattern at 1440×1024 (NFR-1).
+
+**Implementation decisions (Story 6.1, 2026-11-18):**
+- Account Type and Card Network start on the "Select type…" / "Select network…" placeholders (`text-subtle`, no option selected), through a new `field` variant of `Dropdown`. Switching to a type without a card clears the network; Balance keeps its value when its label changes.
+- Account numbers may be typed with spaces or dashes; both the form and the adapter remove them before the 8–19 digit and uniqueness checks, so "1234 5678-9012" is stored as `123456789012`.
+- Bank and branch names are trimmed and limited to 60 characters ("Use 60 characters or fewer."); long names wrap in the cards and on Account Details.
+- With no accounts, Balances shows "No accounts yet." with the Add Accounts card beneath it (without "Edit Accounts"), so the first account can be added.
+- The Account modal uses a `tall` `Modal` placement (panel about 120px from the top of the content area) so all six fields and Save fit at 1440×1024; the Goals modals keep their position.
+- Ids come from a monotonic `nextAccountNumber` state key, so an id is never reused (no `MOCK_STATE_VERSION` bump). `updateAccount` rejects an unknown id with the new `NOT_FOUND` error code.
+- The shared `ui/FormModal.tsx` and `ui/mapApiFieldErrors.ts` replace the goals-only modal form; Save is `aria-disabled` while saving. The non-modal copies of the error mapping (auth, ProfileForm, PasswordForm; deferred items 58/65/73) stay open.
 
 ### Story 6.2: Edit Accounts
 

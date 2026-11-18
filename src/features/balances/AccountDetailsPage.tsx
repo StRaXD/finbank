@@ -20,9 +20,10 @@ export type AccountDetailsPageProps = {
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col">
+    // min-w-0 and break-words: a long bank or branch name wraps inside its column.
+    <div className="flex min-w-0 flex-col">
       <dt className="text-16 text-subtle">{label}</dt>
-      <dd className="text-20 font-bold text-ink-2">{value}</dd>
+      <dd className="text-20 font-bold break-words text-ink-2">{value}</dd>
     </div>
   )
 }

@@ -84,3 +84,18 @@
 - source_spec: `_bmad-output/implementation-artifacts/epic-5-final-review.md`
   summary: Two items carried forward. The production JS chunk is now 999 kB (300 kB gzip), up from 986 kB at Epic 4, which adds to the existing bundle-size item. The `fieldErrors` → `setError` mapping now has four copies (auth, goals, ProfileForm, PasswordForm), which adds to the shared-helper deferrals from Stories 5.1 and 5.3.
   evidence: `npm run build` output at `81e965b`. The final review's blind hunter (chunk 2) and verification-gap layers. The 5.2 deferral "re-read of state after the async encode is untested" is resolved by the final-review test "does not overwrite a write made while the avatar is being encoded".
+
+## Updates from: Story 6.1 (Add Accounts, 2026-11-18)
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-add-accounts.md`
+  summary: Resolved: the spec-2-5 item above ("The mock adapter rewrites `finbank:mock:v1` on every load", line 20) was already fixed (`normalizeAccount` emits the keys in seed order). Story 6.1 keeps it fixed for created and updated accounts, and for the new `nextAccountNumber` key.
+  evidence: `mockApi.test.ts` "does not rewrite clean stored accounts, including card accounts with a network, on load", "does not rewrite storage on a reload after a create" and "… after an update".
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-add-accounts.md`
+  summary: Resolved: the epic-4 item above ("The Goals Adjust modals (`GoalModalForm`) disable the focused Save button while a save is pending", line 50). The shared `ui/FormModal.tsx` Save is `aria-disabled` while saving, so focus stays on it inside the modal; both Goals modals and the Account modal use it. The ConfirmDialog half (spec 2.2) is still open.
+  evidence: `FormModal.test.tsx` "reads "Saving…" on an aria-disabled Save that keeps focus …"; the Goals tests now assert `aria-disabled` instead of `toBeDisabled()`.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-add-accounts.md`
+  summary: Partly addressed, still open: the fieldErrors → setError copies (lines 58, 65 and 73). The goals copy moved into the shared, tested `ui/mapApiFieldErrors.ts` (used by every `FormModalForm`); the non-modal copies in auth `applyApiError`, `ProfileForm` and `PasswordForm` remain and can adopt the helper later.
+  evidence: `src/ui/mapApiFieldErrors.ts` (+ `mapApiFieldErrors.test.ts`, including the unmapped/mixed-key branch). `goalModalForm.tsx` was deleted.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-add-accounts.md`
+  summary: Before Story 6.2 or 6.3 exposes edits, decide whether `updateAccount` should tolerate unchanged legacy values. Stored accounts are normalised more loosely (4+ digits, no 60-character or uniqueness check) than the create/update rules, so editing such an account would fail on a field the user didn't touch.
+  evidence: Raised by the blind and edge-case reviewers in Story 6.1. The seed accounts satisfy every rule, so only corrupt or legacy local data is affected.

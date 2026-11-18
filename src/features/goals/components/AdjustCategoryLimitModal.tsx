@@ -3,10 +3,10 @@ import { useForm } from 'react-hook-form'
 import { useUpdateCategoryLimit } from '../../../api/hooks/useUpdateCategoryLimit.ts'
 import type { CategoryLimit } from '../../../api/types.ts'
 import { formatMoney } from '../../../lib/format.ts'
+import { FormModal, FormModalForm } from '../../../ui/FormModal.tsx'
 import { categoryLabels } from '../../../ui/categoryLabels.ts'
 import { MoneyInput } from '../../../ui/MoneyInput.tsx'
 import { categoryLimitSchema, type CategoryLimitFormInput, type CategoryLimitFormValues } from '../schemas.ts'
-import { GoalModal, GoalModalForm } from './goalModalForm.tsx'
 
 // The adapter's field name, mapped onto this form's input.
 const fieldByApiField = { limitCents: 'target' } as const
@@ -33,7 +33,7 @@ function AdjustCategoryLimitForm({ limit, onClose, update }: FormProps) {
   } = form
 
   return (
-    <GoalModalForm
+    <FormModalForm
       form={form}
       fieldByApiField={fieldByApiField}
       pending={update.isPending}
@@ -42,7 +42,7 @@ function AdjustCategoryLimitForm({ limit, onClose, update }: FormProps) {
       }
     >
       <MoneyInput label="Target Amounts" fieldSize="lg" error={errors.target?.message} {...register('target')} />
-    </GoalModalForm>
+    </FormModalForm>
   )
 }
 
@@ -56,7 +56,7 @@ function AdjustCategoryLimitForm({ limit, onClose, update }: FormProps) {
 export function AdjustCategoryLimitModal({ open, onClose, limit }: AdjustCategoryLimitModalProps) {
   const update = useUpdateCategoryLimit()
   return (
-    <GoalModal
+    <FormModal
       open={open}
       onClose={onClose}
       label={`Adjust ${categoryLabels[limit.category]} limit`}
@@ -64,6 +64,6 @@ export function AdjustCategoryLimitModal({ open, onClose, limit }: AdjustCategor
     >
       {/* Mounted only while open, so each opening starts from the stored limit. */}
       <AdjustCategoryLimitForm limit={limit} onClose={onClose} update={update} />
-    </GoalModal>
+    </FormModal>
   )
 }

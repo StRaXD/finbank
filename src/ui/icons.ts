@@ -17,6 +17,7 @@ import {
   ChevronsRight,
   Circle,
   Clapperboard,
+  CreditCard,
   Crosshair,
   EllipsisVertical,
   Eye,
@@ -75,6 +76,8 @@ export const icons = {
   target: Target,
   // The Settings profile picture upload box (111. Settings.png).
   imagePlus: ImagePlus,
+  // The neutral mark of a card on another (or an unknown) network: no brand logo.
+  creditCard: CreditCard,
 } as const
 
 export type IconName = keyof typeof icons

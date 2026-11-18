@@ -351,6 +351,7 @@ Approved, with these adjustments. Where they differ from §2–§4 above, they t
    - An unsupported or missing card network uses a neutral fallback.
    - An incorrect network logo is never displayed.
    - The form offers Visa and Mastercard only; the fallback guards any other value.
+   - *Revised at the Story 6.1 start (2026-11-18): the form also offers "Other", shown with a neutral card icon. `CardNetwork` becomes `'visa' | 'mastercard' | 'other'`.*
 6. **Data preservation:** edits preserve account ids, transaction relationships and saved data.
 7. **Display:** every create and update is validated, persisted, and reflected across the application without a page reload.
 8. **Git workflow (unchanged):** one feature branch per epic (`feat/epic-6`, from `main` at `2450f9b`), with a commit and push after each completed story. Then a final epic review and one PR to `main`, which the user merges with a merge commit. Handoff change: the planning-doc update is the first commit on `feat/epic-6`, not a separate commit on `main`, so it reaches `main` through the epic PR.

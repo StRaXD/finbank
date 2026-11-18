@@ -318,7 +318,7 @@ These requirements were added after the v1 MVP shipped (Sprint Change Proposal 2
 
 #### FR-36: Add account [no design; 110.2 modal pattern]
 "Add Accounts" on Balances opens the "Add account" modal.
-- **Fields:** Account Type (Credit Card, Checking, Savings, Investment, Loan), Bank Name, Branch Name, Card Network (Visa or Mastercard; shown and required only for Credit Card and Checking), Account Number and Balance.
+- **Fields:** Account Type (Credit Card, Checking, Savings, Investment, Loan), Bank Name, Branch Name, Card Network (Visa, Mastercard or Other; shown and required only for Credit Card and Checking), Account Number and Balance.
 - **Validation:**
   - All fields are required.
   - Bank and branch names are free text.
@@ -328,7 +328,7 @@ These requirements were added after the v1 MVP shipped (Sprint Change Proposal 2
 - **Persistence:** the account is saved to the mock data and `localStorage`. A full store shows an inline error and changes nothing.
 - **Display:** the new account appears immediately, without a reload, last on Balances (before the action card), in the Overview Total Balance carousel and total, and in Account Details.
 - **New accounts:** they start with no transactions, so Transactions and Expenses are unchanged.
-- **Network logos:** Visa and Mastercard use their existing brand logos. Any other or missing network uses a neutral fallback; an incorrect network logo is never displayed.
+- **Network logos:** Visa and Mastercard use their existing brand logos. "Other" uses a neutral card icon. Any unknown or missing network also uses that neutral fallback, so an incorrect network logo is never displayed. *("Other" added at the Story 6.1 start, 2026-11-18.)*
 
 #### FR-37: Edit account [no design; 110.2 modal pattern]
 "Edit Accounts" on Balances toggles an edit mode ("Done" ends it). In edit mode each account card offers "Edit". "Edit Details" on Account Details opens the same form for that account.

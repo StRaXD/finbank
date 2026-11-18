@@ -9,8 +9,18 @@ export type ModalProps = {
   title?: string
   /** The dialog's accessible name when it has no visible `title` (rendered as `aria-label`). */
   label?: string
+  /**
+   * `default`: the panel's top edge 276px from the viewport top (110.2. Goals.png). `tall`: 120px from
+   * the top of the overlay (the content area), so a six-field form (the Account modal, about 840px)
+   * fits whole at 1440×1024 without scrolling the overlay.
+   */
+  placement?: ModalPlacement
   children: ReactNode
 }
+
+export type ModalPlacement = 'default' | 'tall'
+
+const placementClass: Record<ModalPlacement, string> = { default: 'pt-69', tall: 'pt-30' }
 
 const focusableSelector = [
   'a[href]',
@@ -36,7 +46,7 @@ export function Modal({ open, ...rest }: ModalProps) {
   return <OpenModal {...rest} />
 }
 
-function OpenModal({ onClose, title, label, children }: Omit<ModalProps, 'open'>) {
+function OpenModal({ onClose, title, label, placement = 'default', children }: Omit<ModalProps, 'open'>) {
   const { container, acquireInert } = useOverlayHost()
   const panelRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
@@ -99,7 +109,8 @@ function OpenModal({ onClose, title, label, children }: Omit<ModalProps, 'open'>
 
   // Inside the shell the layer fills the overlay root (the viewport right of the sidebar; the
   // unscrolled top bar stacks above it); outside, the whole viewport. The panel is top-anchored
-  // 276px from the viewport top, 188px below the top bar (not vertically centred), and horizontally
+  // (by default 276px from the viewport top, 188px below the top bar; see `placement`), not
+  // vertically centred, and horizontally
   // centred in a padded box. 110.2. Goals.png puts the 488px panel at x 604-1092, 12px left of the
   // column's centre, so the box is pl-6 pr-12 rather than symmetric.
   const layerPosition = container ? 'absolute inset-0' : 'fixed inset-0 z-50'
@@ -114,7 +125,7 @@ function OpenModal({ onClose, title, label, children }: Omit<ModalProps, 'open'>
         pressedOnLayer.current = false
         if (pressed && event.target === event.currentTarget) onCloseRef.current()
       }}
-      className={`${layerPosition} pointer-events-auto flex items-start justify-center overflow-y-auto bg-overlay pt-69 pr-12 pb-8 pl-6`}
+      className={`${layerPosition} pointer-events-auto flex items-start justify-center overflow-y-auto bg-overlay ${placementClass[placement]} pr-12 pb-8 pl-6`}
     >
       <div
         ref={panelRef}

@@ -58,8 +58,9 @@ const detailsPath = (id: string) => `/details/${id}`
 function renderPage(
   listAccounts: FinbankApi['listAccounts'],
   removeAccount: FinbankApi['removeAccount'] = () => Promise.resolve(),
+  createAccount: FinbankApi['createAccount'] = () => Promise.reject(new ApiError('UNKNOWN', 'Not under test.')),
 ) {
-  const api = { listAccounts, removeAccount } as FinbankApi
+  const api = { listAccounts, removeAccount, createAccount } as FinbankApi
   const router = createMemoryRouter(
     [
       { path: '/balances', element: <BalancesPage accountDetailsPath={detailsPath} /> },
@@ -162,19 +163,25 @@ describe('BalancesPage', () => {
     expect(router.state.location.pathname).toBe('/details/acc_2')
   })
 
-  it('keeps Add Accounts and Edit Accounts inert', async () => {
+  it('opens the Add account modal from Add Accounts, and keeps Edit Accounts inert', async () => {
     const { router } = renderPage(loaded)
     await screen.findAllByTestId('account-card')
-    fireEvent.click(screen.getByRole('button', { name: 'Add Accounts' }))
     fireEvent.click(screen.getByRole('button', { name: 'Edit Accounts' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add Accounts' }))
+    expect(screen.getByRole('dialog', { name: 'Add account' })).toBeInTheDocument()
     expect(screen.getAllByTestId('account-card')).toHaveLength(5)
     expect(router.state.location.pathname).toBe('/balances')
   })
 
-  it('shows the empty line when there are no accounts', async () => {
+  it('shows the empty line and the Add Accounts card, without Edit Accounts, when there are no accounts', async () => {
     renderPage(() => Promise.resolve([]))
-    expect(await screen.findByText('No accounts yet.')).toBeInTheDocument()
+    const empty = await screen.findByText('No accounts yet.')
     expect(screen.queryByTestId('account-card')).not.toBeInTheDocument()
+    const card = screen.getByTestId('add-accounts-card')
+    expect(empty.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(card).getByRole('button', { name: 'Add Accounts' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Accounts' })).not.toBeInTheDocument()
   })
 
   it('shows the error with Retry, and recovers on retry', async () => {
@@ -351,11 +358,59 @@ describe('AccountCard carousel variant', () => {
     expect(router.state.location.pathname).toBe('/details/acc_1')
   })
 
+  it('shows the neutral on-dark card icon for an Other network, and never a brand logo', () => {
+    renderSlide({ ...accounts[0]!, network: 'other' })
+    const slide = screen.getByRole('article', { name: 'Credit Card' })
+    const icon = within(slide).getByRole('img', { name: 'Other card network' })
+    expect(icon).toHaveClass('text-on-dark')
+    expect(icon).toHaveAttribute('height', '24')
+    expect(within(slide).queryByRole('img', { name: /VISA|Mastercard/ })).not.toBeInTheDocument()
+  })
+
   it('omits the logo for an account without a network', () => {
     renderSlide(accounts[2]!)
     const slide = screen.getByRole('article', { name: 'Savings' })
     expect(within(slide).queryByRole('img')).not.toBeInTheDocument()
     expect(within(slide).getByText('**** **** **** 1234')).toBeInTheDocument()
     expect(within(slide).getByText('$180,000')).toBeInTheDocument()
+  })
+})
+
+describe('AccountCard network mark', () => {
+  function renderCard(account: Account) {
+    const router = createMemoryRouter([{ path: '/', element: <AccountCard account={account} detailsHref="/x" /> }])
+    render(<RouterProvider router={router} />)
+    return screen.getByTestId('account-card')
+  }
+
+  it.each([
+    ['Credit Card', 'visa', 'VISA'],
+    ['Checking', 'mastercard', 'Mastercard'],
+  ] as const)('shows the brand logo on a %s with that network', (_name, network, alt) => {
+    const card = renderCard({ ...accounts[1]!, network })
+    expect(within(card).getByRole('img', { name: alt })).toBeInTheDocument()
+    expect(within(card).getAllByRole('img')).toHaveLength(1)
+  })
+
+  it.each([
+    ['Other', 'other'],
+    ['an unknown network', 'amex'],
+    ['no network', undefined],
+  ])('shows the neutral subtle card icon for a card with %s', (_name, network) => {
+    const card = renderCard({ ...accounts[0]!, network: network as Account['network'] })
+    const icon = within(card).getByRole('img', { name: 'Other card network' })
+    expect(icon).toHaveClass('text-subtle')
+    expect(icon).toHaveAttribute('width', '24')
+    expect(within(card).getAllByRole('img')).toHaveLength(1)
+  })
+
+  it.each(['savings', 'investment', 'loan'] as const)('shows nothing on %s, even with a stored network', (type) => {
+    const card = renderCard({ ...accounts[2]!, type, network: 'visa' })
+    expect(within(card).queryByRole('img')).not.toBeInTheDocument()
+  })
+
+  it('wraps a long bank name instead of overflowing', () => {
+    const card = renderCard({ ...accounts[1]!, bankName: 'B'.repeat(60) })
+    expect(within(card).getByText('B'.repeat(60))).toHaveClass('break-words', 'min-w-0')
   })
 })

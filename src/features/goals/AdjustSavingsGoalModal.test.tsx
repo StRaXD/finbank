@@ -97,7 +97,7 @@ describe('AdjustSavingsGoalModal', () => {
     await openModal()
     save()
     const busy = await screen.findByRole('button', { name: 'Saving…' })
-    expect(busy).toBeDisabled()
+    expect(busy).toHaveAttribute('aria-disabled', 'true')
     resolve({ month: '2023-05' as YearMonth, targetCents: 2_000_000, achievedCents: 1_250_000 })
     await dialogClosed()
   })

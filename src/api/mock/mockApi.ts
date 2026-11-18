@@ -13,12 +13,27 @@ import { formatDate } from '../../lib/format.ts'
 import type { FinbankApi } from '../port.ts'
 import {
   type Account,
+  ACCOUNT_NAME_LENGTH_MESSAGE,
+  ACCOUNT_NAME_MAX,
+  ACCOUNT_NUMBER_DIGITS,
+  ACCOUNT_NUMBER_FORMAT_MESSAGE,
+  ACCOUNT_NUMBER_REQUIRED_MESSAGE,
+  ACCOUNT_NUMBER_TAKEN_MESSAGE,
+  ACCOUNT_TYPE_IMMUTABLE_MESSAGE,
+  ACCOUNT_TYPE_REQUIRED_MESSAGE,
+  type AccountInput,
   type AccountType,
+  type AccountUpdate,
   ApiError,
   AVATAR_MAX_BYTES,
   AVATAR_SIZE_MESSAGE,
   AVATAR_TYPE_MESSAGE,
+  BALANCE_NEGATIVE_MESSAGE,
+  BALANCE_REQUIRED_MESSAGE,
   type BalanceSummary,
+  BANK_NAME_REQUIRED_MESSAGE,
+  BRANCH_NAME_REQUIRED_MESSAGE,
+  CARD_NETWORK_REQUIRED_MESSAGE,
   CONFIRM_PASSWORD_MISMATCH_MESSAGE,
   CONFIRM_PASSWORD_REQUIRED_MESSAGE,
   type Bill,
@@ -52,7 +67,9 @@ import {
   type TransactionPage,
   type UserProfile,
   type YearMonth,
+  hasCardNetwork,
   isAvatarMimeType,
+  stripAccountNumber,
 } from '../types.ts'
 import { downscaleToJpegDataUrl } from './avatar.ts'
 import { MOCK_STATE_VERSION, MOCK_USER_ID, type MockState, seedState } from './seed.ts'
@@ -210,7 +227,7 @@ function normalizeProfile(value: unknown, fallback: UserProfile): UserProfile {
 }
 
 const ACCOUNT_TYPES: readonly AccountType[] = ['creditCard', 'checking', 'savings', 'investment', 'loan']
-const CARD_NETWORKS: readonly CardNetwork[] = ['mastercard', 'visa']
+const CARD_NETWORKS: readonly CardNetwork[] = ['visa', 'mastercard', 'other']
 
 /** Assets add to the Total Balance, liabilities subtract from it. */
 const ACCOUNT_SIGN: Record<AccountType, 1 | -1> = {
@@ -260,6 +277,86 @@ function normalizeAccounts(value: unknown, fallback: Account[]): Account[] {
     accounts.push(account)
   }
   return accounts
+}
+
+const ACCOUNT_ID = /^acc_([1-9]\d{0,8})$/
+
+/** The `<n>` of an `acc_<n>` id, or 0 for any other id. */
+function accountNumberOfId(id: string): number {
+  const match = ACCOUNT_ID.exec(id)
+  return match ? Number(match[1]) : 0
+}
+
+/**
+ * The next `acc_<n>` number: the stored value when it is a positive safe integer, otherwise the
+ * seed's; never at or below the highest stored `acc_<n>`, so no id is ever reused.
+ */
+function normalizeNextAccountNumber(value: unknown, fallback: number, accounts: readonly Account[]): number {
+  const stored = typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 ? value : fallback
+  const highest = accounts.reduce((max, account) => Math.max(max, accountNumberOfId(account.id)), 0)
+  return Math.max(stored, highest + 1)
+}
+
+/** The account fields `createAccount` / `updateAccount` read, after normalisation. */
+type AccountFields = {
+  bankName: string
+  branchName: string
+  network?: CardNetwork
+  accountNumber: string
+  balanceCents: number
+}
+
+function checkAccountName(value: unknown, field: 'bankName' | 'branchName', required: string, errors: FieldErrors) {
+  const name = typeof value === 'string' ? value.trim() : ''
+  if (name === '') errors[field] = required
+  else if (name.length > ACCOUNT_NAME_MAX) errors[field] = ACCOUNT_NAME_LENGTH_MESSAGE
+  return name
+}
+
+/**
+ * Normalises (trims the names, strips spaces and dashes from the number, drops `network` for a
+ * type without a card) and checks an account's editable fields for an account of `type`. The
+ * number must not belong to any account but `selfId`.
+ */
+function checkAccountFields(
+  input: Partial<Record<keyof AccountFields, unknown>> | undefined,
+  type: AccountType | null,
+  accounts: readonly Account[],
+  selfId: string | null,
+  errors: FieldErrors,
+): AccountFields {
+  const bankName = checkAccountName(input?.bankName, 'bankName', BANK_NAME_REQUIRED_MESSAGE, errors)
+  const branchName = checkAccountName(input?.branchName, 'branchName', BRANCH_NAME_REQUIRED_MESSAGE, errors)
+  let network: CardNetwork | undefined
+  if (type !== null && hasCardNetwork(type)) {
+    if (CARD_NETWORKS.includes(input?.network as CardNetwork)) network = input!.network as CardNetwork
+    else errors.network = CARD_NETWORK_REQUIRED_MESSAGE
+  }
+  const accountNumber = typeof input?.accountNumber === 'string' ? stripAccountNumber(input.accountNumber) : ''
+  const [minDigits, maxDigits] = ACCOUNT_NUMBER_DIGITS
+  if (accountNumber === '') errors.accountNumber = ACCOUNT_NUMBER_REQUIRED_MESSAGE
+  else if (!/^\d+$/.test(accountNumber) || accountNumber.length < minDigits || accountNumber.length > maxDigits) {
+    errors.accountNumber = ACCOUNT_NUMBER_FORMAT_MESSAGE
+  } else if (accounts.some((account) => account.id !== selfId && account.accountNumber === accountNumber)) {
+    errors.accountNumber = ACCOUNT_NUMBER_TAKEN_MESSAGE
+  }
+  const balanceCents = input?.balanceCents
+  if (typeof balanceCents !== 'number' || !Number.isSafeInteger(balanceCents)) errors.balanceCents = BALANCE_REQUIRED_MESSAGE
+  else if (balanceCents < 0) errors.balanceCents = BALANCE_NEGATIVE_MESSAGE
+  return { bankName, branchName, ...(network !== undefined && { network }), accountNumber, balanceCents: balanceCents as number }
+}
+
+/** A stored account in the seed's key order, so a reload never rewrites storage. */
+function accountRecord(id: string, type: AccountType, fields: AccountFields): Account {
+  return {
+    id,
+    type,
+    bankName: fields.bankName,
+    branchName: fields.branchName,
+    ...(fields.network !== undefined && { network: fields.network }),
+    accountNumber: fields.accountNumber,
+    balanceCents: fields.balanceCents,
+  }
 }
 
 const TRANSACTION_KINDS: readonly TransactionKind[] = ['revenue', 'expense']
@@ -708,6 +805,11 @@ function loadState(storage: StorageLike): { state: MockState; dirty: boolean } {
   state.bills = normalizeBills(state.bills, seeded.bills)
   state.savingsGoals = normalizeSavingsGoals(state.savingsGoals, seeded.savingsGoals)
   state.categoryLimits = normalizeCategoryLimits(state.categoryLimits, seeded.categoryLimits)
+  state.nextAccountNumber = normalizeNextAccountNumber(
+    state.nextAccountNumber,
+    seeded.nextAccountNumber,
+    state.accounts as Account[],
+  )
   return { state: state as MockState, dirty: JSON.stringify(state) !== JSON.stringify(parsed) }
 }
 
@@ -902,6 +1004,50 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
         // Write first: a failed write leaves both memory and storage unchanged.
         writeItem(storage, MOCK_STORAGE_KEY, JSON.stringify(next))
         current = next
+      }),
+
+    createAccount: (input: AccountInput) =>
+      call((): Account => {
+        const prev = state()
+        const errors: FieldErrors = {}
+        const type = ACCOUNT_TYPES.includes(input?.type) ? input.type : null
+        if (type === null) errors.type = ACCOUNT_TYPE_REQUIRED_MESSAGE
+        const fields = checkAccountFields(input, type, prev.accounts, null, errors)
+        throwIfInvalid(errors)
+        const account = accountRecord(`acc_${prev.nextAccountNumber}`, type!, fields)
+        // No transactions: Transactions and Expenses do not change.
+        const next: MockState = {
+          ...prev,
+          accounts: [...prev.accounts, account],
+          nextAccountNumber: prev.nextAccountNumber + 1,
+        }
+        // Write first: a failed write leaves both memory and storage unchanged.
+        writeItem(storage, MOCK_STORAGE_KEY, JSON.stringify(next))
+        current = next
+        return structuredClone(account)
+      }),
+
+    updateAccount: (id: string, input: AccountUpdate) =>
+      call((): Account => {
+        const prev = state()
+        const stored = prev.accounts.find((account) => account.id === id)
+        if (!stored) throw new ApiError('NOT_FOUND', 'This account no longer exists.')
+        const errors: FieldErrors = {}
+        // The type never changes: transactions are tied to it through their payment method.
+        const sentType: unknown = (input as Partial<AccountInput> | undefined)?.type
+        if (sentType !== undefined && sentType !== stored.type) errors.type = ACCOUNT_TYPE_IMMUTABLE_MESSAGE
+        const fields = checkAccountFields(input, stored.type, prev.accounts, id, errors)
+        throwIfInvalid(errors)
+        const account = accountRecord(id, stored.type, fields)
+        // Same id and position; the transactions are not touched.
+        const next: MockState = {
+          ...prev,
+          accounts: prev.accounts.map((candidate) => (candidate.id === id ? account : candidate)),
+        }
+        // Write first: a failed write leaves both memory and storage unchanged.
+        writeItem(storage, MOCK_STORAGE_KEY, JSON.stringify(next))
+        current = next
+        return structuredClone(account)
       }),
 
     listTransactions: (input: ListTransactionsInput) => call(() => pageTransactions(state().transactions, input)),

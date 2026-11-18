@@ -17,6 +17,7 @@ import { useBills } from './useBills.ts'
 import { useCategoryLimits } from './useCategoryLimits.ts'
 import { useCategorySummaries } from './useCategorySummaries.ts'
 import { useComparison } from './useComparison.ts'
+import { useCreateAccount } from './useCreateAccount.ts'
 import { useLogin } from './useLogin.ts'
 import { useLoginWithGoogle } from './useLoginWithGoogle.ts'
 import { useLogout } from './useLogout.ts'
@@ -26,6 +27,7 @@ import { useRequestPasswordReset } from './useRequestPasswordReset.ts'
 import { useChangePassword } from './useChangePassword.ts'
 import { useSavingSummary } from './useSavingSummary.ts'
 import { useSavingsGoal } from './useSavingsGoal.ts'
+import { useUpdateAccount } from './useUpdateAccount.ts'
 import { useUpdateCategoryLimit } from './useUpdateCategoryLimit.ts'
 import { useUpdateProfile } from './useUpdateProfile.ts'
 import { useUpdateSavingsGoal } from './useUpdateSavingsGoal.ts'
@@ -399,6 +401,100 @@ describe('mutation hooks', () => {
       594_309,
     )
     await waitFor(() => expect(result.current.year.data?.[4]?.currentCents).toBe(594_309))
+  })
+
+  it('useCreateAccount refetches the accounts, the new account and the balance summary before it settles', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(
+      () => ({
+        accounts: useAccounts(),
+        added: useAccount('acc_6'),
+        summary: useBalanceSummary(),
+        transactions: useTransactions({ limit: 10 }),
+        create: useCreateAccount(),
+      }),
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.accounts.data).toHaveLength(5))
+    await waitFor(() => expect(result.current.added.data).toBeNull())
+    await waitFor(() => expect(result.current.summary.data).toEqual({ totalBalanceCents: 24_039_900 }))
+    await waitFor(() => expect(result.current.transactions.data).toBeDefined())
+    const transactionUpdates = queryClient.getQueryState(qk.transactions({ limit: 10 }))?.dataUpdateCount
+
+    await act(() =>
+      result.current.create.mutateAsync({
+        type: 'checking',
+        bankName: 'City Bank',
+        branchName: 'Main',
+        network: 'visa',
+        accountNumber: '123456789012',
+        balanceCents: 150_000,
+      }),
+    )
+
+    const ids = queryClient.getQueryData<{ id: string }[]>(qk.accounts())?.map((a) => a.id)
+    expect(ids).toEqual(['acc_1', 'acc_2', 'acc_3', 'acc_4', 'acc_5', 'acc_6'])
+    expect(queryClient.getQueryData(qk.account('acc_6'))).toMatchObject({ id: 'acc_6', bankName: 'City Bank' })
+    expect(queryClient.getQueryData(qk.balanceSummary())).toEqual({ totalBalanceCents: 24_189_900 })
+    expect(queryClient.getQueryState(qk.transactions({ limit: 10 }))?.isInvalidated).toBe(false)
+    expect(queryClient.getQueryState(qk.transactions({ limit: 10 }))?.dataUpdateCount).toBe(transactionUpdates)
+  })
+
+  it('useUpdateAccount refetches the accounts and the balance summary before it settles', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(
+      () => ({
+        account: useAccount('acc_2'),
+        summary: useBalanceSummary(),
+        transactions: useTransactions({ limit: 10 }),
+        update: useUpdateAccount(),
+      }),
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.account.data).toEqual(seed.accounts[1]))
+    await waitFor(() => expect(result.current.summary.data).toEqual({ totalBalanceCents: 24_039_900 }))
+    await waitFor(() => expect(result.current.transactions.data).toBeDefined())
+    const transactionUpdates = queryClient.getQueryState(qk.transactions({ limit: 10 }))?.dataUpdateCount
+
+    await act(() =>
+      result.current.update.mutateAsync({
+        id: 'acc_2',
+        input: { ...seed.accounts[1]!, bankName: 'New Bank', balanceCents: 5_600 },
+      }),
+    )
+
+    expect(queryClient.getQueryData(qk.account('acc_2'))).toMatchObject({ id: 'acc_2', bankName: 'New Bank', balanceCents: 5_600 })
+    expect(queryClient.getQueryData(qk.balanceSummary())).toEqual({ totalBalanceCents: 24_039_900 - 2_505_600 + 5_600 })
+    expect(queryClient.getQueryState(qk.transactions({ limit: 10 }))?.isInvalidated).toBe(false)
+    expect(queryClient.getQueryState(qk.transactions({ limit: 10 }))?.dataUpdateCount).toBe(transactionUpdates)
+  })
+
+  it.each([
+    ['VALIDATION', 'acc_2', { accountNumber: '3388455688602598' }, { accountNumber: 'An account with this number already exists.' }],
+    ['NOT_FOUND', 'nope', {}, undefined],
+  ] as const)('useUpdateAccount rejects with %s and leaves the accounts cache unchanged', async (code, id, patch, fieldErrors) => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => ({ accounts: useAccounts(), summary: useBalanceSummary(), update: useUpdateAccount() }), {
+      wrapper,
+    })
+    await waitFor(() => expect(result.current.accounts.data).toHaveLength(5))
+    await waitFor(() => expect(result.current.summary.data).toBeDefined())
+    const accountsBefore = queryClient.getQueryState(qk.accounts())
+    const summaryBefore = queryClient.getQueryState(qk.balanceSummary())
+
+    const error = await act(() =>
+      result.current.update.mutateAsync({ id, input: { ...seed.accounts[1]!, ...patch } }).then(
+        () => null,
+        (e: unknown) => e,
+      ),
+    )
+
+    expect(error).toMatchObject({ code, ...(fieldErrors && { fieldErrors }) })
+    expect(queryClient.getQueryData(qk.accounts())).toEqual(seed.accounts)
+    expect(queryClient.getQueryState(qk.accounts())?.isInvalidated).toBe(false)
+    expect(queryClient.getQueryState(qk.accounts())?.dataUpdateCount).toBe(accountsBefore?.dataUpdateCount)
+    expect(queryClient.getQueryState(qk.balanceSummary())?.dataUpdateCount).toBe(summaryBefore?.dataUpdateCount)
+    await waitFor(() => expect(result.current.update.isError).toBe(true))
   })
 
   it('mutations call the adapter from ApiProvider', async () => {

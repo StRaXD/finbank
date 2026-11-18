@@ -50,6 +50,8 @@ describe('invalidationMap', () => {
       signup: 'all',
       logout: 'all',
       removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions(), qk.categorySummaries(), qk.comparison()],
+      createAccount: [qk.accounts(), qk.balanceSummary()],
+      updateAccount: [qk.accounts(), qk.balanceSummary()],
       updateSavingsGoal: [qk.savingsGoal(), qk.savingSummary()],
       updateCategoryLimit: [qk.categoryLimits()],
       updateProfile: [qk.profile()],
@@ -92,6 +94,30 @@ describe('invalidationMap', () => {
     expect(client.getQueryState(qk.savingSummary('2023-04' as YearMonth))?.isInvalidated).toBe(true)
     expect(client.getQueryState(qk.accounts())?.isInvalidated).toBe(false)
   })
+
+  it.each(['createAccount', 'updateAccount'] as const)(
+    'invalidates every account query and the balance summary, and nothing else, on %s',
+    async (mutation) => {
+      const client = new QueryClient()
+      client.setQueryData(qk.accounts(), [])
+      client.setQueryData(qk.account('acc_2'), null)
+      client.setQueryData(qk.balanceSummary(), { totalBalanceCents: 0 })
+      client.setQueryData(qk.transactions({ limit: 10 }), { pages: [], pageParams: [] })
+      client.setQueryData(qk.categorySummaries(), [])
+      client.setQueryData(qk.comparison('year'), [])
+      client.setQueryData(qk.profile(), { fullName: 'x' })
+      client.setQueryData(qk.bills(), [])
+      await applyInvalidation(client, mutation)
+      expect(client.getQueryState(qk.accounts())?.isInvalidated).toBe(true)
+      expect(client.getQueryState(qk.account('acc_2'))?.isInvalidated).toBe(true)
+      expect(client.getQueryState(qk.balanceSummary())?.isInvalidated).toBe(true)
+      expect(client.getQueryState(qk.transactions({ limit: 10 }))?.isInvalidated).toBe(false)
+      expect(client.getQueryState(qk.categorySummaries())?.isInvalidated).toBe(false)
+      expect(client.getQueryState(qk.comparison('year'))?.isInvalidated).toBe(false)
+      expect(client.getQueryState(qk.profile())?.isInvalidated).toBe(false)
+      expect(client.getQueryState(qk.bills())?.isInvalidated).toBe(false)
+    },
+  )
 
   it('invalidates accounts, the balance summary and every transaction list on removeAccount', async () => {
     const client = new QueryClient()

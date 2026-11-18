@@ -19,6 +19,11 @@ export type MockState = {
   savingsGoals: SavingsGoal[]
   /** Exactly one limit per expense category, in the fixed category order. */
   categoryLimits: CategoryLimit[]
+  /**
+   * The `<n>` of the next `acc_<n>` id `createAccount` assigns. Only ever grows, so an id is never
+   * reused; on load it is at least the highest stored account number plus one.
+   */
+  nextAccountNumber: number
 }
 
 /** The single signed-in user of the mock (single-user decision, 2026-11-16). */
@@ -158,6 +163,7 @@ export const seed: Readonly<
   bills: seedBills,
   savingsGoals: seedSavingsGoals,
   categoryLimits: seedCategoryLimits,
+  nextAccountNumber: seedAccounts.length + 1,
 })
 
 /** A deep, mutable copy of the seed. */

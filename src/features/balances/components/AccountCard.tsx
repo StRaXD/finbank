@@ -42,7 +42,7 @@ function CarouselAccountCard({ account, detailsHref }: Pick<AccountCardProps, 'a
             {type}
           </h3>
         </div>
-        {account.network && <NetworkLogo network={account.network} />}
+        <NetworkLogo type={account.type} network={account.network} tone="onDark" />
       </div>
       <div className="flex items-center justify-between gap-3">
         <span className="text-14 text-on-dark-soft">{maskAccountNumber(account.accountNumber, 'tail4')}</span>
@@ -80,12 +80,12 @@ function GridAccountCard({ account, detailsHref, onRemove }: Omit<AccountCardPro
     >
       {/* min-h includes the 12px bottom padding: a 32px row, as measured from 105. Balances.png. */}
       <div className="flex min-h-11 items-center justify-between gap-3 border-b border-border pb-3">
-        <h2 id={titleId} className="text-16 font-bold text-subtle">
+        <h2 id={titleId} className="shrink-0 text-16 font-bold text-subtle">
           {accountTypeLabels[account.type]}
         </h2>
-        <div className="flex items-center gap-2">
-          <span className="text-12 font-medium text-ink-2">{account.bankName}</span>
-          {account.network && <NetworkLogo network={account.network} />}
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 text-right text-12 font-medium break-words text-ink-2">{account.bankName}</span>
+          <NetworkLogo type={account.type} network={account.network} />
         </div>
       </div>
       <dl className="flex flex-col-reverse gap-1 pt-4">

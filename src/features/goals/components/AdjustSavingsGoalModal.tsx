@@ -3,9 +3,9 @@ import { useForm } from 'react-hook-form'
 import { useUpdateSavingsGoal } from '../../../api/hooks/useUpdateSavingsGoal.ts'
 import type { SavingsGoal, YearMonth } from '../../../api/types.ts'
 import { formatMoney } from '../../../lib/format.ts'
+import { FormModal, FormModalForm } from '../../../ui/FormModal.tsx'
 import { MoneyInput } from '../../../ui/MoneyInput.tsx'
 import { savingsGoalSchema, type SavingsGoalFormInput, type SavingsGoalFormValues } from '../schemas.ts'
-import { GoalModal, GoalModalForm } from './goalModalForm.tsx'
 
 // The adapter's field names, mapped onto this form's inputs.
 const fieldByApiField = { targetCents: 'target', achievedCents: 'present' } as const
@@ -37,7 +37,7 @@ function AdjustSavingsGoalForm({ month, goal, onClose, update }: FormProps) {
   } = form
 
   return (
-    <GoalModalForm
+    <FormModalForm
       form={form}
       fieldByApiField={fieldByApiField}
       pending={update.isPending}
@@ -53,7 +53,7 @@ function AdjustSavingsGoalForm({ month, goal, onClose, update }: FormProps) {
         error={errors.present?.message}
         {...register('present')}
       />
-    </GoalModalForm>
+    </FormModalForm>
   )
 }
 
@@ -68,9 +68,9 @@ function AdjustSavingsGoalForm({ month, goal, onClose, update }: FormProps) {
 export function AdjustSavingsGoalModal({ open, onClose, month, goal }: AdjustSavingsGoalModalProps) {
   const update = useUpdateSavingsGoal()
   return (
-    <GoalModal open={open} onClose={onClose} label="Adjust savings goal" pending={update.isPending}>
+    <FormModal open={open} onClose={onClose} label="Adjust savings goal" pending={update.isPending}>
       {/* Mounted only while open, so each opening starts from the stored values. */}
       <AdjustSavingsGoalForm month={month} goal={goal} onClose={onClose} update={update} />
-    </GoalModal>
+    </FormModal>
   )
 }

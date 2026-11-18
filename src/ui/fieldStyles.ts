@@ -25,3 +25,12 @@ export const emptyPlaceholder = ' '
 export function fieldBorder(hasError: boolean) {
   return hasError ? 'border-danger' : 'border-border focus:border-ink-2 not-placeholder-shown:border-ink-2'
 }
+
+/**
+ * `fieldBorder` for a control without `:placeholder-shown` (the `field` Dropdown): `ink-2` when
+ * focused or `filled`, `danger` with an error.
+ */
+export function fieldBorderClosed(hasError: boolean, filled: boolean) {
+  if (hasError) return 'border-danger'
+  return filled ? 'border-ink-2' : 'border-border focus:border-ink-2'
+}

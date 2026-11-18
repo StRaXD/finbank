@@ -103,7 +103,7 @@ describe('AdjustCategoryLimitModal', () => {
     renderPage(api)
     await openModal()
     save()
-    expect(await screen.findByRole('button', { name: 'Saving…' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'Saving…' })).toHaveAttribute('aria-disabled', 'true')
     resolve({ category: 'food', limitCents: 50_000 })
     await dialogClosed()
   })

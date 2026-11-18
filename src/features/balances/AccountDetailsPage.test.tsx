@@ -135,6 +135,17 @@ describe('AccountDetailsPage', () => {
     for (const button of [edit, remove]) expect(button).not.toHaveAttribute('tabindex', '-1')
   })
 
+  it('wraps long bank and branch names inside their columns', async () => {
+    const long = { bankName: 'B'.repeat(60), branchName: 'Branch '.repeat(8).trim() }
+    renderAt('/balances/acc_2', statefulApi({ getAccount: () => Promise.resolve({ ...checking, ...long }) }).api)
+    const details = await screen.findByTestId('account-details')
+    for (const value of [long.bankName, long.branchName]) {
+      const dd = within(details).getByText(value)
+      expect(dd).toHaveClass('break-words')
+      expect(dd.parentElement).toHaveClass('min-w-0')
+    }
+  })
+
   it('keeps Edit Details inert', async () => {
     const { api, removeAccount } = statefulApi()
     const { router } = renderAt('/balances/acc_2', api)
