@@ -8,7 +8,7 @@ export function GoalsPage() {
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-22 font-normal text-subtle">Goals</h1>
-      <div className="grid grid-cols-[1fr_2fr] gap-6">
+      <div className="grid grid-cols-[368fr_712fr] gap-6">
         <SavingsGoalCard />
         <div data-testid="saving-summary-slot" />
       </div>

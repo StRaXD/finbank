@@ -87,7 +87,20 @@ context:
 ## Implementation Notes
 
 - `gaugeRatio` lives in `src/ui/gaugeRatio.ts`, not `GoalGauge.tsx`: oxlint's `react/only-export-components` forbids non-component exports from a component file. `GoalGauge` is its only caller.
-- "Adjust Goal" uses `Button` `variant="outline" size="sm"` (32px, `text-12`); the design's ~35px/14px button has no matching `Button` size. Revisit with Story 4.4's "Adjust" buttons.
+- "Adjust Goal" first used `Button` `size="sm"` (32px, `text-12`); the visual check below replaced it with a new shared `compact` size (`h-9 px-5 gap-2 text-14`, 16px icon) for 110's outlined card actions, which Story 4.4's "Adjust" buttons reuse.
+- **Visual check (2026-11-18, headless Chrome, 1440×1024, seeded mock, against `110. Goals.png` at 1x).** Fixed differences:
+  - card 360×303 → 368×292, with the grid at `368fr_712fr`;
+  - header raised 4px (`-mt-1`) and title `text-16 font-bold text-ink-2` (sampled #525256);
+  - divider at y 216 (design 215);
+  - amounts lowered 4px (`mt-1`, stat gap 24px);
+  - gauge redrawn: 144×70 box, ring 127px wide outside, ring top flush with the drawing, `-mt-1` in the card, labels at y 313 (design 312), caption `text-12 font-medium` 131px wide;
+  - "Adjust Goal" 143×36 at x 417 (design 142×36 at 417);
+  - the filled `Dropdown` gains the design's 1px `border-border`.
+  Every measured edge is now within 2px. Kept on purpose:
+  - the gauge end labels use `text-subtle` (the design's ~#D1D1D1 fails contrast, and `faint` text is banned outside disabled states);
+  - the dropdown text is `text-14`, about 10px wider than the design's ~13px, which is not on the type scale;
+  - the needle follows achieved ÷ target as the spec requires (the design's needle is drawn at about 42°, not 62.5%);
+  - the icons are the existing lucide set.
 - `SavingsGoalCard` gates its content on `useToday()` through `AsyncSection`, so the header renders once today resolves.
 - Verified: typecheck, lint, full test suite (78 files, 2311 passed, 6 skipped). Visual fidelity against 110. Goals.png not checked in a browser.
 

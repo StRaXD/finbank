@@ -33,14 +33,14 @@ const card = () => screen.getByTestId('savings-goal-card')
 const periodTrigger = () => screen.getByRole('button', { name: /Savings goal period/ })
 
 describe('GoalsPage', () => {
-  it('shows the visible Goals title above a 1fr/2fr row with the card in column 1', async () => {
+  it('shows the visible Goals title above a 368/712 row with the card in column 1', async () => {
     renderWith()
     const heading = screen.getByRole('heading', { level: 1, name: 'Goals' })
     expect(heading).toHaveClass('text-22', 'font-normal', 'text-subtle')
     expect(heading).not.toHaveClass('sr-only')
     await screen.findByText('$12,500')
     const row = card().closest('.grid')
-    expect(row).toHaveClass('grid-cols-[1fr_2fr]', 'gap-6')
+    expect(row).toHaveClass('grid-cols-[368fr_712fr]', 'gap-6')
     expect(row!.children).toHaveLength(2)
     expect(screen.getByTestId('saving-summary-slot')).toBeEmptyDOMElement()
   })
@@ -49,7 +49,7 @@ describe('GoalsPage', () => {
     renderWith()
     expect(await screen.findByText('$12,500')).toBeInTheDocument()
     const body = within(card())
-    expect(body.getByRole('heading', { level: 2, name: 'Savings Goal' })).toHaveClass('text-18', 'font-bold')
+    expect(body.getByRole('heading', { level: 2, name: 'Savings Goal' })).toHaveClass('text-16', 'font-bold', 'text-ink-2')
     expect(periodTrigger()).toHaveTextContent('01 May ~ 31 May')
     expect(periodTrigger()).toHaveClass('bg-surface', 'h-8')
     expect(body.getByText('Target Achieved')).toBeInTheDocument()
@@ -63,7 +63,7 @@ describe('GoalsPage', () => {
     expect(card().querySelector('[data-icon="trophy"]')).not.toBeNull()
     expect(card().querySelector('[data-icon="target"]')).not.toBeNull()
     const adjust = body.getByRole('button', { name: 'Adjust Goal' })
-    expect(adjust).toHaveClass('border-primary', 'text-primary')
+    expect(adjust).toHaveClass('border-primary', 'text-primary', 'h-9', 'text-14')
     expect(adjust.querySelector('[data-icon="pencil"]')).not.toBeNull()
   })
 

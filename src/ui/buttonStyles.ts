@@ -1,7 +1,11 @@
 // The button look, shared by `Button` and by links that must look like buttons ("Details >").
 
 export type ButtonVariant = 'primary' | 'outline' | 'text' | 'google'
-export type ButtonSize = 'md' | 'sm'
+/**
+ * `md`: 48px form buttons. `compact`: the 36px outlined card actions of 110. Goals.png
+ * ("Adjust Goal", the category "Adjust"). `sm`: 32px "Details >" style actions.
+ */
+export type ButtonSize = 'md' | 'compact' | 'sm'
 
 // Boxed variants share the grey disabled look of the grey "Login" in Components-1.png.
 // `aria-disabled` gets the same look, for buttons that must keep focus while busy (LoadMore).
@@ -29,12 +33,14 @@ const variants: Record<ButtonVariant, string> = {
 
 const boxedSizes: Record<ButtonSize, string> = {
   md: 'h-12 gap-2 px-6 text-16',
+  compact: 'h-9 gap-2 px-5 text-14',
   sm: 'h-8 gap-1 px-3 text-12',
 }
 
 // The text variant has no padding box.
 const textSizes: Record<ButtonSize, string> = {
   md: 'gap-2 text-16',
+  compact: 'gap-2 text-14',
   sm: 'gap-1 text-14',
 }
 
@@ -67,4 +73,4 @@ export function buttonClassName({
 }
 
 /** Icon size that goes with each button size. */
-export const buttonIconSize: Record<ButtonSize, number> = { md: 20, sm: 16 }
+export const buttonIconSize: Record<ButtonSize, number> = { md: 20, compact: 16, sm: 16 }

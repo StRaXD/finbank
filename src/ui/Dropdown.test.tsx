@@ -45,7 +45,7 @@ describe('Dropdown', () => {
   it('renders the filled variant as a grey 32px box with a 16px chevron, and still selects', () => {
     const onChange = vi.fn()
     render(<Harness variant="filled" onChange={onChange} />)
-    expect(trigger()).toHaveClass('h-8', 'px-4', 'bg-surface', 'rounded-button', 'text-14', 'text-ink-2')
+    expect(trigger()).toHaveClass('h-8', 'px-4', 'border', 'border-border', 'bg-surface', 'rounded-button', 'text-14', 'text-ink-2')
     expect(trigger()).not.toHaveClass('font-bold')
     const chevron = trigger().querySelector('svg')
     expect(chevron).toHaveAttribute('width', '16')

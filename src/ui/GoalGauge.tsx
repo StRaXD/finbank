@@ -10,14 +10,17 @@ export type GoalGaugeProps = {
   summary: string
 }
 
-// Measured from 110. Goals.png at 1x: a 126px-wide half ring with a 14px stroke, a 40px needle
-// and a 10px pivot dot. The end labels sit centred under the ring's ends.
-const WIDTH = 140
-const HEIGHT = 74
-const CX = WIDTH / 2
-const CY = 66
-const RADIUS = 56
-const STROKE = 14
+// Measured from 110. Goals.png at 1x: a half ring 127px wide outside (stroke centres 113px apart)
+// with a 14px stroke, a 40px needle and a 10px pivot dot. The ring's top is the drawing's top
+// edge. The end labels sit centred under the ring's ends, and the right label ("$20k") ends
+// flush with the drawing's right edge.
+const WIDTH = 144
+const HEIGHT = 70
+const CX = 72
+const RADIUS = 56.5
+const STROKE_HALF = 7
+const CY = RADIUS + STROKE_HALF
+const STROKE = STROKE_HALF * 2
 const NEEDLE = 40
 const PIVOT_RADIUS = 5
 
@@ -87,7 +90,7 @@ export function GoalGauge({ achievedCents, targetCents, summary }: GoalGaugeProp
           </span>
         </div>
       </div>
-      <p className="mt-4 text-14 text-ink">Target vs Achievement</p>
+      <p className="mt-3.5 text-12 font-medium text-ink">Target vs Achievement</p>
     </div>
   )
 }

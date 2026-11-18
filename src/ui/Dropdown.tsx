@@ -21,7 +21,7 @@ export type DropdownProps<Value extends string = string> = {
 
 const triggerClass: Record<DropdownVariant, string> = {
   plain: 'inline-flex items-center gap-3 rounded-button text-16 font-bold text-ink',
-  filled: 'inline-flex h-8 items-center gap-2 rounded-button bg-surface px-4 text-14 text-ink-2',
+  filled: 'inline-flex h-8 items-center gap-2 rounded-button border border-border bg-surface px-4 text-14 text-ink-2',
 }
 
 const chevronSize: Record<DropdownVariant, number> = { plain: 24, filled: 16 }
