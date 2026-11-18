@@ -35,10 +35,14 @@ export interface FinbankApi {
   getProfile(): Promise<UserProfile>
   /**
    * Stores the trimmed profile fields, persists them and resolves with a copy of the profile.
-   * `avatarUrl` is kept. Every field is required and `email` must be well formed, otherwise it
-   * rejects with `VALIDATION` and `fieldErrors` keyed by field. It never touches the session. A
+   * Every field is required and `email` must be well formed, otherwise it rejects with
+   * `VALIDATION` and `fieldErrors` keyed by field (the avatar is not checked then). Without
+   * `avatar`, `avatarUrl` is kept. With `avatar`, the image must be JPEG, PNG, WebP or GIF and at
+   * most 5 MB; it is downscaled to a JPEG data URL of at most 256px on its longer side (never
+   * upscaled) and stored as `avatarUrl`. A wrong type, an oversized image or one that cannot be
+   * decoded rejects with `VALIDATION` and `fieldErrors.avatar`. It never touches the session. A
    * failed write rejects with `STORAGE_FULL` when storage is full (`UNKNOWN` for any other write
-   * failure) and leaves the stored profile unchanged.
+   * failure). Every rejection leaves the stored profile, avatar included, unchanged.
    */
   updateProfile(input: ProfileInput): Promise<UserProfile>
   /** Every account, in stored (seed) order. */

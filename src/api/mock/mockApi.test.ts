@@ -1482,6 +1482,123 @@ describe('updateProfile', () => {
     expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
     await expect(api.getProfile()).resolves.toEqual(seed.profile)
   })
+
+  describe('avatar', () => {
+    const encoded = 'data:image/jpeg;base64,ENCODED'
+    const oldAvatar = 'data:image/jpeg;base64,OLD'
+    const png = (size = 16) => new File([new Uint8Array(size)], 'photo.png', { type: 'image/png' })
+    const encoder = (result: () => Promise<string> = () => Promise.resolve(encoded)) => vi.fn((_image: Blob) => result())
+    const withOldAvatar = () =>
+      localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), profile: { ...seed.profile, avatarUrl: oldAvatar } }))
+
+    it('stores the encoder output with the fields and persists it for a fresh adapter', async () => {
+      const encodeAvatar = encoder()
+      const image = png()
+      const saved = await make({ encodeAvatar }).updateProfile({ ...trimmed, avatar: image })
+      expect(encodeAvatar).toHaveBeenCalledWith(image)
+      expect(saved).toEqual({ ...trimmed, avatarUrl: encoded })
+      expect(stored().profile).toEqual({ ...trimmed, avatarUrl: encoded })
+      expect(stored().profile).not.toHaveProperty('avatar')
+      await expect(make().getProfile()).resolves.toEqual({ ...trimmed, avatarUrl: encoded })
+    })
+
+    it.each(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])('accepts %s', async (type) => {
+      const saved = await make({ encodeAvatar: encoder() }).updateProfile({
+        ...trimmed,
+        avatar: new Blob(['x'], { type }),
+      })
+      expect(saved.avatarUrl).toBe(encoded)
+    })
+
+    it('accepts exactly 5 MB', async () => {
+      const saved = await make({ encodeAvatar: encoder() }).updateProfile({ ...trimmed, avatar: png(5 * 1024 * 1024) })
+      expect(saved.avatarUrl).toBe(encoded)
+    })
+
+    it.each([
+      ['a non-image', () => new File(['%PDF'], 'notes.pdf', { type: 'application/pdf' }), 'Choose a JPEG, PNG, WebP or GIF image.'],
+      ['an SVG', () => new File(['<svg/>'], 'a.svg', { type: 'image/svg+xml' }), 'Choose a JPEG, PNG, WebP or GIF image.'],
+      ['an untyped blob', () => new Blob(['x']), 'Choose a JPEG, PNG, WebP or GIF image.'],
+      ['not a blob', () => 'data:image/png;base64,AAAA' as unknown as Blob, 'Choose a JPEG, PNG, WebP or GIF image.'],
+      ['over 5 MB', () => png(5 * 1024 * 1024 + 1), 'Choose an image under 5 MB.'],
+    ])('rejects %s with VALIDATION fieldErrors.avatar, without encoding or writing', async (_name, avatar, message) => {
+      withOldAvatar()
+      const encodeAvatar = encoder()
+      const api = make({ encodeAvatar })
+      await api.getToday()
+      const setItem = vi.spyOn(Storage.prototype, 'setItem')
+      const error = await rejection(api.updateProfile({ ...trimmed, avatar: avatar() }))
+      expect(error.code).toBe('VALIDATION')
+      expect(error.fieldErrors).toEqual({ avatar: message })
+      expect(encodeAvatar).not.toHaveBeenCalled()
+      expect(setItem).not.toHaveBeenCalled()
+      await expect(api.getProfile()).resolves.toEqual({ ...seed.profile, avatarUrl: oldAvatar })
+    })
+
+    it('checks the fields before the avatar', async () => {
+      const encodeAvatar = encoder()
+      const error = await rejection(
+        make({ encodeAvatar }).updateProfile({ ...trimmed, fullName: ' ', avatar: new Blob(['x'], { type: 'text/plain' }) }),
+      )
+      expect(error.fieldErrors).toEqual({ fullName: 'Full name is required.' })
+      expect(encodeAvatar).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['the encoder rejects', () => Promise.reject(new Error('decode failed'))],
+      ['the encoder returns no data URL', () => Promise.resolve('')],
+    ])('rejects with the VALIDATION decode error when %s, keeping the old avatar', async (_name, result) => {
+      withOldAvatar()
+      const api = make({ encodeAvatar: encoder(result) })
+      await api.getToday()
+      const before = localStorage.getItem(MOCK_STORAGE_KEY)
+      const error = await rejection(api.updateProfile({ ...trimmed, avatar: png() }))
+      expect(error.code).toBe('VALIDATION')
+      expect(error.fieldErrors).toEqual({ avatar: "We couldn't read that image." })
+      expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+      await expect(api.getProfile()).resolves.toEqual({ ...seed.profile, avatarUrl: oldAvatar })
+    })
+
+    it('treats an undecodable image as VALIDATION with the default (browser) encoder', async () => {
+      // jsdom has no image decoding, which is what a garbage `.png` meets in a browser.
+      const error = await rejection(make().updateProfile({ ...trimmed, avatar: png() }))
+      expect(error.code).toBe('VALIDATION')
+      expect(error.fieldErrors).toEqual({ avatar: "We couldn't read that image." })
+    })
+
+    it('rejects with STORAGE_FULL and keeps the old avatar in memory and storage', async () => {
+      withOldAvatar()
+      const api = make({ encodeAvatar: encoder() })
+      await api.getToday()
+      const before = localStorage.getItem(MOCK_STORAGE_KEY)
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('quota', 'QuotaExceededError')
+      })
+      const error = await rejection(api.updateProfile({ ...trimmed, avatar: png() }))
+      vi.restoreAllMocks()
+      expect(error.code).toBe('STORAGE_FULL')
+      expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+      await expect(api.getProfile()).resolves.toEqual({ ...seed.profile, avatarUrl: oldAvatar })
+    })
+
+    it('keeps avatarUrl when no avatar is sent', async () => {
+      withOldAvatar()
+      const encodeAvatar = encoder()
+      const saved = await make({ encodeAvatar }).updateProfile(trimmed)
+      expect(saved.avatarUrl).toBe(oldAvatar)
+      expect(encodeAvatar).not.toHaveBeenCalled()
+    })
+
+    it('keeps the avatar over logout and login', async () => {
+      const api = make({ encodeAvatar: encoder() })
+      await api.login({ email: seed.profile.email, password: 'pw', persistent: true })
+      await api.updateProfile({ ...trimmed, avatar: png() })
+      await api.logout()
+      await expect(api.getProfile()).resolves.toMatchObject({ avatarUrl: encoded })
+      await api.login({ email: trimmed.email, password: 'pw', persistent: true })
+      await expect(make().getProfile()).resolves.toMatchObject({ avatarUrl: encoded })
+    })
+  })
 })
 
 describe('getSavingSummary', () => {

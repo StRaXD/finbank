@@ -34,8 +34,30 @@ export type UserProfile = {
   avatarUrl: string | null
 }
 
-/** The editable profile fields (Story 5.2 adds the photo). */
-export type ProfileInput = Omit<UserProfile, 'avatarUrl'>
+/**
+ * The editable profile fields, plus an optional picked photo. `avatar` omitted keeps the current
+ * avatar; when given it must be one of `AVATAR_MIME_TYPES` and at most `AVATAR_MAX_BYTES`.
+ */
+export type ProfileInput = Omit<UserProfile, 'avatarUrl'> & {
+  avatar?: Blob
+}
+
+/** The image types a profile photo may be (checked on pick and again by the adapter). */
+export const AVATAR_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
+
+/** The largest profile photo accepted, in bytes (5 MB). */
+export const AVATAR_MAX_BYTES = 5 * 1024 * 1024
+
+/** The error for a photo of the wrong type (on pick and from the adapter). */
+export const AVATAR_TYPE_MESSAGE = 'Choose a JPEG, PNG, WebP or GIF image.'
+
+/** The error for a photo over `AVATAR_MAX_BYTES` (on pick and from the adapter). */
+export const AVATAR_SIZE_MESSAGE = 'Choose an image under 5 MB.'
+
+/** Whether a picked file's type is an accepted profile photo type. */
+export function isAvatarMimeType(type: string): boolean {
+  return (AVATAR_MIME_TYPES as readonly string[]).includes(type)
+}
 
 export type AccountType = 'creditCard' | 'checking' | 'savings' | 'investment' | 'loan'
 

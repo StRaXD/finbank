@@ -64,3 +64,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-1-settings-tabs-and-the-profile-form.md`
   summary: Consolidate the three copies of the ApiError fieldErrors → setError mapping (auth `applyApiError`, goals `showSubmitError`, settings `ProfileForm`) into one tested shared helper, and cover the unmapped/mixed-key branch for the settings form.
   evidence: The verification-gap review found the unmapped/mixed `fieldErrors` branch in `ProfileForm.showSubmitError` is untested, and only the auth copy has tests. It is unreachable today, because the mock emits only the five known keys and the http adapter is `notImplemented`. The copies can drift once a real adapter arrives.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-profile-picture-upload.md`
+  summary: Add a mock adapter test, or a write queue, proving `updateProfile` re-reads state after the async avatar encode, so a write committed during the encode is not overwritten.
+  evidence: The verification-gap review found that moving `const prev = state()` above the encode would bring back a lost update, and no test would fail. It is only reachable when another mutation hits the same adapter instance during a real-browser encode. The cost is unverified, but would be medium.

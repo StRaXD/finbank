@@ -15,6 +15,9 @@ import {
   type Account,
   type AccountType,
   ApiError,
+  AVATAR_MAX_BYTES,
+  AVATAR_SIZE_MESSAGE,
+  AVATAR_TYPE_MESSAGE,
   type BalanceSummary,
   type Bill,
   type BillingCycle,
@@ -42,7 +45,9 @@ import {
   type TransactionPage,
   type UserProfile,
   type YearMonth,
+  isAvatarMimeType,
 } from '../types.ts'
+import { downscaleToJpegDataUrl } from './avatar.ts'
 import { MOCK_STATE_VERSION, MOCK_USER_ID, type MockState, seedState } from './seed.ts'
 import { PAYMENT_METHOD_BY_ACCOUNT_TYPE } from './seedTransactions.ts'
 
@@ -59,6 +64,12 @@ export type MockApiOptions = {
   sessionStores?: { local: StorageLike; session: StorageLike }
   /** Artificial latency per call, so loading states are exercised. */
   delayMs?: number
+  /**
+   * Turns a picked profile photo into the stored `avatarUrl`. Defaults to the browser downscaler
+   * (a JPEG data URL of at most 256px); tests inject a stub because jsdom cannot decode images.
+   * A rejection means the image could not be read.
+   */
+  encodeAvatar?: (image: Blob) => Promise<string>
 }
 
 /** A non-persistent `StorageLike`, used when the browser's storage is unavailable. */
@@ -104,6 +115,14 @@ function checkEmail(email: unknown, errors: FieldErrors) {
 
 function checkRequired(value: unknown, field: string, label: string, errors: FieldErrors) {
   if (typeof value !== 'string' || value.trim() === '') errors[field] = `${label} is required.`
+}
+
+const AVATAR_DECODE_MESSAGE = "We couldn't read that image."
+
+/** Type and size checks of a picked photo, before any decoding. */
+function checkAvatar(avatar: unknown, errors: FieldErrors) {
+  if (!(avatar instanceof Blob) || !isAvatarMimeType(avatar.type)) errors.avatar = AVATAR_TYPE_MESSAGE
+  else if (avatar.size > AVATAR_MAX_BYTES) errors.avatar = AVATAR_SIZE_MESSAGE
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -693,6 +712,7 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
     session: browserStore('sessionStorage'),
   }
   const delayMs = options.delayMs ?? 200
+  const encodeAvatar = options.encodeAvatar ?? downscaleToJpegDataUrl
 
   let current: MockState | null = null
 
@@ -720,10 +740,10 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
   }
 
   /** Awaits the artificial delay, then guarantees that only `ApiError` escapes. */
-  async function call<T>(fn: () => T): Promise<T> {
+  async function call<T>(fn: () => T | Promise<T>): Promise<T> {
     await new Promise<void>((resolve) => setTimeout(resolve, delayMs))
     try {
-      return fn()
+      return await fn()
     } catch (error) {
       if (error instanceof ApiError) throw error
       throw new ApiError('UNKNOWN', 'Something went wrong. Please try again.')
@@ -780,7 +800,7 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
     getProfile: () => call(() => structuredClone(state().profile)),
 
     updateProfile: (input: ProfileInput) =>
-      call((): UserProfile => {
+      call(async (): Promise<UserProfile> => {
         const errors: FieldErrors = {}
         checkRequired(input?.fullName, 'fullName', 'Full name', errors)
         checkEmail(input?.email, errors)
@@ -788,10 +808,25 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
         checkRequired(input?.phoneCountryCode, 'phoneCountryCode', 'Country code', errors)
         checkRequired(input?.phoneNumber, 'phoneNumber', 'Phone number', errors)
         throwIfInvalid(errors)
+        let avatarUrl: string | undefined
+        if (input.avatar !== undefined) {
+          checkAvatar(input.avatar, errors)
+          throwIfInvalid(errors)
+          try {
+            avatarUrl = await encodeAvatar(input.avatar)
+          } catch {
+            avatarUrl = undefined
+          }
+          if (typeof avatarUrl !== 'string' || !avatarUrl.startsWith('data:image/')) {
+            throw new ApiError('VALIDATION', AVATAR_DECODE_MESSAGE, { avatar: AVATAR_DECODE_MESSAGE })
+          }
+        }
+        // Read the state after encoding, so a write made meanwhile is not overwritten.
         const prev = state()
         // Only the profile changes; the session stores are never touched (identity stays usr_1).
         const profile: UserProfile = {
           ...prev.profile,
+          ...(avatarUrl !== undefined && { avatarUrl }),
           fullName: input.fullName.trim(),
           email: input.email.trim(),
           username: input.username.trim(),

@@ -23,6 +23,7 @@ import {
   EyeOff,
   Gamepad2,
   House,
+  ImagePlus,
   LayoutGrid,
   LogIn,
   Pencil,
@@ -72,6 +73,8 @@ export const icons = {
   // The Savings Goal card's Target Achieved and This month Target stats (110. Goals.png).
   trophy: Trophy,
   target: Target,
+  // The Settings profile picture upload box (111. Settings.png).
+  imagePlus: ImagePlus,
 } as const
 
 export type IconName = keyof typeof icons
