@@ -1581,6 +1581,26 @@ describe('updateProfile', () => {
       await expect(api.getProfile()).resolves.toEqual({ ...seed.profile, avatarUrl: oldAvatar })
     })
 
+    it('does not overwrite a write made while the avatar is being encoded', async () => {
+      let finishEncoding: (url: string) => void = () => {}
+      const encodeAvatar = encoder(() => new Promise<string>((resolve) => (finishEncoding = resolve)))
+      const api = make({ encodeAvatar })
+      const saving = api.updateProfile({ ...trimmed, avatar: png() })
+      await vi.waitFor(() => expect(encodeAvatar).toHaveBeenCalled())
+      await api.updateCategoryLimit('food', 65_000)
+      finishEncoding(encoded)
+      await saving
+      const limits = seed.categoryLimits.map((limit) =>
+        limit.category === 'food' ? { category: 'food', limitCents: 65_000 } : limit,
+      )
+      await expect(api.getProfile()).resolves.toEqual({ ...trimmed, avatarUrl: encoded })
+      await expect(api.listCategoryLimits()).resolves.toEqual(limits)
+      expect(stored().profile).toEqual({ ...trimmed, avatarUrl: encoded })
+      expect(stored().categoryLimits).toEqual(limits)
+      await expect(make().getProfile()).resolves.toEqual({ ...trimmed, avatarUrl: encoded })
+      await expect(make().listCategoryLimits()).resolves.toEqual(limits)
+    })
+
     it('keeps avatarUrl when no avatar is sent', async () => {
       withOldAvatar()
       const encodeAvatar = encoder()

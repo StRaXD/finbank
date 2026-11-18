@@ -124,6 +124,12 @@ graph TD
   - A missing or unparseable entry falls back to the seed.
   - `removeAccount` also removes that account's transactions.
   - Before storage, the avatar is downscaled to a JPEG data URL of at most 256px.
+    - `ProfileInput.avatar` is the picked `Blob`; leaving it out keeps the current avatar.
+    - The adapter checks the type (JPEG, PNG, WebP or GIF) and the size (at most 5 MB), using the constants shared with the form in `api/types.ts`.
+    - It then encodes through an injectable `encodeAvatar`, which defaults to `api/mock/avatar.ts`.
+    - It reads state only after encoding, then writes first and commits.
+    - A decode failure is `VALIDATION` with `fieldErrors.avatar`.
+  - `changePassword` checks the shape of the input and resolves. It stores no credential and touches no state, storage or session, matching `login` and `signup`, which never store a password.
   - If storage is full, the write fails with `ApiError{code:'STORAGE_FULL'}`.
   - The adapter adds an artificial delay of about 200 ms so that loading states are exercised. `[ASSUMPTION]`
 

@@ -64,9 +64,10 @@ describe('ImageUpload', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('shows an error under the box and describes the button with it', () => {
+  it('announces an error under the box and describes the button with it', () => {
     render(<ImageUpload label="Photo" imageUrl="blob:old" error="Choose an image under 5 MB." onSelect={() => {}} />)
-    const error = screen.getByText('Choose an image under 5 MB.')
+    const error = screen.getByRole('alert')
+    expect(error).toHaveTextContent('Choose an image under 5 MB.')
     expect(error).toHaveClass('text-danger')
     const button = screen.getByRole('button', { name: 'Change your photo' })
     expect(button).toHaveAccessibleDescription('Choose an image under 5 MB.')
@@ -76,5 +77,6 @@ describe('ImageUpload', () => {
   it('has no description without an error', () => {
     render(<ImageUpload label="Photo" onSelect={() => {}} />)
     expect(screen.getByRole('button')).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

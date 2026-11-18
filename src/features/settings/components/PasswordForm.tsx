@@ -77,7 +77,8 @@ export function PasswordForm() {
       },
       // A failure keeps the typed values so the user can fix and retry.
       onError: (error) => showSubmitError(error, setError),
-      // Drop the settled mutation so its `variables` no longer hold the passwords.
+      // `reset` detaches the observer; with useChangePassword's `gcTime: 0` the unobserved mutation
+      // (and the passwords in its `variables`) is then garbage-collected at once.
       onSettled: () => change.reset(),
     })
   })

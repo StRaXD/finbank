@@ -12,6 +12,8 @@ export function useUpdateProfile() {
   const api = useApi()
   const queryClient = useQueryClient()
   return useMutation({
+    // Drop the settled mutation (and the personal data and photo it carried) once nothing observes it.
+    gcTime: 0,
     mutationFn: (input: ProfileInput) => api.updateProfile(input),
     onSuccess: () => applyInvalidation(queryClient, 'updateProfile'),
   })

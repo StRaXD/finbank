@@ -307,6 +307,17 @@ describe('mutation hooks', () => {
       () => useChangePassword(),
       { oldPassword: 'old-secret', newPassword: 'new-secret-1', confirmPassword: 'new-secret-1' },
     ],
+    [
+      'useUpdateProfile',
+      () => useUpdateProfile(),
+      {
+        fullName: 'Jane Doe',
+        email: 'jane.doe@email.com',
+        username: 'jane.doe',
+        phoneCountryCode: '+44',
+        phoneNumber: '7700 900123',
+      },
+    ],
   ])('%s does not keep its variables in the mutation cache once unmounted', async (_name, useHook, input) => {
     const { wrapper, queryClient } = setup()
     const { result, unmount } = renderHook(() => useHook(), { wrapper })

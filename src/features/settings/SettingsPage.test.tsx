@@ -447,7 +447,8 @@ describe('ProfileForm profile picture', () => {
     submit()
     expect(await screen.findByText(decodeMessage)).toHaveClass('text-danger')
     expect(box()).toHaveAccessibleDescription(decodeMessage)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    // The only alert is the avatar error itself: no form-level alert.
+    expect(screen.getByRole('alert')).toHaveTextContent(decodeMessage)
     expect(boxImage()).toHaveAttribute('src', 'blob:preview-1')
     expect(revokeObjectURL).not.toHaveBeenCalled()
 
@@ -669,6 +670,24 @@ describe('PasswordForm', () => {
     await waitFor(() => {
       const variables = queryClient.getMutationCache().getAll().map((m) => m.state.variables)
       expect(JSON.stringify(variables ?? [])).not.toContain(valid.newPassword)
+    })
+  })
+
+  it('does not keep the passwords in the mutation cache after a failure', async () => {
+    const { api } = createFakeApi({
+      changePassword: () =>
+        Promise.reject(
+          new ApiError('VALIDATION', 'Please correct the highlighted fields.', { oldPassword: 'Old password is wrong.' }),
+        ),
+    })
+    const { queryClient } = renderAt('/settings?tab=security', api)
+    await passwordsLoaded()
+    fill(valid.oldPassword, valid.newPassword, valid.confirmPassword)
+    update()
+    expect(await screen.findByText('Old password is wrong.')).toBeInTheDocument()
+    await waitFor(() => {
+      const json = JSON.stringify(queryClient.getMutationCache().getAll().map((m) => m.state.variables))
+      for (const value of Object.values(valid)) expect(json).not.toContain(value)
     })
   })
 

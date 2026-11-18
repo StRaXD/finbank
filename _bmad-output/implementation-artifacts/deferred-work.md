@@ -72,3 +72,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-3-change-password.md`
   summary: `PasswordForm.showSubmitError` is a fourth copy of the fieldErrors → setError mapping, and its unknown-key branch is untested. Fold it into the shared helper proposed under the Story 5.1 deferral.
   evidence: The verification-gap review found that deleting `unmapped.push` would not fail any test. It is unreachable today, because the mock emits only `oldPassword`, `newPassword` and `confirmPassword` and the http adapter is `notImplemented`.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-5-final-review.md`
+  summary: Add a ProfileForm test that a submit fired while `updateProfile` is pending is ignored (`updateProfile` called once), mirroring PasswordForm's "ignores a second submit while the change is in flight".
+  evidence: The verification-gap review (chunk 2) found that deleting ProfileForm's `if (busy)` guard fails no test. Low exposure: the disabled submit button already blocks clicks and implicit Enter; only scripted or assistive-tech submit paths reach it.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-5-final-review.md`
+  summary: Cap the decoded pixel area of a picked avatar (or decode with `resizeWidth`/`resizeHeight`) so a small, highly compressed image with huge dimensions cannot exhaust memory in `downscaleToJpegDataUrl`.
+  evidence: Raised by the edge-case and general reviewers in Story 5.2 and again in the final review. A 5 MB PNG of 20000×20000 decodes to about 1.6 GB before the 256px downscale. Rare (it needs a crafted or unusual file), but a crash rather than an inline error. Unverified in a browser.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-5-final-review.md`
+  summary: Two items carried forward. The production JS chunk is now 999 kB (300 kB gzip), up from 986 kB at Epic 4, which adds to the existing bundle-size item. The `fieldErrors` → `setError` mapping now has four copies (auth, goals, ProfileForm, PasswordForm), which adds to the shared-helper deferrals from Stories 5.1 and 5.3.
+  evidence: `npm run build` output at `81e965b`. The final review's blind hunter (chunk 2) and verification-gap layers. The 5.2 deferral "re-read of state after the async encode is untested" is resolved by the final-review test "does not overwrite a write made while the avatar is being encoded".

@@ -79,7 +79,8 @@ export function ImageUpload({ label, imageUrl, onSelect, error, accept }: ImageU
         onChange={onChange}
       />
       {error && (
-        <p id={errorId} className="mt-2 text-14 text-danger">
+        // An alert, so the error is announced once the OS file picker closes.
+        <p id={errorId} role="alert" className="mt-2 text-14 text-danger">
           {error}
         </p>
       )}

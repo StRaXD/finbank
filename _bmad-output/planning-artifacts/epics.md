@@ -1343,6 +1343,8 @@ So that my avatar shows who I am.
 **And** the photo survives a reload (FR33).
 **And** unit tests cover the downscale and the `STORAGE_FULL` path.
 
+*Decided in implementation (2026-11-18):* accepted files are JPEG, PNG, WebP or GIF of at most 5 MB, checked on pick and again in the adapter. An unreadable image gives an inline "We couldn't read that image." and keeps the existing photo.
+
 ### Story 5.3: Change password
 
 As a user,
@@ -1369,3 +1371,5 @@ So that my account stays secure.
 
 **And** React Testing Library tests cover each validation rule and the success path.
 **And** the tab matches the design (NFR-1).
+
+*Decided in implementation (2026-11-18):* the mock does not check Old Password against a stored credential, because mock login and signup store none. No password is stored or logged, and the session is kept. The eye toggle stays on the three fields, an accepted deviation from 112.
