@@ -6,6 +6,7 @@ import { ApiProvider } from '../ApiProvider.tsx'
 import { createMockApi } from '../mock/mockApi.ts'
 import { seed } from '../mock/seed.ts'
 import { qk } from '../queryKeys.ts'
+import type { YearMonth } from '../types.ts'
 import { SessionProvider } from '../SessionProvider.tsx'
 import { useSessionContext } from '../sessionContext.ts'
 import { useAccount } from './useAccount.ts'
@@ -21,6 +22,7 @@ import { useLogout } from './useLogout.ts'
 import { useProfile } from './useProfile.ts'
 import { useRemoveAccount } from './useRemoveAccount.ts'
 import { useRequestPasswordReset } from './useRequestPasswordReset.ts'
+import { useSavingsGoal } from './useSavingsGoal.ts'
 import { useSession } from './useSession.ts'
 import { useSignup } from './useSignup.ts'
 import { useToday } from './useToday.ts'
@@ -147,6 +149,17 @@ describe('query hooks', () => {
     expect(result.current.week.data![0]!.label).toBe('14 Sun')
     expect(queryClient.getQueryData(qk.comparison('year'))).toEqual(result.current.year.data)
     expect(queryClient.getQueryData(qk.comparison('week'))).toEqual(result.current.week.data)
+  })
+
+  it('useSavingsGoal resolves each month under its own key', async () => {
+    const { wrapper, queryClient } = setup()
+    const may = '2023-05' as YearMonth
+    const apr = '2023-04' as YearMonth
+    const { result } = renderHook(() => ({ may: useSavingsGoal(may), apr: useSavingsGoal(apr) }), { wrapper })
+    await waitFor(() => expect(result.current.may.data).toEqual({ month: may, targetCents: 2_000_000, achievedCents: 1_250_000 }))
+    await waitFor(() => expect(result.current.apr.data).toMatchObject({ targetCents: 1_800_000, achievedCents: 1_710_000 }))
+    expect(queryClient.getQueryData(qk.savingsGoal(may))).toEqual(result.current.may.data)
+    expect(queryClient.getQueryData(qk.savingsGoal(apr))).toEqual(result.current.apr.data)
   })
 
   it('useSession is null when signed out', async () => {

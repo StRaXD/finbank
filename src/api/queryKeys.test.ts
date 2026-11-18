@@ -1,6 +1,7 @@
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import { applyInvalidation, invalidationMap, qk } from './queryKeys.ts'
+import type { YearMonth } from './types.ts'
 
 describe('qk', () => {
   it('builds hierarchical keys under one root', () => {
@@ -23,6 +24,8 @@ describe('qk', () => {
     expect(qk.comparison()).toEqual(['finbank', 'comparison'])
     expect(qk.comparison('year')).toEqual(['finbank', 'comparison', 'year'])
     expect(qk.comparison('week')).toEqual(['finbank', 'comparison', 'week'])
+    expect(qk.savingsGoal()).toEqual(['finbank', 'savingsGoal'])
+    expect(qk.savingsGoal('2023-05' as YearMonth)).toEqual(['finbank', 'savingsGoal', '2023-05'])
   })
 
   it('never puts the cursor in a transactions key', () => {

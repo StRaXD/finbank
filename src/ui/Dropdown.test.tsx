@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { Dropdown } from './Dropdown.tsx'
+import { Dropdown, type DropdownVariant } from './Dropdown.tsx'
 
 const options = [
   { value: 'year', label: 'Monthly Comparison' },
@@ -10,7 +10,7 @@ const options = [
 
 type Period = (typeof options)[number]['value']
 
-function Harness({ onChange }: { onChange?: (value: Period) => void }) {
+function Harness({ onChange, variant = 'plain' }: { onChange?: (value: Period) => void; variant?: DropdownVariant }) {
   const [value, setValue] = useState<Period>('year')
   return (
     <>
@@ -18,7 +18,7 @@ function Harness({ onChange }: { onChange?: (value: Period) => void }) {
         label="Comparison period"
         options={options}
         value={value}
-        variant="plain"
+        variant={variant}
         onChange={(next) => {
           onChange?.(next)
           setValue(next)
@@ -40,6 +40,20 @@ describe('Dropdown', () => {
     expect(trigger()).toHaveAttribute('aria-expanded', 'false')
     expect(trigger()).toHaveClass('text-16', 'font-bold', 'text-ink')
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('renders the filled variant as a grey 32px box with a 16px chevron, and still selects', () => {
+    const onChange = vi.fn()
+    render(<Harness variant="filled" onChange={onChange} />)
+    expect(trigger()).toHaveClass('h-8', 'px-4', 'bg-surface', 'rounded-button', 'text-14', 'text-ink-2')
+    expect(trigger()).not.toHaveClass('font-bold')
+    const chevron = trigger().querySelector('svg')
+    expect(chevron).toHaveAttribute('width', '16')
+    expect(chevron).toHaveAttribute('height', '16')
+    fireEvent.click(trigger())
+    fireEvent.click(screen.getByRole('option', { name: 'Weekly Comparison' }))
+    expect(onChange).toHaveBeenCalledWith('week')
+    expect(trigger()).toHaveTextContent('Weekly Comparison')
   })
 
   it('opens on click, selects an option and closes', () => {

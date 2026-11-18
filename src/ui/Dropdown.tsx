@@ -3,8 +3,11 @@ import { icons } from './icons.ts'
 
 export type DropdownOption<Value extends string = string> = { value: Value; label: string }
 
-/** `'plain'`: the bold label plus chevron of 109's "Monthly Comparison". Epic 4 adds `'filled'`. */
-export type DropdownVariant = 'plain'
+/**
+ * `'plain'`: the bold label plus chevron of 109's "Monthly Comparison". `'filled'`: the grey
+ * 32px-high box of 110's "01 May ~ 31 May" period selector.
+ */
+export type DropdownVariant = 'plain' | 'filled'
 
 export type DropdownProps<Value extends string = string> = {
   /** Accessible name of the control (visually hidden), e.g. "Comparison period". */
@@ -18,7 +21,10 @@ export type DropdownProps<Value extends string = string> = {
 
 const triggerClass: Record<DropdownVariant, string> = {
   plain: 'inline-flex items-center gap-3 rounded-button text-16 font-bold text-ink',
+  filled: 'inline-flex h-8 items-center gap-2 rounded-button bg-surface px-4 text-14 text-ink-2',
 }
+
+const chevronSize: Record<DropdownVariant, number> = { plain: 24, filled: 16 }
 
 /**
  * A controlled single-select dropdown: a trigger showing the selected option and a chevron, and a
@@ -129,7 +135,7 @@ export function Dropdown<Value extends string>({ label, options, value, onChange
         onKeyDown={onTriggerKeyDown}
       >
         <span>{selected?.label}</span>
-        <icons.chevronDown aria-hidden="true" size={24} strokeWidth={2} />
+        <icons.chevronDown aria-hidden="true" size={chevronSize[variant]} strokeWidth={2} />
       </button>
       {open && (
         <ul

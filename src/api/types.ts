@@ -1,5 +1,5 @@
 // The only home of domain types (AD-2). Later epics add their entities here.
-import type { IsoDate } from '../lib/dates.ts'
+import type { IsoDate, YearMonth } from '../lib/dates.ts'
 
 export type { IsoDate, YearMonth } from '../lib/dates.ts'
 
@@ -182,4 +182,14 @@ export type ComparisonPoint = {
 export type ListBillsInput = {
   /** At most this many bills, an integer from 1 to 50. Omitted: every bill. */
   limit?: number
+}
+
+/**
+ * One calendar month's savings goal. Both amounts are stored and user-editable: `achievedCents` is
+ * the "Present" amount, and may exceed the target. A month with no stored goal reads as a zero goal.
+ */
+export type SavingsGoal = {
+  month: YearMonth
+  targetCents: number
+  achievedCents: number
 }

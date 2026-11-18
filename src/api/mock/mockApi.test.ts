@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FinbankApi } from '../port.ts'
-import { ApiError, type ListTransactionsInput, type Transaction } from '../types.ts'
+import { ApiError, type ListTransactionsInput, type Transaction, type YearMonth } from '../types.ts'
 import {
   createMemoryStorage,
   createMockApi,
@@ -44,6 +44,7 @@ const seedJson = () => ({
   accounts: seed.accounts,
   transactions: seed.transactions,
   bills: seed.bills,
+  savingsGoals: seed.savingsGoals,
 })
 
 beforeEach(() => {
@@ -92,6 +93,7 @@ describe('persistence', () => {
       accounts: [seed.accounts[2]],
       transactions: seed.transactions.filter((t) => t.accountId === 'acc_3'),
       bills: [seed.bills[1]],
+      savingsGoals: [{ month: '2024-02', targetCents: 50_000, achievedCents: 60_000 }],
     }
     localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(custom))
     const api = make()
@@ -101,6 +103,7 @@ describe('persistence', () => {
     await expect(api.getBalanceSummary()).resolves.toEqual({
       totalBalanceCents: seed.accounts[2]!.balanceCents,
     })
+    await expect(api.getSavingsGoal('2024-02' as YearMonth)).resolves.toEqual(custom.savingsGoals[0])
     expect(stored()).toEqual(custom)
   })
 
@@ -1060,6 +1063,94 @@ describe('listBills', () => {
     localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(seedJson()))
     const setItem = vi.spyOn(Storage.prototype, 'setItem')
     await make().listBills()
+    expect(setItem).not.toHaveBeenCalled()
+  })
+})
+
+describe('getSavingsGoal', () => {
+  const withGoals = (savingsGoals: unknown) =>
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), savingsGoals }))
+  const goal = (patch: Record<string, unknown> = {}) => ({ ...seed.savingsGoals[4], ...patch })
+  const ym = (value: string) => value as YearMonth
+
+  it('seeds one goal per month from January to May 2023', () => {
+    expect(seed.savingsGoals.map((g) => [g.month, g.targetCents, g.achievedCents])).toEqual([
+      ['2023-01', 1_500_000, 1_420_000],
+      ['2023-02', 1_500_000, 1_560_000],
+      ['2023-03', 1_800_000, 1_630_000],
+      ['2023-04', 1_800_000, 1_710_000],
+      ['2023-05', 2_000_000, 1_250_000],
+    ])
+  })
+
+  it('returns the seeded goal of a month', async () => {
+    await expect(make().getSavingsGoal(ym('2023-05'))).resolves.toEqual({
+      month: '2023-05',
+      targetCents: 2_000_000,
+      achievedCents: 1_250_000,
+    })
+  })
+
+  it('returns a zero goal for a month without one', async () => {
+    await expect(make().getSavingsGoal(ym('2022-08'))).resolves.toEqual({
+      month: '2022-08',
+      targetCents: 0,
+      achievedCents: 0,
+    })
+  })
+
+  it.each(['2023-13', '2023-05-01', '', 'May'])('rejects the month %j with VALIDATION', async (month) => {
+    expect((await rejection(make().getSavingsGoal(ym(month)))).code).toBe('VALIDATION')
+  })
+
+  it('hands out copies, so callers cannot mutate adapter state', async () => {
+    const api = make()
+    const first = await api.getSavingsGoal(ym('2023-05'))
+    first.targetCents = 1
+    await expect(api.getSavingsGoal(ym('2023-05'))).resolves.toMatchObject({ targetCents: 2_000_000 })
+  })
+
+  it('backfills a stored state without goals from the seed and writes it back', async () => {
+    const old: Record<string, unknown> = seedJson()
+    delete old.savingsGoals
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(old))
+    await expect(make().getSavingsGoal(ym('2023-04'))).resolves.toMatchObject({ achievedCents: 1_710_000 })
+    expect(stored().savingsGoals).toEqual(seed.savingsGoals)
+  })
+
+  it.each([
+    ['a string', 'x'],
+    ['an object', { '2023-05': {} }],
+    ['null', null],
+  ])('replaces goals stored as %s with the seed', async (_name, value) => {
+    withGoals(value)
+    await make().getToday()
+    expect(stored().savingsGoals).toEqual(seed.savingsGoals)
+  })
+
+  it('drops invalid entries and repeated months, keeps the valid ones and writes the result back', async () => {
+    const good = goal()
+    withGoals([
+      good,
+      null,
+      'x',
+      goal({ month: '2023-13' }),
+      goal({ month: '2023-04-01' }),
+      goal({ month: '2023-03', targetCents: -1 }),
+      goal({ month: '2023-03', achievedCents: 1.5 }),
+      goal({ month: '2023-03', targetCents: '100' }),
+      goal({ month: '2023-03', achievedCents: Number.MAX_SAFE_INTEGER + 1 }),
+      goal({ targetCents: 1 }),
+    ])
+    await expect(make().getSavingsGoal(ym('2023-05'))).resolves.toEqual(good)
+    await expect(make().getSavingsGoal(ym('2023-03'))).resolves.toMatchObject({ targetCents: 0, achievedCents: 0 })
+    expect(stored().savingsGoals).toEqual([good])
+  })
+
+  it('does not rewrite clean stored goals on load', async () => {
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(seedJson()))
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await make().getSavingsGoal(ym('2023-05'))
     expect(setItem).not.toHaveBeenCalled()
   })
 })

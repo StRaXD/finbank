@@ -6,6 +6,7 @@ import { ForgotPasswordPage, LoginPage, SignupPage, type AuthPaths } from '../fe
 import { AccountDetailsPage, BalancesPage } from '../features/balances/index.ts'
 import { BillsPage } from '../features/bills/index.ts'
 import { ExpensesPage } from '../features/expenses/index.ts'
+import { GoalsPage } from '../features/goals/index.ts'
 import { OverviewPage } from '../features/overview/index.ts'
 import { TransactionsPage } from '../features/transactions/index.ts'
 import { AppShell } from './AppShell/AppShell.tsx'
@@ -76,7 +77,7 @@ export const routeObjects: RouteObject[] = [
           { path: routes.transactions, element: <TransactionsPage /> },
           { path: routes.bills, element: <BillsPage /> },
           { path: routes.expenses, element: <ExpensesPage /> },
-          { path: routes.goals, element: <PlaceholderPage title="Goals" /> },
+          { path: routes.goals, element: <GoalsPage /> },
           { path: routes.settings, element: <PlaceholderPage title="Settings" /> },
         ],
       },

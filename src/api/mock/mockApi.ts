@@ -20,6 +20,7 @@ import {
   type ListBillsInput,
   type ListTransactionsInput,
   type LoginInput,
+  type SavingsGoal,
   type Session,
   type SignupInput,
   type Transaction,
@@ -27,6 +28,7 @@ import {
   type TransactionKind,
   type TransactionPage,
   type UserProfile,
+  type YearMonth,
 } from '../types.ts'
 import { MOCK_STATE_VERSION, MOCK_USER_ID, type MockState, seedState } from './seed.ts'
 import { PAYMENT_METHOD_BY_ACCOUNT_TYPE } from './seedTransactions.ts'
@@ -471,6 +473,42 @@ function normalizeBills(value: unknown, fallback: Bill[]): Bill[] {
   return bills
 }
 
+function validYearMonth(value: unknown): YearMonth | null {
+  try {
+    return toYearMonth(value as string)
+  } catch {
+    return null
+  }
+}
+
+function isCents(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+/** A shape-checked savings goal, or `null`. */
+function normalizeSavingsGoal(value: unknown): SavingsGoal | null {
+  if (!isPlainObject(value)) return null
+  const { targetCents, achievedCents } = value
+  const month = validYearMonth(value.month)
+  if (!month || !isCents(targetCents) || !isCents(achievedCents)) return null
+  // Same key order as the seed, so a clean stored entry round-trips byte for byte.
+  return { month, targetCents, achievedCents }
+}
+
+/** A non-array value is replaced by the seed goals. Invalid entries and repeated months are dropped. */
+function normalizeSavingsGoals(value: unknown, fallback: SavingsGoal[]): SavingsGoal[] {
+  if (!Array.isArray(value)) return fallback
+  const seen = new Set<string>()
+  const goals: SavingsGoal[] = []
+  for (const entry of value) {
+    const goal = normalizeSavingsGoal(entry)
+    if (!goal || seen.has(goal.month)) continue
+    seen.add(goal.month)
+    goals.push(goal)
+  }
+  return goals
+}
+
 /** Earliest due date first (stable, so equal dates keep stored order), truncated to `limit`. */
 function sortBills(all: readonly Bill[], input: ListBillsInput | undefined): Bill[] {
   const limit = input?.limit
@@ -512,6 +550,7 @@ function loadState(storage: StorageLike): { state: MockState; dirty: boolean } {
   state.accounts = normalizeAccounts(state.accounts, seeded.accounts)
   state.transactions = normalizeTransactions(state.transactions, seeded.transactions, state.accounts as Account[])
   state.bills = normalizeBills(state.bills, seeded.bills)
+  state.savingsGoals = normalizeSavingsGoals(state.savingsGoals, seeded.savingsGoals)
   return { state: state as MockState, dirty: JSON.stringify(state) !== JSON.stringify(parsed) }
 }
 
@@ -674,6 +713,14 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
         }
         const { transactions, today } = state()
         return comparisonSeries(transactions, today, granularity)
+      }),
+
+    getSavingsGoal: (month: YearMonth) =>
+      call((): SavingsGoal => {
+        const valid = validYearMonth(month)
+        if (!valid) throw new ApiError('VALIDATION', 'The month is not valid.')
+        const goal = state().savingsGoals.find((candidate) => candidate.month === valid)
+        return goal ? structuredClone(goal) : { month: valid, targetCents: 0, achievedCents: 0 }
       }),
   }
 }

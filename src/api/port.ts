@@ -10,10 +10,12 @@ import type {
   ListBillsInput,
   ListTransactionsInput,
   LoginInput,
+  SavingsGoal,
   Session,
   SignupInput,
   TransactionPage,
   UserProfile,
+  YearMonth,
 } from './types.ts'
 
 /** The single data port (AD-2/AD-3). Every adapter implements all of it. Later epics extend it. */
@@ -60,6 +62,11 @@ export interface FinbankApi {
    * today. An unknown granularity rejects with `VALIDATION`.
    */
   getComparison(granularity: ComparisonGranularity): Promise<ComparisonPoint[]>
+  /**
+   * The savings goal of `month` (a copy). A month with no stored goal resolves as a zero goal
+   * (`targetCents` and `achievedCents` 0), not an error. A malformed month rejects with `VALIDATION`.
+   */
+  getSavingsGoal(month: YearMonth): Promise<SavingsGoal>
 }
 
 /** Every port method name, for tests that must cover the whole port. */
@@ -80,6 +87,7 @@ export const FINBANK_API_METHODS = [
   'listBills',
   'listCategorySummaries',
   'getComparison',
+  'getSavingsGoal',
 ] as const satisfies readonly (keyof FinbankApi)[]
 
 // Compile-time guard: adding a port method without listing it above fails `tsc`.

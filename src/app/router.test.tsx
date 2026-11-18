@@ -66,6 +66,13 @@ describe('routing and session guard', () => {
     expect(within(housing).getByText('$2,023.00')).toBeInTheDocument()
   })
 
+  it('routes /goals to the Goals page with the seeded May savings goal', async () => {
+    renderAt(routes.goals, await signedInApi())
+    const card = await screen.findByTestId('savings-goal-card')
+    expect(await within(card).findByText('$12,500')).toBeInTheDocument()
+    expect(within(card).getByText('$20,000')).toBeInTheDocument()
+  })
+
   it('shows the same category totals and % changes on the Overview tiles as on the Expenses cards', async () => {
     const api = await signedInApi()
     const expected = await api.listCategorySummaries()

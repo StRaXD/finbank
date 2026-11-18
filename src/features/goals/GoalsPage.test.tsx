@@ -1,0 +1,118 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { ApiProvider } from '../../api/ApiProvider.tsx'
+import type { FinbankApi } from '../../api/port.ts'
+import { ApiError, type IsoDate, type SavingsGoal, type YearMonth } from '../../api/types.ts'
+import { GoalsPage } from './GoalsPage.tsx'
+
+const goals: Record<string, SavingsGoal> = {
+  '2023-05': { month: '2023-05' as YearMonth, targetCents: 2_000_000, achievedCents: 1_250_000 },
+  '2023-04': { month: '2023-04' as YearMonth, targetCents: 1_800_000, achievedCents: 1_710_000 },
+}
+
+const fromFixture: FinbankApi['getSavingsGoal'] = (month) =>
+  Promise.resolve(structuredClone(goals[month] ?? { month, targetCents: 0, achievedCents: 0 }))
+
+function renderWith(getSavingsGoal: FinbankApi['getSavingsGoal'] = fromFixture) {
+  const api = {
+    getToday: () => Promise.resolve('2023-05-19' as IsoDate),
+    getSavingsGoal,
+  } as FinbankApi
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <ApiProvider api={api}>
+      <QueryClientProvider client={queryClient}>
+        <GoalsPage />
+      </QueryClientProvider>
+    </ApiProvider>,
+  )
+}
+
+const card = () => screen.getByTestId('savings-goal-card')
+const periodTrigger = () => screen.getByRole('button', { name: /Savings goal period/ })
+
+describe('GoalsPage', () => {
+  it('shows the visible Goals title above a 1fr/2fr row with the card in column 1', async () => {
+    renderWith()
+    const heading = screen.getByRole('heading', { level: 1, name: 'Goals' })
+    expect(heading).toHaveClass('text-22', 'font-normal', 'text-subtle')
+    expect(heading).not.toHaveClass('sr-only')
+    await screen.findByText('$12,500')
+    const row = card().closest('.grid')
+    expect(row).toHaveClass('grid-cols-[1fr_2fr]', 'gap-6')
+    expect(row!.children).toHaveLength(2)
+    expect(screen.getByTestId('saving-summary-slot')).toBeEmptyDOMElement()
+  })
+
+  it("shows May's goal by default: period, both amounts, gauge, caption and Adjust Goal", async () => {
+    renderWith()
+    expect(await screen.findByText('$12,500')).toBeInTheDocument()
+    const body = within(card())
+    expect(body.getByRole('heading', { level: 2, name: 'Savings Goal' })).toHaveClass('text-18', 'font-bold')
+    expect(periodTrigger()).toHaveTextContent('01 May ~ 31 May')
+    expect(periodTrigger()).toHaveClass('bg-surface', 'h-8')
+    expect(body.getByText('Target Achieved')).toBeInTheDocument()
+    expect(body.getByText('This month Target')).toBeInTheDocument()
+    expect(body.getByText('$20,000')).toBeInTheDocument()
+    expect(body.getByText('12K')).toBeInTheDocument()
+    expect(body.getByText('$0')).toBeInTheDocument()
+    expect(body.getByText('$20k')).toBeInTheDocument()
+    expect(body.getByText('Target vs Achievement')).toBeInTheDocument()
+    expect(body.getByText('Savings goal for 01 May ~ 31 May: $12,500 achieved of a $20,000 target.')).toHaveClass('sr-only')
+    expect(card().querySelector('[data-icon="trophy"]')).not.toBeNull()
+    expect(card().querySelector('[data-icon="target"]')).not.toBeNull()
+    const adjust = body.getByRole('button', { name: 'Adjust Goal' })
+    expect(adjust).toHaveClass('border-primary', 'text-primary')
+    expect(adjust.querySelector('[data-icon="pencil"]')).not.toBeNull()
+  })
+
+  it('lists the 12 selectable months newest first and loads the chosen month', async () => {
+    const getSavingsGoal = vi.fn(fromFixture)
+    renderWith(getSavingsGoal)
+    await screen.findByText('$12,500')
+    fireEvent.click(periodTrigger())
+    const options = within(screen.getByRole('listbox')).getAllByRole('option')
+    expect(options).toHaveLength(12)
+    expect(options[0]).toHaveTextContent('01 May ~ 31 May')
+    expect(options[1]).toHaveTextContent('01 Apr ~ 30 Apr')
+    expect(options[11]).toHaveTextContent('01 Jun ~ 30 Jun')
+    fireEvent.click(options[1]!)
+    expect(await screen.findByText('$17,100')).toBeInTheDocument()
+    expect(screen.getByText('$18,000')).toBeInTheDocument()
+    expect(periodTrigger()).toHaveTextContent('01 Apr ~ 30 Apr')
+    expect(getSavingsGoal).toHaveBeenCalledWith('2023-04')
+  })
+
+  it('renders a month without a goal as an empty gauge', async () => {
+    renderWith()
+    await screen.findByText('$12,500')
+    fireEvent.click(periodTrigger())
+    fireEvent.click(screen.getByRole('option', { name: '01 Jan ~ 31 Jan' }))
+    await waitFor(() => expect(screen.getByTestId('goal-gauge')).toHaveAttribute('data-ratio', '0'))
+    expect(screen.getAllByText('$0').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('does nothing when Adjust Goal is clicked', async () => {
+    renderWith()
+    await screen.findByText('$12,500')
+    fireEvent.click(screen.getByRole('button', { name: 'Adjust Goal' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByText('$12,500')).toBeInTheDocument()
+  })
+
+  it('shows the inline error with a working Retry when the goal query fails', async () => {
+    let fail = true
+    renderWith((month) => (fail ? Promise.reject(new ApiError('UNKNOWN', 'Could not load the goal.')) : fromFixture(month)))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the goal.')
+    fail = false
+    fireEvent.click(within(card()).getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('$12,500')).toBeInTheDocument()
+  })
+
+  it('shows a skeleton while the goal loads', async () => {
+    renderWith(() => new Promise(() => {}))
+    expect(await screen.findByRole('button', { name: /Savings goal period/ })).toBeInTheDocument()
+    expect(card().querySelector('[aria-busy="true"]')).not.toBeNull()
+  })
+})
