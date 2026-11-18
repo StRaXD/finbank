@@ -1,6 +1,6 @@
 import type { ComponentPropsWithRef } from 'react'
 import { Field } from './Field.tsx'
-import { emptyPlaceholder } from './fieldStyles.ts'
+import { emptyPlaceholder, fieldText } from './fieldStyles.ts'
 
 type PartProps = Omit<ComponentPropsWithRef<'input'>, 'className' | 'type' | 'aria-label'>
 
@@ -16,7 +16,7 @@ export type PhoneInputProps = {
 }
 
 const partBase =
-  'min-w-0 bg-transparent text-16 text-ink-2 placeholder:text-subtle disabled:cursor-not-allowed disabled:text-faint'
+  'min-w-0 bg-transparent text-16 placeholder:text-subtle disabled:cursor-not-allowed disabled:text-faint'
 
 /**
  * The plain "+code | number" phone field (111. Settings.png): one label over a country code input
@@ -32,11 +32,20 @@ export function PhoneInput({ label, codeProps = {}, numberProps = {}, error, var
     : variant === 'borderless'
       ? 'border-transparent'
       : 'border-border focus-within:border-ink-2'
-  const padding = variant === 'borderless' ? 'px-6' : 'px-4'
+  const borderless = variant === 'borderless'
+  const padding = borderless ? 'px-6' : 'px-4'
+  const text = fieldText(variant)
   return (
-    <Field label={label} error={error} id={id} describedBy={code['aria-describedby']}>
+    <Field
+      label={label}
+      error={error}
+      id={id}
+      describedBy={code['aria-describedby']}
+      labelTone={borderless ? 'ink-2' : 'ink'}
+      labelGap={borderless ? 'md' : 'sm'}
+    >
       {(control) => (
-        <div data-testid="phone-input" className={`flex h-12 w-full items-center gap-3 rounded-input border ${padding} ${border}`}>
+        <div data-testid="phone-input" className={`flex h-12 w-full items-center gap-2.5 rounded-input border ${padding} ${border}`}>
           <input
             type="tel"
             inputMode="tel"
@@ -44,9 +53,9 @@ export function PhoneInput({ label, codeProps = {}, numberProps = {}, error, var
             placeholder={codePlaceholder || emptyPlaceholder}
             {...code}
             {...control}
-            className={`${partBase} w-14 shrink-0`}
+            className={`${partBase} ${text} w-10 shrink-0`}
           />
-          <span aria-hidden="true" className="text-16 text-ink-2">
+          <span aria-hidden="true" className={`text-16 ${text}`}>
             |
           </span>
           <input
@@ -58,7 +67,7 @@ export function PhoneInput({ label, codeProps = {}, numberProps = {}, error, var
             aria-label={`${label} number`}
             aria-describedby={[number['aria-describedby'], control['aria-describedby']].filter(Boolean).join(' ') || undefined}
             aria-invalid={control['aria-invalid']}
-            className={`${partBase} flex-1`}
+            className={`${partBase} ${text} flex-1`}
           />
         </div>
       )}

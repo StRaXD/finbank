@@ -105,6 +105,12 @@ context:
 - **Phone errors:** both parts share one error line, so a missing code and a missing number show as one joined message.
 - **Error mapping:** the `fieldErrors` → `setError` mapping is copied locally, because `applyApiError` belongs to `features/auth` and features may not import each other.
 - **Login decoupling:** login stays decoupled from the profile. No auth code was changed, and the guarantee is pinned by tests.
+- **Visual check (2026-11-18):** `/settings` was compared in Chrome at 1440×1024 against `111. Settings.png`, measured from the PNG at 2× and halved.
+  - The design's side inset is 32px; the planned 44px misread the tab text, which sits inside the tab's own 12px padding. The real differences were the top inset (40px) and bottom inset (48px), so the card body is now `px-2 pt-4 pb-6` on top of `Card`'s `p-6`.
+  - Added `Tabs size="lg"`: `px-3 pb-3.5`, `gap-8`, and `subtle` idle labels. The `md` default is unchanged, and Transactions still measures as before.
+  - The borderless field variant now has an ink-2 label, a 12px label gap (new `Field` `labelGap`) and `subtle` value text (the AA stand-in for the PNG's #878787). `fieldBase` lost its colour in favour of `fieldText(variant)`.
+  - `PhoneInput`: the code input is `w-10` and the gap is `gap-2.5`, which puts the divider at about 411 and the number at about 426, against the design's 412 and 425.5.
+  - Field spacing is now `gap-5` and the button margin `mt-11`. All boxes now measure within 1px of the PNG: card 304,104 to 1408,752; button 336,656 to 528,704.
 
 ## Spec Change Log
 

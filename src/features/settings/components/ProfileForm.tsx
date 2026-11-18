@@ -92,7 +92,7 @@ export function ProfileForm({ profile }: { profile: UserProfile }) {
     <form noValidate onSubmit={onSubmit} className="flex flex-col">
       {/* Fields in the left ~40% column; Story 5.2 adds the profile picture column on the right. */}
       <div className="flex flex-col gap-10 lg:flex-row">
-        <div className="flex flex-col gap-6 lg:w-2/5">
+        <div className="flex flex-col gap-5 lg:w-2/5">
           <TextInput
             label="Full name"
             variant="borderless"
@@ -131,7 +131,7 @@ export function ProfileForm({ profile }: { profile: UserProfile }) {
         </p>
       )}
 
-      <div className={`${serverError ? 'mt-4' : 'mt-10'} w-48`}>
+      <div className={`${serverError ? 'mt-4' : 'mt-11'} w-48`}>
         <Button type="submit" fullWidth disabled={busy}>
           Update Profile
         </Button>

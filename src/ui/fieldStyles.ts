@@ -1,8 +1,19 @@
 // Internal: shared class strings for the bordered input fields.
 
-/** Every bordered field except its height (`h-12` by default; see `TextInput`'s `fieldSize`). */
+/**
+ * Every field except its height (`h-12` by default; see `TextInput`'s `fieldSize`) and its text
+ * colour (`fieldText`).
+ */
 export const fieldBase =
-  'w-full rounded-input border bg-transparent text-16 text-ink-2 placeholder:text-subtle disabled:cursor-not-allowed disabled:text-faint'
+  'w-full rounded-input border bg-transparent text-16 placeholder:text-subtle disabled:cursor-not-allowed disabled:text-faint'
+
+/**
+ * Field value colour. `default`: ink-2. `borderless` (111. Settings.png samples the PNG grey that `subtle`
+ * darkens for AA contrast): `subtle`.
+ */
+export function fieldText(variant: 'default' | 'borderless' = 'default') {
+  return variant === 'borderless' ? 'text-subtle' : 'text-ink-2'
+}
 
 /**
  * `:placeholder-shown` only matches inputs that have a placeholder, so fields default it to a

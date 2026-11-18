@@ -73,6 +73,22 @@ describe('PhoneInput', () => {
     expect(screen.getByTestId('phone-input')).toHaveClass('border-border', 'focus-within:border-ink-2', 'px-4')
   })
 
+  it('styles the borderless variant like the Settings fields (ink-2 label, 12px gap, subtle text)', () => {
+    render(<PhoneInput label="Phone" variant="borderless" />)
+    expect(screen.getByText('Phone', { selector: 'label' })).toHaveClass('text-ink-2', 'mb-3')
+    for (const input of [screen.getByLabelText('Phone'), screen.getByLabelText('Phone number')]) {
+      expect(input).toHaveClass('text-subtle')
+    }
+    expect(screen.getByText('|')).toHaveClass('text-subtle')
+    expect(screen.getByLabelText('Phone')).toHaveClass('w-10')
+  })
+
+  it('keeps the default variant label and text in ink tones', () => {
+    render(<PhoneInput label="Phone" />)
+    expect(screen.getByText('Phone', { selector: 'label' })).toHaveClass('text-ink', 'mb-2')
+    expect(screen.getByLabelText('Phone')).toHaveClass('text-ink-2')
+  })
+
   it('uses a caller id for the code input', () => {
     render(<PhoneInput label="Phone" codeProps={{ id: 'phone' }} error="Required" />)
     const code = screen.getByLabelText('Phone')

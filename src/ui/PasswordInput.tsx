@@ -1,6 +1,6 @@
 import { useState, type ComponentPropsWithRef } from 'react'
 import { Field } from './Field.tsx'
-import { emptyPlaceholder, fieldBase, fieldBorder } from './fieldStyles.ts'
+import { emptyPlaceholder, fieldBase, fieldBorder, fieldText } from './fieldStyles.ts'
 import { icons } from './icons.ts'
 
 export type PasswordInputProps = Omit<ComponentPropsWithRef<'input'>, 'className' | 'type'> & {
@@ -20,7 +20,7 @@ export function PasswordInput({ label, error, id, placeholder, ...rest }: Passwo
             {...rest}
             {...control}
             type={visible ? 'text' : 'password'}
-            className={`${fieldBase} h-12 pr-14 pl-4 ${fieldBorder(Boolean(error))}`}
+            className={`${fieldBase} ${fieldText()} h-12 pr-14 pl-4 ${fieldBorder(Boolean(error))}`}
           />
           <button
             type="button"

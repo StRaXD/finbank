@@ -49,10 +49,10 @@ export function SettingsPage() {
 
   return (
     <Card>
-      {/* Card's 24px padding plus 8px: the design's 32px inset. */}
-      <div className="p-2">
-        <Tabs tabs={tabs} value={tab} onChange={selectTab} label="Settings" panelId={panelId} />
-        <div role="tabpanel" id={panelId} aria-label={label} className="mt-11">
+      {/* Card's 24px padding plus this: the design's 32px sides, 40px top and 48px bottom (111). */}
+      <div className="px-2 pt-4 pb-6">
+        <Tabs tabs={tabs} value={tab} onChange={selectTab} label="Settings" panelId={panelId} size="lg" />
+        <div role="tabpanel" id={panelId} aria-label={label} className="mt-8">
           {tab === 'account' ? (
             <AccountPanel />
           ) : (
