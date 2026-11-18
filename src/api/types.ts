@@ -201,6 +201,15 @@ export type SavingsGoalAmounts = {
 }
 
 /**
+ * One expense category's stored monthly spending limit, in integer cents. Not compared with actual
+ * spending: there is no over-limit state.
+ */
+export type CategoryLimit = {
+  category: ExpenseCategoryId
+  limitCents: number
+}
+
+/**
  * One day of the Saving Summary chart, derived by the adapter from the stored savings goals: the
  * selected month's day `date`, that month's share of `achievedCents` for the day, and the previous
  * month's share for the same day of the month. Components display these numbers as given.

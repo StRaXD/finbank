@@ -14,6 +14,7 @@ import { useAccounts } from './useAccounts.ts'
 import { useApi } from './useApi.ts'
 import { useBalanceSummary } from './useBalanceSummary.ts'
 import { useBills } from './useBills.ts'
+import { useCategoryLimits } from './useCategoryLimits.ts'
 import { useCategorySummaries } from './useCategorySummaries.ts'
 import { useComparison } from './useComparison.ts'
 import { useLogin } from './useLogin.ts'
@@ -24,6 +25,7 @@ import { useRemoveAccount } from './useRemoveAccount.ts'
 import { useRequestPasswordReset } from './useRequestPasswordReset.ts'
 import { useSavingSummary } from './useSavingSummary.ts'
 import { useSavingsGoal } from './useSavingsGoal.ts'
+import { useUpdateCategoryLimit } from './useUpdateCategoryLimit.ts'
 import { useUpdateSavingsGoal } from './useUpdateSavingsGoal.ts'
 import { useSession } from './useSession.ts'
 import { useSignup } from './useSignup.ts'
@@ -174,6 +176,18 @@ describe('query hooks', () => {
     expect(total()).toBe(1_250_000)
     await act(() => result.current.update.mutateAsync({ month: may, targetCents: 1, achievedCents: 400_000 }))
     await waitFor(() => expect(total()).toBe(400_000))
+  })
+
+  it('useCategoryLimits lists the six limits and refetches after useUpdateCategoryLimit', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => ({ limits: useCategoryLimits(), update: useUpdateCategoryLimit() }), { wrapper })
+    await waitFor(() => expect(result.current.limits.data).toHaveLength(6))
+    expect(queryClient.getQueryData(qk.categoryLimits())).toEqual(result.current.limits.data)
+    await act(() => result.current.update.mutateAsync({ category: 'food', limitCents: 65_000 }))
+    // The mutation resolves only after the active query has refetched.
+    const cached = queryClient.getQueryData<{ category: string; limitCents: number }[]>(qk.categoryLimits())
+    expect(cached?.[1]).toEqual({ category: 'food', limitCents: 65_000 })
+    await waitFor(() => expect(result.current.limits.data?.[1]).toEqual({ category: 'food', limitCents: 65_000 }))
   })
 
   it('useSession is null when signed out', async () => {

@@ -22,6 +22,8 @@ function createFakeApi(overrides: Partial<FinbankApi> = {}) {
       Promise.resolve(structuredClone(store[month] ?? { month, targetCents: 0, achievedCents: 0 })),
     updateSavingsGoal,
     getSavingSummary: () => Promise.resolve([]),
+    // GoalsPage also renders the category limits grid (Story 4.4); it is not under test here.
+    listCategoryLimits: () => Promise.resolve([]),
     ...overrides,
   } as FinbankApi
   return { api, store, updateSavingsGoal }

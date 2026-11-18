@@ -32,9 +32,9 @@ export function Button({
   return (
     <button type={type} {...rest} className={className}>
       {variant === 'google' && <img src={googleLogo} alt="" width={24} height={24} data-testid="google-logo" />}
-      {LeadingIcon && <LeadingIcon aria-hidden="true" data-icon={leadingIcon} size={iconSize} />}
+      {LeadingIcon && <LeadingIcon aria-hidden="true" data-icon={leadingIcon} size={iconSize} className="shrink-0" />}
       {children}
-      {TrailingIcon && <TrailingIcon aria-hidden="true" data-icon={trailingIcon} size={iconSize} />}
+      {TrailingIcon && <TrailingIcon aria-hidden="true" data-icon={trailingIcon} size={iconSize} className="shrink-0" />}
     </button>
   )
 }

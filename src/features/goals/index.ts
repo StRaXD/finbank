@@ -2,3 +2,4 @@
 export { GoalsPage } from './GoalsPage.tsx'
 export { SavingsGoalCard } from './components/SavingsGoalCard.tsx'
 export { AdjustSavingsGoalModal } from './components/AdjustSavingsGoalModal.tsx'
+export { AdjustCategoryLimitModal } from './components/AdjustCategoryLimitModal.tsx'

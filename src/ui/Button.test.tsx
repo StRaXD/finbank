@@ -103,6 +103,8 @@ describe('Button', () => {
     const details = screen.getByRole('button', { name: 'Details' })
     const icons = [...details.querySelectorAll('[data-icon]')].map((el) => el.getAttribute('data-icon'))
     expect(icons).toEqual(['check', 'chevronRight'])
+    // Icons keep their size when the label crowds a fixed-width slot (the 99px category "Adjust").
+    for (const icon of container.querySelectorAll('[data-icon]')) expect(icon).toHaveClass('shrink-0')
   })
 
   it('is focusable, and not when disabled', () => {

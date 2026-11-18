@@ -41,6 +41,8 @@ export const qk = {
   /** Without a month: the prefix of every month's saving summary series. */
   savingSummary: (month?: YearMonth) =>
     month === undefined ? ([...root, 'savingSummary'] as const) : ([...root, 'savingSummary', month] as const),
+  /** The six category spending limits. */
+  categoryLimits: () => [...root, 'categoryLimits'] as const,
 }
 
 /** `'all'` clears the whole cache; otherwise the listed key prefixes are invalidated. */
@@ -54,6 +56,7 @@ export const invalidationMap = {
   logout: 'all',
   removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions(), qk.categorySummaries(), qk.comparison()],
   updateSavingsGoal: [qk.savingsGoal(), qk.savingSummary()],
+  updateCategoryLimit: [qk.categoryLimits()],
 } as const satisfies Record<string, InvalidationTarget>
 
 export type InvalidatingMutation = keyof typeof invalidationMap

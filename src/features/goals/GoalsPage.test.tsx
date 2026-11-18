@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it, vi } from 'vitest'
 import { ApiProvider } from '../../api/ApiProvider.tsx'
 import type { FinbankApi } from '../../api/port.ts'
-import { ApiError, type IsoDate, type SavingSummaryPoint, type SavingsGoal, type YearMonth } from '../../api/types.ts'
+import { ApiError, type CategoryLimit, type IsoDate, type SavingSummaryPoint, type SavingsGoal, type YearMonth } from '../../api/types.ts'
 import { GoalsPage } from './GoalsPage.tsx'
 
 const goals: Record<string, SavingsGoal> = {
@@ -21,6 +21,15 @@ const summaryFixture: FinbankApi['getSavingSummary'] = (month) =>
     { date: `${month}-05` as IsoDate, currentCents: null, previousCents: 6_000 },
   ])
 
+const limitsFixture: CategoryLimit[] = [
+  { category: 'housing', limitCents: 100_000 },
+  { category: 'food', limitCents: 50_000 },
+  { category: 'transportation', limitCents: 30_000 },
+  { category: 'entertainment', limitCents: 25_000 },
+  { category: 'shopping', limitCents: 40_000 },
+  { category: 'others', limitCents: 20_000 },
+]
+
 function renderWith(
   getSavingsGoal: FinbankApi['getSavingsGoal'] = fromFixture,
   getSavingSummary: FinbankApi['getSavingSummary'] = summaryFixture,
@@ -29,6 +38,7 @@ function renderWith(
     getToday: () => Promise.resolve('2023-05-19' as IsoDate),
     getSavingsGoal,
     getSavingSummary,
+    listCategoryLimits: () => Promise.resolve(structuredClone(limitsFixture)),
   } as FinbankApi
   return renderApi(api)
 }
@@ -193,6 +203,57 @@ describe('GoalsPage', () => {
     fail = false
     fireEvent.click(within(card()).getByRole('button', { name: 'Retry' }))
     expect(await screen.findByText('$12,500')).toBeInTheDocument()
+  })
+
+  it('shows "Expenses Goals by Category" with six limit cards in fixed order, exact style, outlined Adjust', async () => {
+    renderWith()
+    const heading = screen.getByRole('heading', { level: 2, name: 'Expenses Goals by Category' })
+    expect(heading).toHaveClass('text-22', 'font-normal', 'text-subtle')
+    await waitFor(() => expect(screen.getAllByTestId('category-limit-card')).toHaveLength(6))
+    const grid = screen.getByTestId('category-limit-grid')
+    expect(grid).toHaveClass('grid-cols-3', 'gap-x-6', 'gap-y-4')
+    const cards = screen.getAllByTestId('category-limit-card')
+    expect(cards.map((el) => el.querySelector('h3')?.textContent)).toEqual([
+      'Housing',
+      'Food',
+      'Transportation',
+      'Entertainment',
+      'Shopping',
+      'Others',
+    ])
+    expect(cards.map((el) => within(el).getByText(/^\$/).textContent)).toEqual([
+      '$1,000.00',
+      '$500.00',
+      '$300.00',
+      '$250.00',
+      '$400.00',
+      '$200.00',
+    ])
+    const housing = within(screen.getByRole('article', { name: 'Housing' }))
+    const adjust = housing.getByRole('button', { name: 'Adjust Housing limit' })
+    expect(adjust).toHaveTextContent('Adjust')
+    expect(adjust).toHaveClass('border-primary', 'text-primary', 'h-9', 'text-14')
+    expect(adjust.querySelector('[data-icon="pencil"]')).not.toBeNull()
+    expect(housing.getByTestId('category-icon')).toHaveClass('h-12', 'w-10')
+    // No over-limit state: nothing but the icon, name, limit and Adjust.
+    expect(cards[0]!.textContent).toBe('Housing$1,000.00Adjust')
+  })
+
+  it('shows the inline error with a working Retry when the category limits fail', async () => {
+    let fail = true
+    const api = {
+      getToday: () => Promise.resolve('2023-05-19' as IsoDate),
+      getSavingsGoal: fromFixture,
+      getSavingSummary: summaryFixture,
+      listCategoryLimits: () =>
+        fail ? Promise.reject(new ApiError('UNKNOWN', 'Could not load the limits.')) : Promise.resolve(limitsFixture),
+    } as FinbankApi
+    renderApi(api)
+    const section = () => screen.getByRole('region', { name: 'Expenses Goals by Category' })
+    expect(await within(section()).findByRole('alert')).toHaveTextContent('Could not load the limits.')
+    fail = false
+    fireEvent.click(within(section()).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(screen.getAllByTestId('category-limit-card')).toHaveLength(6))
   })
 
   it('shows a skeleton while the goal loads', async () => {

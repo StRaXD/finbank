@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FinbankApi } from '../port.ts'
-import { ApiError, type IsoDate, type ListTransactionsInput, type SavingsGoal, type Transaction, type YearMonth } from '../types.ts'
+import { ApiError, type ExpenseCategoryId, type IsoDate, type ListTransactionsInput, type SavingsGoal, type Transaction, type YearMonth } from '../types.ts'
 import {
   createMemoryStorage,
   createMockApi,
@@ -47,6 +47,7 @@ const seedJson = () => ({
   transactions: seed.transactions,
   bills: seed.bills,
   savingsGoals: seed.savingsGoals,
+  categoryLimits: seed.categoryLimits,
 })
 
 beforeEach(() => {
@@ -96,6 +97,7 @@ describe('persistence', () => {
       transactions: seed.transactions.filter((t) => t.accountId === 'acc_3'),
       bills: [seed.bills[1]],
       savingsGoals: [{ month: '2024-02', targetCents: 50_000, achievedCents: 60_000 }],
+      categoryLimits: seed.categoryLimits.map((limit) => ({ ...limit, limitCents: limit.limitCents + 1 })),
     }
     localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(custom))
     const api = make()
@@ -106,6 +108,7 @@ describe('persistence', () => {
       totalBalanceCents: seed.accounts[2]!.balanceCents,
     })
     await expect(api.getSavingsGoal('2024-02' as YearMonth)).resolves.toEqual(custom.savingsGoals[0])
+    await expect(api.listCategoryLimits()).resolves.toEqual(custom.categoryLimits)
     expect(stored()).toEqual(custom)
   })
 
@@ -1231,6 +1234,149 @@ describe('updateSavingsGoal', () => {
     expect(error.code).toBe('STORAGE_FULL')
     expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
     await expect(api.getSavingsGoal(ym('2023-05'))).resolves.toMatchObject({ targetCents: 2_000_000 })
+  })
+})
+
+describe('listCategoryLimits', () => {
+  const withLimits = (categoryLimits: unknown) =>
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), categoryLimits }))
+  const seeded = [
+    { category: 'housing', limitCents: 100_000 },
+    { category: 'food', limitCents: 50_000 },
+    { category: 'transportation', limitCents: 30_000 },
+    { category: 'entertainment', limitCents: 25_000 },
+    { category: 'shopping', limitCents: 40_000 },
+    { category: 'others', limitCents: 20_000 },
+  ]
+
+  it('lists the six seeded limits in the fixed category order', async () => {
+    expect(seed.categoryLimits).toEqual(seeded)
+    await expect(make().listCategoryLimits()).resolves.toEqual(seeded)
+  })
+
+  it('hands out copies, so callers cannot mutate adapter state', async () => {
+    const api = make()
+    const first = await api.listCategoryLimits()
+    first[0]!.limitCents = 1
+    first.pop()
+    await expect(api.listCategoryLimits()).resolves.toEqual(seeded)
+  })
+
+  it('backfills a stored state without limits from the seed and writes it back', async () => {
+    const old: Record<string, unknown> = seedJson()
+    delete old.categoryLimits
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(old))
+    await expect(make().listCategoryLimits()).resolves.toEqual(seeded)
+    expect(stored().categoryLimits).toEqual(seeded)
+  })
+
+  it.each([
+    ['a string', 'x'],
+    ['an object', { housing: 1 }],
+    ['null', null],
+    ['a number', 5],
+  ])('replaces limits stored as %s with the seed', async (_name, value) => {
+    withLimits(value)
+    await expect(make().listCategoryLimits()).resolves.toEqual(seeded)
+    expect(stored().categoryLimits).toEqual(seeded)
+  })
+
+  it('keeps valid entries, drops bad and repeated ones, restores the fixed order and seeds missing categories', async () => {
+    withLimits([
+      { category: 'others', limitCents: 7 },
+      null,
+      'x',
+      { category: 'unknown', limitCents: 1 },
+      { category: 'food', limitCents: -1 },
+      { category: 'food', limitCents: 1.5 },
+      { category: 'food', limitCents: '100' },
+      { category: 'shopping', limitCents: Number.MAX_SAFE_INTEGER + 1 },
+      { category: 'housing', limitCents: 0 },
+      { category: 'housing', limitCents: 999 },
+      { limitCents: 5 },
+    ])
+    const expected = [
+      { category: 'housing', limitCents: 0 },
+      { category: 'food', limitCents: 50_000 },
+      { category: 'transportation', limitCents: 30_000 },
+      { category: 'entertainment', limitCents: 25_000 },
+      { category: 'shopping', limitCents: 40_000 },
+      { category: 'others', limitCents: 7 },
+    ]
+    await expect(make().listCategoryLimits()).resolves.toEqual(expected)
+    expect(stored().categoryLimits).toEqual(expected)
+  })
+
+  it('writes an empty array back as the six seed limits', async () => {
+    withLimits([])
+    await expect(make().listCategoryLimits()).resolves.toEqual(seeded)
+    expect(stored().categoryLimits).toEqual(seeded)
+  })
+
+  it('does not rewrite clean stored limits on load', async () => {
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(seedJson()))
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await make().listCategoryLimits()
+    expect(setItem).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateCategoryLimit', () => {
+  it('changes only that category, returns a copy and persists it for a fresh adapter', async () => {
+    const api = make()
+    const saved = await api.updateCategoryLimit('food', 65_000)
+    expect(saved).toEqual({ category: 'food', limitCents: 65_000 })
+    saved.limitCents = 1
+    const expected = seed.categoryLimits.map((limit) =>
+      limit.category === 'food' ? { category: 'food', limitCents: 65_000 } : limit,
+    )
+    await expect(api.listCategoryLimits()).resolves.toEqual(expected)
+    await expect(make().listCategoryLimits()).resolves.toEqual(expected)
+    expect(stored().categoryLimits).toEqual(expected)
+  })
+
+  it('accepts a zero limit', async () => {
+    await expect(make().updateCategoryLimit('others', 0)).resolves.toEqual({ category: 'others', limitCents: 0 })
+  })
+
+  it.each([
+    ['negative', -1],
+    ['non-integer', 1.5],
+    ['unsafe', Number.MAX_SAFE_INTEGER + 1],
+    ['NaN', Number.NaN],
+    ['a string', '100'],
+  ])('rejects %s cents with VALIDATION and fieldErrors.limitCents, and does not write', async (_name, bad) => {
+    const api = make()
+    await api.getToday()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const error = await rejection(api.updateCategoryLimit('food', bad as number))
+    expect(error.code).toBe('VALIDATION')
+    expect(Object.keys(error.fieldErrors ?? {})).toEqual(['limitCents'])
+    expect(setItem).not.toHaveBeenCalled()
+  })
+
+  it.each(['unknown', '', 'Food'])('rejects the category %j with VALIDATION and does not write', async (category) => {
+    const api = make()
+    await api.getToday()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const error = await rejection(api.updateCategoryLimit(category as ExpenseCategoryId, 100))
+    expect(error.code).toBe('VALIDATION')
+    expect(error.fieldErrors?.limitCents).toBeUndefined()
+    expect(setItem).not.toHaveBeenCalled()
+  })
+
+  it('rejects on a failed write and leaves memory and storage unchanged', async () => {
+    const api = make()
+    await api.getToday()
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError')
+    })
+    const error = await rejection(api.updateCategoryLimit('food', 1))
+    setItem.mockRestore()
+    expect(error.code).toBe('STORAGE_FULL')
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+    await expect(api.listCategoryLimits()).resolves.toEqual(seed.categoryLimits)
   })
 })
 

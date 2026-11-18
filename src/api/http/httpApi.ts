@@ -36,5 +36,7 @@ export function createHttpApi(options: HttpApiOptions = {}): FinbankApi {
     getSavingsGoal: notImplemented('getSavingsGoal'),
     updateSavingsGoal: notImplemented('updateSavingsGoal'),
     getSavingSummary: notImplemented('getSavingSummary'),
+    listCategoryLimits: notImplemented('listCategoryLimits'),
+    updateCategoryLimit: notImplemented('updateCategoryLimit'),
   }
 }

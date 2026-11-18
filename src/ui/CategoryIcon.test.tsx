@@ -32,4 +32,11 @@ describe('CategoryIcon', () => {
     expect(tile).toHaveClass('size-10', 'bg-surface', 'text-subtle')
     expect(tile).not.toHaveClass('bg-category-tile')
   })
+
+  it('renders the limit tone as a 40x48 surface tile with an ink-2 glyph', () => {
+    render(<CategoryIcon category="food" tone="limit" />)
+    const tile = screen.getByTestId('category-icon')
+    expect(tile).toHaveClass('h-12', 'w-10', 'bg-surface', 'text-ink-2')
+    expect(tile).not.toHaveClass('size-10')
+  })
 })

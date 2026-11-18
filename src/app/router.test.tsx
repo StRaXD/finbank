@@ -103,6 +103,31 @@ describe('routing and session guard', () => {
     })
   })
 
+  it('adjusts the Food limit on the real adapter: only the Food card changes and the limit persists', async () => {
+    renderAt(routes.goals, await signedInApi())
+    await waitFor(() => expect(screen.getAllByTestId('category-limit-card')).toHaveLength(6))
+    const limits = () =>
+      screen.getAllByTestId('category-limit-card').map((el) => within(el).getByText(/^\$/).textContent)
+    expect(limits()).toEqual(['$1,000.00', '$500.00', '$300.00', '$250.00', '$400.00', '$200.00'])
+    fireEvent.click(screen.getByRole('button', { name: 'Adjust Food limit' }))
+    const dialog = screen.getByRole('dialog', { name: 'Adjust Food limit' })
+    const target = within(dialog).getByLabelText('Target Amounts')
+    expect(target).toHaveValue('$500.00')
+    fireEvent.change(target, { target: { value: '$650' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    // Already updated when the dialog disappears.
+    expect(limits()).toEqual(['$1,000.00', '$650.00', '$300.00', '$250.00', '$400.00', '$200.00'])
+    await expect(createTestApi().listCategoryLimits()).resolves.toEqual([
+      { category: 'housing', limitCents: 100_000 },
+      { category: 'food', limitCents: 65_000 },
+      { category: 'transportation', limitCents: 30_000 },
+      { category: 'entertainment', limitCents: 25_000 },
+      { category: 'shopping', limitCents: 40_000 },
+      { category: 'others', limitCents: 20_000 },
+    ])
+  })
+
   it('shows the same category totals and % changes on the Overview tiles as on the Expenses cards', async () => {
     const api = await signedInApi()
     const expected = await api.listCategorySummaries()

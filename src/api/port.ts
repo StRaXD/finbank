@@ -2,9 +2,11 @@ import type {
   Account,
   BalanceSummary,
   Bill,
+  CategoryLimit,
   CategorySummary,
   ComparisonGranularity,
   ComparisonPoint,
+  ExpenseCategoryId,
   GoogleLoginInput,
   IsoDate,
   ListBillsInput,
@@ -86,6 +88,19 @@ export interface FinbankApi {
    * zeros. A malformed month rejects with `VALIDATION`.
    */
   getSavingSummary(month: YearMonth): Promise<SavingSummaryPoint[]>
+  /**
+   * The six category spending limits (copies), always in the fixed category order Housing, Food,
+   * Transportation, Entertainment, Shopping, Others.
+   */
+  listCategoryLimits(): Promise<CategoryLimit[]>
+  /**
+   * Stores `category`'s limit, persists it and resolves with a copy. Only that category changes.
+   * An unknown category rejects with `VALIDATION`; `limitCents` must be non-negative safe integer
+   * cents, otherwise it rejects with `VALIDATION` and `fieldErrors.limitCents`. A failed write
+   * rejects with `STORAGE_FULL` when storage is full (`UNKNOWN` for any other write failure) and
+   * leaves the stored limits unchanged.
+   */
+  updateCategoryLimit(category: ExpenseCategoryId, limitCents: number): Promise<CategoryLimit>
 }
 
 /** Every port method name, for tests that must cover the whole port. */
@@ -109,6 +124,8 @@ export const FINBANK_API_METHODS = [
   'getSavingsGoal',
   'updateSavingsGoal',
   'getSavingSummary',
+  'listCategoryLimits',
+  'updateCategoryLimit',
 ] as const satisfies readonly (keyof FinbankApi)[]
 
 // Compile-time guard: adding a port method without listing it above fails `tsc`.

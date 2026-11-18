@@ -20,6 +20,7 @@ import {
   type BillingCycle,
   type BillLogo,
   type CardNetwork,
+  type CategoryLimit,
   type CategorySummary,
   type ComparisonGranularity,
   type ComparisonPoint,
@@ -520,6 +521,29 @@ function normalizeSavingsGoals(value: unknown, fallback: SavingsGoal[]): Savings
   return goals
 }
 
+/**
+ * Exactly one limit per category, in `EXPENSE_CATEGORIES` order. A non-array value is replaced by
+ * the seed limits. Within an array, the first valid entry of each category wins; invalid entries,
+ * unknown categories and repeats are dropped, and a category without a valid entry falls back to
+ * its seed limit.
+ */
+function normalizeCategoryLimits(value: unknown, fallback: CategoryLimit[]): CategoryLimit[] {
+  if (!Array.isArray(value)) return fallback
+  const found = new Map<ExpenseCategoryId, number>()
+  for (const entry of value) {
+    if (!isPlainObject(entry)) continue
+    const { category, limitCents } = entry
+    if (!EXPENSE_CATEGORIES.includes(category as ExpenseCategoryId) || !isCents(limitCents)) continue
+    if (!found.has(category as ExpenseCategoryId)) found.set(category as ExpenseCategoryId, limitCents)
+  }
+  return EXPENSE_CATEGORIES.map((category) => ({
+    // Same key order as the seed, so a clean stored entry round-trips byte for byte.
+    category,
+    limitCents:
+      found.get(category) ?? fallback.find((limit) => limit.category === category)?.limitCents ?? 0,
+  }))
+}
+
 /** Every day of `month`, day 1 first. */
 function daysOf(month: YearMonth): IsoDate[] {
   const { start, end } = monthRange(month)
@@ -639,6 +663,7 @@ function loadState(storage: StorageLike): { state: MockState; dirty: boolean } {
   state.transactions = normalizeTransactions(state.transactions, seeded.transactions, state.accounts as Account[])
   state.bills = normalizeBills(state.bills, seeded.bills)
   state.savingsGoals = normalizeSavingsGoals(state.savingsGoals, seeded.savingsGoals)
+  state.categoryLimits = normalizeCategoryLimits(state.categoryLimits, seeded.categoryLimits)
   return { state: state as MockState, dirty: JSON.stringify(state) !== JSON.stringify(parsed) }
 }
 
@@ -846,6 +871,28 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
         if (!valid) throw new ApiError('VALIDATION', 'The month is not valid.')
         const { savingsGoals, today } = state()
         return savingSummarySeries(savingsGoals, today, valid)
+      }),
+
+    listCategoryLimits: () => call((): CategoryLimit[] => structuredClone(state().categoryLimits)),
+
+    updateCategoryLimit: (category: ExpenseCategoryId, limitCents: number) =>
+      call((): CategoryLimit => {
+        if (!EXPENSE_CATEGORIES.includes(category)) {
+          throw new ApiError('VALIDATION', 'The category is not valid.')
+        }
+        const errors: FieldErrors = {}
+        if (!isCents(limitCents)) errors.limitCents = 'Enter a limit of zero or more.'
+        throwIfInvalid(errors)
+        const limit: CategoryLimit = { category, limitCents }
+        const prev = state()
+        const next: MockState = {
+          ...prev,
+          categoryLimits: prev.categoryLimits.map((candidate) => (candidate.category === category ? limit : candidate)),
+        }
+        // Write first: a failed write leaves both memory and storage unchanged.
+        writeItem(storage, MOCK_STORAGE_KEY, JSON.stringify(next))
+        current = next
+        return structuredClone(limit)
       }),
   }
 }

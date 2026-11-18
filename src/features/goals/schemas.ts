@@ -26,3 +26,11 @@ export const savingsGoalSchema = z.object({
 
 export type SavingsGoalFormInput = z.input<typeof savingsGoalSchema>
 export type SavingsGoalFormValues = z.output<typeof savingsGoalSchema>
+
+/** The Adjust category limit form: one "Target Amounts" field, the category's monthly limit. */
+export const categoryLimitSchema = z.object({
+  target: money,
+})
+
+export type CategoryLimitFormInput = z.input<typeof categoryLimitSchema>
+export type CategoryLimitFormValues = z.output<typeof categoryLimitSchema>
