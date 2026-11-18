@@ -65,9 +65,11 @@ This document breaks the Finbank frontend down into epics and stories. It draws 
 - FR16: The account card grid shows type, bank, network logo, masked number and total.
   - Each card has "Remove" and "Details >", which goes to Account Details.
   - The last card has "Add Accounts" and "Edit Accounts", both inert.
+  - *Superseded by FR36 and FR37 (Epic 6).*
 - FR17: Remove account. It asks for confirmation, then removes the account from the mock data. Removing from Account Details returns to Balances.
 - FR18: Account Details shows Bank Name, Account Type, Balance, Branch Name and Account Number.
   - "Edit Details" is inert. "Remove" works.
+  - *Superseded by FR37 (Epic 6).*
   - The Transactions History table has Date, Status, Type, Receipt and Amount columns, for this account only.
   - "Load More" adds 10 rows.
 
@@ -149,6 +151,20 @@ This document breaks the Finbank frontend down into epics and stories. It draws 
   - Loading shows a skeleton.
   - A form error shows as inline text in #E73D1C.
   - Success shows a short inline confirmation.
+
+**Account management (Epic 6, added 2026-11-18)** [no design; 110.2 modal pattern]
+- FR36: Add account. A shared modal with these fields:
+  - Account Type, Bank Name, Branch Name, Card Network (Visa/Mastercard; Credit Card and Checking only), Account Number and Balance.
+  - All required; the number is 8–19 digits and unique; the balance is at least 0.
+  - The account is persisted and appears last on Balances, in the Overview carousel and total, and in Account Details, with no reload.
+  - New accounts have no transactions.
+  - Visa and Mastercard use their logos; any other or missing network uses a neutral fallback, never a wrong logo.
+- FR37: Edit account, from the Balances edit mode ("Edit Accounts" / "Done") or from Account Details ("Edit Details").
+  - The type is immutable after creation.
+  - The number stays unique.
+  - The id, transactions and links are preserved.
+  - The balance is a stored value; editing it updates Balances, Account Details and the Overview total immediately, without touching transactions.
+- FR38: Undesigned controls (the bell, search, user menu and terms link) are visibly and accessibly unavailable: `aria-disabled`, no hover, and a "Coming soon" tooltip.
 
 ### NonFunctional Requirements
 
@@ -305,6 +321,7 @@ These come from the Figma `design-reference/` frames, the component sheets, `Typ
 - **Epic 3:** FR14 Statistics chart, FR15 Expenses Breakdown tiles, FR21 Expenses comparison chart, FR22 Expenses category cards
 - **Epic 4:** FR11 Goals widget, FR23 Savings Goal card, FR24 Saving Summary chart, FR25 Adjust Savings Goal modal, FR26 Category limits grid, FR27 Adjust Category Limit modal, FR28 Money input validation
 - **Epic 5:** FR29 Settings tabs, FR30 Update profile, FR31 Profile picture, FR32 Change password
+- **Epic 6:** FR36 Add account, FR37 Edit account (supersede the inert parts of FR16 and FR18), FR38 Unavailable controls
 - **Set up in Epic 1, then applied in Epics 2–5:**
   - FR33 Consistent mock dataset
   - FR34 Formatting
@@ -334,6 +351,10 @@ Users can set and track their savings goal and their monthly category spending l
 ### Epic 5: Profile and security settings
 Users can update their profile and photo and change their password. Changes show in the sidebar and greeting right away.
 **FRs covered:** FR29–FR32. **Also covers:** UX-DR20.
+
+### Epic 6: Account Management & UX Completion (added 2026-11-18)
+Users can add and edit accounts, and every screen that shows account data stays consistent. Controls whose flows are still undesigned clearly say they are coming soon.
+**FRs covered:** FR36–FR38 (superseding the inert parts of FR16 and FR18). Builds on Epics 1, 2 and 5.
 
 ## Epic 1: Foundation: design system, app shell and sign-in
 
@@ -734,6 +755,7 @@ So that I know what accounts I have and how much is in each.
 **Given** the grid
 **When** it renders
 **Then** the last card holds the primary "Add Accounts" button and the "Edit Accounts" text link. Both are inert.
+*Superseded by Epic 6 (2026-11-18): Story 6.1 wires Add Accounts and Story 6.2 wires Edit Accounts. The original criterion is kept for traceability.*
 
 **Given** the user clicks "Details >"
 **When** the route changes
@@ -827,6 +849,7 @@ So that I can check what happened in that account.
 **And** the details match that account's card on Balances (FR18).
 **And** the Balances nav item is active.
 **And** the "Edit Details" primary button is inert.
+*Superseded by Epic 6 (2026-11-18): Story 6.3 wires Edit Details. The original criterion is kept for traceability.*
 
 **Given** the account has transactions
 **When** the page loads
@@ -1373,3 +1396,117 @@ So that my account stays secure.
 **And** the tab matches the design (NFR-1).
 
 *Decided in implementation (2026-11-18):* the mock does not check Old Password against a stored credential, because mock login and signup store none. No password is stored or logged, and the session is kept. The eye toggle stays on the three fields, an accepted deviation from 112.
+
+## Epic 6: Account Management & UX Completion
+
+Users can add accounts and edit existing ones, and every screen that shows account data (Balances, Overview, Account Details, Transactions, Expenses) stays consistent. Controls whose flows are still undesigned clearly say they are coming soon. Added by the Sprint Change Proposal of 2026-11-18.
+
+**FRs covered:** FR36–FR38 (superseding the inert parts of FR16 and FR18). **Builds on:** Epics 1, 2 and 5. **Order:** 6.1 → 6.2 / 6.3; 6.4 is independent.
+
+### Story 6.1: Add Accounts
+
+As a user,
+I want to add a bank account,
+So that all my accounts are tracked in Finbank.
+
+**Acceptance Criteria:**
+
+**Given** Balances
+**When** the user activates "Add Accounts"
+**Then** the "Add account" modal opens. It follows the 110.2 pattern: X close, bordered labelled inputs and a centred 192px Save.
+**And** it has these fields:
+- Account Type (Dropdown: Credit Card, Checking, Savings, Investment, Loan)
+- Bank Name
+- Branch Name
+- Card Network (Visa / Mastercard, shown only for Credit Card and Checking)
+- Account Number
+- Balance (`MoneyInput`, labelled "Amount owed" for Credit Card and Loan)
+
+**Given** an empty required field, an account number that is not 8–19 digits or that duplicates an existing account, or a missing network for Credit Card or Checking
+**When** Save is pressed
+**Then** an inline error shows on that field and nothing is saved (FR36).
+
+**Given** valid input
+**When** Save is pressed
+**Then** `createAccount` validates and persists the account in the mock adapter (write first to `finbank:mock:v1`, then commit) with the next free id `acc_<n>`.
+**And** the modal closes once the account list has refetched.
+**And** without a reload, the new card appears last on Balances (before the action card), in the Overview carousel and Total Balance (signed by type, AD-5), and in Account Details with the empty transaction state.
+**And** Transactions and Expenses are unchanged.
+**And** the account survives a reload and a logout followed by a login.
+
+**Given** a full store
+**When** Save is pressed
+**Then** `STORAGE_FULL` shows inline, the modal stays open with the values kept, and nothing changes.
+
+**And** a card shows the Visa or Mastercard logo only for that network; any other or missing network shows a neutral fallback, never a wrong logo.
+**And** X, Esc and an overlay click discard the form, and are ignored while saving. A second Save is dropped. Focus stays inside the modal while saving.
+**And** groundwork: the Goals modal shell and the `fieldErrors` → `setError` mapping move into one shared, tested `ui` form-modal primitive. Both Goals modals and the Account modal use it. Goals behaviour and pixels are unchanged.
+**And** the port gains `createAccount(input)` and `updateAccount(id, input)` (mock implemented; http `notImplemented`). `invalidationMap` gains both → `accounts`, `balanceSummary`.
+**And** tests cover the mock (validation, uniqueness, id, persistence across a fresh adapter, `STORAGE_FULL`), the form rules, the logo fallback, and a full-app add flow across Balances, Overview, Account Details and a reload.
+**And** the modal matches the 110.2 pattern at 1440×1024 (NFR-1).
+
+### Story 6.2: Edit Accounts
+
+As a user,
+I want to edit my accounts from Balances,
+So that I can keep their details correct.
+
+**Acceptance Criteria:**
+
+**Given** Balances
+**When** the user activates "Edit Accounts"
+**Then** the grid enters edit mode. The link reads "Done" (`aria-pressed`), and each account card shows an outline "Edit" button with a pencil.
+**And** Remove and Details stay available.
+
+**Given** edit mode
+**When** "Edit" is activated on a card
+**Then** the shared modal opens as "Edit account", prefilled, with the account type read-only.
+**And** bank, branch, network (Credit Card and Checking), account number and balance are editable under the FR36 rules. The number stays unique across the other accounts.
+
+**Given** valid changes
+**When** Save is pressed
+**Then** `updateAccount` persists them, keeping the account id, its transactions and their links.
+**And** the card, the Overview carousel and total, and Account Details update without a reload.
+**And** a balance edit changes no transaction, Transactions and Expenses are unchanged, and the change survives a reload.
+
+**And** "Done", leaving Balances, or a reload ends edit mode.
+**And** errors, `STORAGE_FULL` and modal behaviour work as in 6.1.
+
+### Story 6.3: Edit Account Details
+
+As a user,
+I want to edit an account from its details page,
+So that I can fix it where I see it.
+
+**Acceptance Criteria:**
+
+**Given** `/balances/:accountId`
+**When** "Edit Details" is activated
+**Then** the same "Edit account" modal opens, prefilled, with the type read-only.
+
+**Given** valid changes
+**When** Save is pressed
+**Then** the details card, the Balances card, and the Overview carousel and total update without a reload.
+**And** the transaction history is unchanged, the user stays on the page, and the change persists.
+
+**And** errors, `STORAGE_FULL` and the modal behave as in 6.1.
+**And** the test asserting that Edit Details is inert is replaced.
+
+### Story 6.4: Placeholder UX for the remaining undesigned controls
+
+As a user,
+I want controls that are not available yet to say so,
+So that I don't think the app is broken.
+
+**Acceptance Criteria:**
+
+**Given** the notifications bell, the user menu (⋮), the "terms of service" link and the "Search here" box
+**When** they render
+**Then** they keep their designed look.
+**And** each is `aria-disabled` (the search input `readOnly`), with a default cursor and no hover change.
+**And** each has a "Coming soon" tooltip (`title`) and an accessible description (`aria-describedby`).
+**And** each stays keyboard-focusable with the focus outline.
+
+**And** activating them does nothing and throws no errors (FR38).
+**And** a test asserts that no enabled-looking control in the shell, Balances, Account Details, Signup or Settings is inert.
+**And** each screen still matches its Figma at 1440×1024 (NFR-1).

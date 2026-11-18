@@ -123,6 +123,12 @@ graph TD
   - Every change is written through to `localStorage` under the key `finbank:mock:v1`.
   - A missing or unparseable entry falls back to the seed.
   - `removeAccount` also removes that account's transactions.
+  - *(Epic 6)* Account create and update:
+    - **Inputs:** `AccountInput = Omit<Account, 'id'>` and `AccountUpdate = Omit<AccountInput, 'type'>`.
+    - **Validation:** the adapter checks the FR-36 rules: required fields, an 8–19 digit number unique across accounts (on update, excluding the account itself), a network only for Credit Card and Checking, and a balance of at least 0. It returns `VALIDATION` with `fieldErrors` keyed by input field.
+    - **Write order:** it writes first, then commits; a full store gives `STORAGE_FULL`.
+    - **Create:** assigns the next free `acc_<n>`, appends the account, and adds no transactions.
+    - **Update:** keeps the id, the type, the list position and every transaction. The type is immutable, because transaction `paymentMethod` is derived from it and `normalizeTransactions` drops mismatches. Balances are stored values, independent of transactions.
   - Before storage, the avatar is downscaled to a JPEG data URL of at most 256px.
     - `ProfileInput.avatar` is the picked `Blob`; leaving it out keeps the current avatar.
     - The adapter checks the type (JPEG, PNG, WebP or GIF) and the size (at most 5 MB), using the constants shared with the form in `api/types.ts`.
@@ -147,6 +153,7 @@ graph TD
     - `updateSavingsGoal` → `savingsGoal`, `savingSummary` (the saving summary is derived from the stored goals, Story 4.3)
     - `updateCategoryLimit` → `categoryLimits`
     - `updateProfile` → `profile`
+    - `createAccount` and `updateAccount` → `accounts` (covers `account(id)`), `balanceSummary` (Epic 6; transactions and their summaries are unaffected)
     - `login` and `logout` → clear the whole cache
   - Query data is never copied into React state or context, except as default values for a form.
 
@@ -363,6 +370,7 @@ interface FinbankApi {
   // accounts, transactions, bills
   getBalanceSummary(): Promise<{ totalBalanceCents: number }>;
   listAccounts(): Promise<Account[]>; getAccount(id: string): Promise<AccountDetail>; removeAccount(id: string): Promise<void>;
+  createAccount(i: AccountInput): Promise<Account>; updateAccount(id: string, i: AccountUpdate): Promise<Account>;  // Epic 6
   listTransactions(q: { kind?: 'revenue' | 'expense'; accountId?: string; cursor?: string; limit: number }): Promise<Page<Transaction>>;
   listBills(q?: { limit?: number }): Promise<Bill[]>;
   // expenses & goals
@@ -407,6 +415,8 @@ graph LR
 | App shell (FR-6 to FR-9) | `app/AppShell` | AD-8, AD-13, AD-14 |
 | Overview (FR-10 to FR-15) | `features/overview` | AD-4, AD-5, AD-7, AD-12 |
 | Balances and Account Details (FR-16 to FR-18) | `features/balances` | AD-4, AD-6, AD-7, AD-13 |
+| Account management (FR-36, FR-37; Epic 6) | `features/balances` (the Account form modal and Balances edit mode), `ui` (the shared form-modal primitive, generalised from the Goals modal shell, plus the `fieldErrors` mapping) | AD-5, AD-6, AD-7, AD-12, AD-15 |
+| Unavailable controls (FR-38; Epic 6) | `app/AppShell`, `features/auth` | AD-12, AD-13 |
 | Transactions and Bills (FR-19, FR-20) | `features/transactions`, `features/bills` | AD-4, AD-7, AD-10, Ordering |
 | Expenses (FR-21, FR-22) | `features/expenses` | AD-4, AD-5, AD-16 |
 | Goals (FR-23 to FR-28) | `features/goals` | AD-5, AD-7, AD-9, AD-13, AD-15 |

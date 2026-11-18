@@ -142,6 +142,7 @@ Six category tiles show the amount and the % change vs last month.
 Each account is a card showing type, bank, network logo, masked account number and total amount.
 - Each card has "Remove" and "Details >" actions. "Details >" opens Account Details.
 - A final card holds the "Add Accounts" and "Edit Accounts" actions. They are shown but do nothing in v1, because neither flow is designed (§8.2 #4).
+- *Superseded by FR-36 (Add Accounts) and FR-37 (Edit Accounts), Epic 6, 2026-11-18. The v1 text above is kept for traceability.*
 
 #### FR-17: Remove account [scr 105, 106]
 "Remove" removes the account from the mock data after the user confirms. `[ASSUMPTION: a simple confirm dialog; none is designed]` After the user removes an account from Account Details, the app returns to Balances.
@@ -150,6 +151,7 @@ Each account is a card showing type, bank, network logo, masked account number a
 The screen shows the account's Bank Name, Account Type, Balance, Branch Name and Account Number.
 - The values match the account's card on Balances.
 - It has "Edit Details" and "Remove" actions. "Edit Details" is shown but does nothing in v1, because the edit form is not designed (§8.2 #4).
+- *Superseded by FR-37 (Edit Details opens the account form), Epic 6, 2026-11-18. The v1 text above is kept for traceability.*
 - Below the details is a Transactions History table with Date, Status, Transaction Type, Receipt and Amount columns. It lists only that account's transactions. A "Load More" button appends 10 rows at a time. `[ASSUMPTION]`
 
 ### 4.5 Transactions (107)
@@ -310,6 +312,40 @@ None of these states are designed, so v1 uses minimal defaults built from design
 - A form error appears as inline text in #E73D1C under the field.
 - A success message appears as a short inline confirmation next to the submit button.
 
+### 4.12 Account management (Epic 6, added 2026-11-18)
+
+These requirements were added after the v1 MVP shipped (Sprint Change Proposal 2026-11-18). FR-36 and FR-37 supersede the inert placeholder behaviour of FR-16 and FR-18, and FR-38 supersedes the "shown but inert" treatment in §8.2 #1–#3. None of these flows has a Figma design. They follow the design system: the 110.2 modal pattern, the bordered inputs and dropdowns from Components-1, and the outline "Adjust" button from 110.
+
+#### FR-36: Add account [no design; 110.2 modal pattern]
+"Add Accounts" on Balances opens the "Add account" modal.
+- **Fields:** Account Type (Credit Card, Checking, Savings, Investment, Loan), Bank Name, Branch Name, Card Network (Visa or Mastercard; shown and required only for Credit Card and Checking), Account Number and Balance.
+- **Validation:**
+  - All fields are required.
+  - Bank and branch names are free text.
+  - The account number is digits only, 8–19 digits, and unique across all accounts.
+  - The balance is a non-negative amount; for Credit Card and Loan it is the amount owed.
+  - Errors show inline on their field, and nothing is saved until the input is valid.
+- **Persistence:** the account is saved to the mock data and `localStorage`. A full store shows an inline error and changes nothing.
+- **Display:** the new account appears immediately, without a reload, last on Balances (before the action card), in the Overview Total Balance carousel and total, and in Account Details.
+- **New accounts:** they start with no transactions, so Transactions and Expenses are unchanged.
+- **Network logos:** Visa and Mastercard use their existing brand logos. Any other or missing network uses a neutral fallback; an incorrect network logo is never displayed.
+
+#### FR-37: Edit account [no design; 110.2 modal pattern]
+"Edit Accounts" on Balances toggles an edit mode ("Done" ends it). In edit mode each account card offers "Edit". "Edit Details" on Account Details opens the same form for that account.
+- **Editable fields:** Bank Name, Branch Name, Card Network (Credit Card and Checking), Account Number and Balance, with the FR-36 rules. The account number stays unique across all other accounts.
+- **Fixed fields:** the account type cannot change after creation; it is shown read-only.
+- **Preserved data:** an edit preserves the account id, the account's transactions and their links to it, and all other saved data.
+- **Balances:** they are stored values, independent of transaction history. Editing a balance immediately updates Balances, Account Details and the Overview Total Balance, without modifying any transaction.
+- **Display:** every create and update is validated, persisted, and reflected across the application without a page reload.
+
+#### FR-38: Unavailable controls
+Controls whose target flows are still undesigned (the notifications bell, "Search here", the user-block kebab menu and the Signup "terms of service" link) stay visible as designed. They are clearly unavailable:
+- `aria-disabled` (search becomes read-only);
+- a default cursor and no hover affordance;
+- a "Coming soon" tooltip and accessible description.
+
+Activating them does nothing. No enabled-looking control may be inert.
+
 ### 4.11 Non-Functional Requirements
 
 - **NFR-1 Fidelity:** At 1440×1024, every screen matches its Figma export when the export is overlaid at 1× scale:
@@ -345,7 +381,7 @@ None of these states are designed, so v1 uses minimal defaults built from design
 
 ### 6.2 Out of Scope for MVP
 These flows are not designed:
-- Add Account, Edit Accounts and Edit Details (§8.2 #4).
+- Add Account, Edit Accounts and Edit Details (§8.2 #4). *(Moved into scope by Epic 6, 2026-11-18: FR-36, FR-37.)*
 - The reset-password completion screen (§8.2 #5).
 - The Terms of Service page (§8.2 #1).
 - The notifications panel and search results (§8.2 #3).
@@ -375,10 +411,10 @@ These flows are not designed:
 - **Empty, loading and error states:** minimal defaults built from tokens (FR-35).
 
 ### 8.2 Deferred (non-blocking; owner: product/design; revisit when designs exist)
-1. The Terms of Service page target. The link is inert in v1.
-2. The contents of the user-block kebab menu. Shown but inert.
-3. Search scope and results, and the notifications panel. Shown but inert.
-4. The Add Account, Edit Accounts and Edit Details flows. Shown but inert.
+1. The Terms of Service page target. The link is inert in v1. *(Epic 6: shown as unavailable, "Coming soon", per FR-38.)*
+2. The contents of the user-block kebab menu. Shown but inert. *(Epic 6: unavailable per FR-38.)*
+3. Search scope and results, and the notifications panel. Shown but inert. *(Epic 6: unavailable per FR-38.)*
+4. The Add Account, Edit Accounts and Edit Details flows. Shown but inert. *(Resolved by Epic 6: FR-36, FR-37.)*
 5. Password reset completion (setting a new password) and real Google OAuth.
 6. Over-limit indicators for category spending limits.
 
@@ -407,3 +443,10 @@ These flows are not designed:
 - FR-32: success clears the form, and the minimum password length is 8. The Security-tab phone field is read-only. The mock does not check Old Password, stores no password, and keeps the session.
 - FR-33: user changes persist in `localStorage`.
 - NFR-1: the font is Inter.
+- FR-36 and FR-37 (Epic 6):
+  - The form is a 110.2-style modal (no design exists).
+  - "Edit Accounts" is a Balances edit mode that ends when the user leaves Balances; it is not kept in the URL.
+  - The "Edit" button reuses the outline "Adjust" style with a pencil.
+  - The modal is named "Add account" / "Edit account", with no visible title.
+  - A new account gets the next free id `acc_<n>`, is listed last, and has no transactions.
+- FR-38: unavailable controls use a native "Coming soon" tooltip; no new component.
