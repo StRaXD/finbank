@@ -1380,6 +1380,110 @@ describe('updateCategoryLimit', () => {
   })
 })
 
+describe('updateProfile', () => {
+  const edited = {
+    fullName: '  Jane Doe ',
+    email: ' jane.doe@email.com ',
+    username: ' jane.doe',
+    phoneCountryCode: '+44 ',
+    phoneNumber: ' 7700 900123 ',
+  }
+  const trimmed = {
+    fullName: 'Jane Doe',
+    email: 'jane.doe@email.com',
+    username: 'jane.doe',
+    phoneCountryCode: '+44',
+    phoneNumber: '7700 900123',
+  }
+
+  it('trims and stores the fields, keeps avatarUrl, returns a copy and persists for a fresh adapter', async () => {
+    const api = make()
+    const saved = await api.updateProfile(edited)
+    expect(saved).toEqual({ ...trimmed, avatarUrl: seed.profile.avatarUrl })
+    saved.fullName = 'mutated'
+    await expect(api.getProfile()).resolves.toEqual({ ...trimmed, avatarUrl: seed.profile.avatarUrl })
+    await expect(make().getProfile()).resolves.toEqual({ ...trimmed, avatarUrl: seed.profile.avatarUrl })
+    expect(stored().profile).toEqual({ ...trimmed, avatarUrl: seed.profile.avatarUrl })
+  })
+
+  it('keeps a stored avatarUrl unchanged', async () => {
+    localStorage.setItem(
+      MOCK_STORAGE_KEY,
+      JSON.stringify({ ...seedJson(), profile: { ...seed.profile, avatarUrl: 'data:image/jpeg;base64,AAAA' } }),
+    )
+    const saved = await make().updateProfile(trimmed)
+    expect(saved.avatarUrl).toBe('data:image/jpeg;base64,AAAA')
+    expect(stored().profile.avatarUrl).toBe('data:image/jpeg;base64,AAAA')
+  })
+
+  it('never touches the session stores', async () => {
+    const api = make()
+    await api.login({ email: 'tanzir.rahman@email.com', password: 'pw', persistent: true })
+    await api.getToday()
+    const session = await api.getSession()
+    const local = localStorage.getItem(SESSION_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem')
+    await api.updateProfile(trimmed)
+    // One write, to the mock state key only: no session key is written or removed in either store.
+    expect(setItem.mock.calls.map(([key]) => key)).toEqual([MOCK_STORAGE_KEY])
+    expect(setItem.mock.contexts).toEqual([localStorage])
+    expect(removeItem).not.toHaveBeenCalled()
+    expect(localStorage.getItem(SESSION_STORAGE_KEY)).toBe(local)
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull()
+    await expect(api.getSession()).resolves.toEqual(session)
+  })
+
+  it('keeps login decoupled from the profile and logout keeps the profile', async () => {
+    const api = make()
+    await api.updateProfile(trimmed)
+    await api.logout()
+    await expect(api.getProfile()).resolves.toMatchObject(trimmed)
+    await expect(api.login({ email: seed.profile.email, password: 'pw', persistent: false })).resolves.toEqual({
+      userId: 'usr_1',
+      persistent: false,
+    })
+    await expect(api.login({ email: trimmed.email, password: 'pw', persistent: false })).resolves.toEqual({
+      userId: 'usr_1',
+      persistent: false,
+    })
+    await expect(api.getProfile()).resolves.toMatchObject(trimmed)
+  })
+
+  it('rejects blank fields and a bad email with VALIDATION fieldErrors and does not write', async () => {
+    const api = make()
+    await api.getToday()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const error = await rejection(
+      api.updateProfile({ fullName: ' ', email: 'foo@', username: '', phoneCountryCode: '', phoneNumber: '  ' }),
+    )
+    expect(error.code).toBe('VALIDATION')
+    expect(error.fieldErrors).toEqual({
+      fullName: 'Full name is required.',
+      email: 'Enter a valid email address.',
+      username: 'Username is required.',
+      phoneCountryCode: 'Country code is required.',
+      phoneNumber: 'Phone number is required.',
+    })
+    expect(setItem).not.toHaveBeenCalled()
+    await expect(api.getProfile()).resolves.toEqual(seed.profile)
+  })
+
+  it('rejects with STORAGE_FULL on a full store and leaves memory and storage unchanged', async () => {
+    const api = make()
+    await api.getToday()
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError')
+    })
+    const error = await rejection(api.updateProfile(trimmed))
+    setItem.mockRestore()
+    expect(error.code).toBe('STORAGE_FULL')
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+    await expect(api.getProfile()).resolves.toEqual(seed.profile)
+  })
+})
+
 describe('getSavingSummary', () => {
   const ym = (value: string) => value as YearMonth
   const iso = (value: string) => value as IsoDate

@@ -26,6 +26,7 @@ import { useRequestPasswordReset } from './useRequestPasswordReset.ts'
 import { useSavingSummary } from './useSavingSummary.ts'
 import { useSavingsGoal } from './useSavingsGoal.ts'
 import { useUpdateCategoryLimit } from './useUpdateCategoryLimit.ts'
+import { useUpdateProfile } from './useUpdateProfile.ts'
 import { useUpdateSavingsGoal } from './useUpdateSavingsGoal.ts'
 import { useSession } from './useSession.ts'
 import { useSignup } from './useSignup.ts'
@@ -196,6 +197,23 @@ describe('query hooks', () => {
     // The hook sees it after TanStack's one setTimeout(0) notify batch (flushed once, not polled).
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
     expect(result.current.limits.data?.[1]).toEqual({ category: 'food', limitCents: 65_000 })
+  })
+
+  it('useProfile refetches after useUpdateProfile', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => ({ profile: useProfile(), update: useUpdateProfile() }), { wrapper })
+    await waitFor(() => expect(result.current.profile.data).toEqual(seed.profile))
+    const input = {
+      fullName: 'Jane Doe',
+      email: 'jane.doe@email.com',
+      username: 'jane.doe',
+      phoneCountryCode: '+44',
+      phoneNumber: '7700 900123',
+    }
+    await act(() => result.current.update.mutateAsync(input))
+    // The mutation resolves only after the active profile query has refetched.
+    expect(queryClient.getQueryData(qk.profile())).toEqual({ ...input, avatarUrl: seed.profile.avatarUrl })
+    await waitFor(() => expect(result.current.profile.data?.fullName).toBe('Jane Doe'))
   })
 
   it('useSession is null when signed out', async () => {

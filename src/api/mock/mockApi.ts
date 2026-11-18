@@ -30,6 +30,7 @@ import {
   type ListBillsInput,
   type ListTransactionsInput,
   type LoginInput,
+  type ProfileInput,
   type SavingSummaryPoint,
   type SavingsGoal,
   type SavingsGoalAmounts,
@@ -777,6 +778,32 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
       ),
 
     getProfile: () => call(() => structuredClone(state().profile)),
+
+    updateProfile: (input: ProfileInput) =>
+      call((): UserProfile => {
+        const errors: FieldErrors = {}
+        checkRequired(input?.fullName, 'fullName', 'Full name', errors)
+        checkEmail(input?.email, errors)
+        checkRequired(input?.username, 'username', 'Username', errors)
+        checkRequired(input?.phoneCountryCode, 'phoneCountryCode', 'Country code', errors)
+        checkRequired(input?.phoneNumber, 'phoneNumber', 'Phone number', errors)
+        throwIfInvalid(errors)
+        const prev = state()
+        // Only the profile changes; the session stores are never touched (identity stays usr_1).
+        const profile: UserProfile = {
+          ...prev.profile,
+          fullName: input.fullName.trim(),
+          email: input.email.trim(),
+          username: input.username.trim(),
+          phoneCountryCode: input.phoneCountryCode.trim(),
+          phoneNumber: input.phoneNumber.trim(),
+        }
+        const next: MockState = { ...prev, profile }
+        // Write first: a failed write leaves both memory and storage unchanged.
+        writeItem(storage, MOCK_STORAGE_KEY, JSON.stringify(next))
+        current = next
+        return structuredClone(profile)
+      }),
 
     listAccounts: () => call(() => structuredClone(state().accounts)),
 

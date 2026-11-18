@@ -8,10 +8,10 @@ import { BillsPage } from '../features/bills/index.ts'
 import { ExpensesPage } from '../features/expenses/index.ts'
 import { GoalsPage } from '../features/goals/index.ts'
 import { OverviewPage } from '../features/overview/index.ts'
+import { SettingsPage } from '../features/settings/index.ts'
 import { TransactionsPage } from '../features/transactions/index.ts'
 import { AppShell } from './AppShell/AppShell.tsx'
 import { PageBusy } from './PageBusy.tsx'
-import { PlaceholderPage } from './PlaceholderPage.tsx'
 import { RedirectIfSession } from './RedirectIfSession.tsx'
 import { RequireSession } from './RequireSession.tsx'
 import { RouteError } from './RouteError.tsx'
@@ -78,7 +78,7 @@ export const routeObjects: RouteObject[] = [
           { path: routes.bills, element: <BillsPage /> },
           { path: routes.expenses, element: <ExpensesPage /> },
           { path: routes.goals, element: <GoalsPage /> },
-          { path: routes.settings, element: <PlaceholderPage title="Settings" /> },
+          { path: routes.settings, element: <SettingsPage /> },
         ],
       },
     ],

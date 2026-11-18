@@ -34,6 +34,9 @@ export type UserProfile = {
   avatarUrl: string | null
 }
 
+/** The editable profile fields (Story 5.2 adds the photo). */
+export type ProfileInput = Omit<UserProfile, 'avatarUrl'>
+
 export type AccountType = 'creditCard' | 'checking' | 'savings' | 'investment' | 'loan'
 
 export type CardNetwork = 'mastercard' | 'visa'

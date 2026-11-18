@@ -50,13 +50,19 @@ describe('routing and session guard', () => {
       [routes.bills, 'Upcoming Bills'],
       [routes.expenses, 'Expenses'],
       [routes.goals, 'Goals'],
-      [routes.settings, 'Settings'],
     ] as const
     for (const [path, title] of cases) {
       const { unmount } = renderAt(path, api)
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
       unmount()
     }
+  })
+
+  it('routes /settings to the Settings card (no page heading) on its Account tab', async () => {
+    renderAt(routes.settings, await signedInApi())
+    expect(await screen.findByRole('tab', { name: 'Account', selected: true })).toBeInTheDocument()
+    expect(await screen.findByLabelText('Full name')).toHaveValue(seed.profile.fullName)
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
   })
 
   it('routes /expenses to the Expenses page with six seed-derived category cards', async () => {

@@ -25,6 +25,7 @@ export function createHttpApi(options: HttpApiOptions = {}): FinbankApi {
     requestPasswordReset: notImplemented('requestPasswordReset'),
     getSession: notImplemented('getSession'),
     getProfile: notImplemented('getProfile'),
+    updateProfile: notImplemented('updateProfile'),
     listAccounts: notImplemented('listAccounts'),
     getAccount: notImplemented('getAccount'),
     getBalanceSummary: notImplemented('getBalanceSummary'),

@@ -61,3 +61,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/epic-4-final-review.md`
   summary: Resolved: the spec-1-9 item above ("`Modal` without a `title` has no accessible name") was fixed by Story 4.2's `Modal` `label` prop (rendered as `aria-label`). Both Adjust modals are named, e.g. "Adjust savings goal" and "Adjust Food limit".
   evidence: `src/ui/Modal.tsx` `label`; `Modal.test.tsx` "takes its accessible name from label when there is no title".
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-1-settings-tabs-and-the-profile-form.md`
+  summary: Consolidate the three copies of the ApiError fieldErrors → setError mapping (auth `applyApiError`, goals `showSubmitError`, settings `ProfileForm`) into one tested shared helper, and cover the unmapped/mixed-key branch for the settings form.
+  evidence: The verification-gap review found the unmapped/mixed `fieldErrors` branch in `ProfileForm.showSubmitError` is untested, and only the auth copy has tests. It is unreachable today, because the mock emits only the five known keys and the http adapter is `notImplemented`. The copies can drift once a real adapter arrives.

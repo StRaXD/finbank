@@ -152,7 +152,7 @@ describe('app shell', () => {
     const link = screen.getByRole('link', { name: 'View profile' })
     expect(link).toHaveAttribute('href', routes.viewProfile)
     fireEvent.click(link)
-    expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'Account', selected: true })).toBeInTheDocument()
     expect(`${router.state.location.pathname}${router.state.location.search}`).toBe(routes.viewProfile)
     expect(activeLinks().map((l) => l.textContent)).toEqual(['Settings'])
   })

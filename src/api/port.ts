@@ -12,6 +12,7 @@ import type {
   ListBillsInput,
   ListTransactionsInput,
   LoginInput,
+  ProfileInput,
   SavingSummaryPoint,
   SavingsGoal,
   SavingsGoalAmounts,
@@ -32,6 +33,14 @@ export interface FinbankApi {
   requestPasswordReset(email: string): Promise<void>
   getSession(): Promise<Session | null>
   getProfile(): Promise<UserProfile>
+  /**
+   * Stores the trimmed profile fields, persists them and resolves with a copy of the profile.
+   * `avatarUrl` is kept. Every field is required and `email` must be well formed, otherwise it
+   * rejects with `VALIDATION` and `fieldErrors` keyed by field. It never touches the session. A
+   * failed write rejects with `STORAGE_FULL` when storage is full (`UNKNOWN` for any other write
+   * failure) and leaves the stored profile unchanged.
+   */
+  updateProfile(input: ProfileInput): Promise<UserProfile>
   /** Every account, in stored (seed) order. */
   listAccounts(): Promise<Account[]>
   /** One account (a copy), or `null` for an unknown id. */
@@ -115,6 +124,7 @@ export const FINBANK_API_METHODS = [
   'requestPasswordReset',
   'getSession',
   'getProfile',
+  'updateProfile',
   'listAccounts',
   'getAccount',
   'getBalanceSummary',
