@@ -12,6 +12,8 @@ import type {
   ListBillsInput,
   ListTransactionsInput,
   LoginInput,
+  PasswordInput,
+  ProfileInput,
   SavingSummaryPoint,
   SavingsGoal,
   SavingsGoalAmounts,
@@ -32,6 +34,28 @@ export interface FinbankApi {
   requestPasswordReset(email: string): Promise<void>
   getSession(): Promise<Session | null>
   getProfile(): Promise<UserProfile>
+  /**
+   * Stores the trimmed profile fields, persists them and resolves with a copy of the profile.
+   * Every field is required and `email` must be well formed, otherwise it rejects with
+   * `VALIDATION` and `fieldErrors` keyed by field (the avatar is not checked then). Without
+   * `avatar`, `avatarUrl` is kept. With `avatar`, the image must be JPEG, PNG, WebP or GIF and at
+   * most 5 MB; it is downscaled to a JPEG data URL of at most 256px on its longer side (never
+   * upscaled) and stored as `avatarUrl`. A wrong type, an oversized image or one that cannot be
+   * decoded rejects with `VALIDATION` and `fieldErrors.avatar`. It never touches the session. A
+   * failed write rejects with `STORAGE_FULL` when storage is full (`UNKNOWN` for any other write
+   * failure). Every rejection leaves the stored profile, avatar included, unchanged.
+   */
+  updateProfile(input: ProfileInput): Promise<UserProfile>
+  /**
+   * Changes the signed-in user's password. `oldPassword` is required, `newPassword` is required
+   * and at least `PASSWORD_MIN_LENGTH` characters, and `confirmPassword` is required and equal to
+   * `newPassword`; passwords are never trimmed. A failed rule rejects with `VALIDATION` and
+   * `fieldErrors` keyed `oldPassword` / `newPassword` / `confirmPassword`, whose messages never
+   * contain a password. The mock does not check `oldPassword` against a stored credential (mock
+   * sign-in stores none) and stores no password; it resolves once the rules pass. It never touches
+   * the session or the profile.
+   */
+  changePassword(input: PasswordInput): Promise<void>
   /** Every account, in stored (seed) order. */
   listAccounts(): Promise<Account[]>
   /** One account (a copy), or `null` for an unknown id. */
@@ -115,6 +139,8 @@ export const FINBANK_API_METHODS = [
   'requestPasswordReset',
   'getSession',
   'getProfile',
+  'updateProfile',
+  'changePassword',
   'listAccounts',
   'getAccount',
   'getBalanceSummary',

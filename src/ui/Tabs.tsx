@@ -11,6 +11,12 @@ export type TabsProps<Id extends string = string> = {
   label: string
   /** The id of the panel the tabs control, for `aria-controls`. */
   panelId?: string
+  /**
+   * `md` (107. Transactions): 8px side / bottom padding, 20px apart, ink-2 idle labels.
+   * `lg` (111. Settings): 12px sides, 14px under the label, 32px apart, `subtle` idle labels (the
+   * AA stand-in for the PNG's lighter faint grey).
+   */
+  size?: 'md' | 'lg'
 }
 
 /**
@@ -18,7 +24,8 @@ export type TabsProps<Id extends string = string> = {
  * selected one teal over a 2px teal underline. Roving tabindex; Left/Right (wrapping), Home and
  * End move focus and select at once (automatic activation); modified keys are left to the browser.
  */
-export function Tabs<Id extends string>({ tabs, value, onChange, label, panelId }: TabsProps<Id>) {
+export function Tabs<Id extends string>({ tabs, value, onChange, label, panelId, size = 'md' }: TabsProps<Id>) {
+  const large = size === 'lg'
   const baseId = useId()
   const refs = useRef(new Map<Id, HTMLButtonElement>())
 
@@ -45,7 +52,7 @@ export function Tabs<Id extends string>({ tabs, value, onChange, label, panelId 
   }
 
   return (
-    <div role="tablist" aria-label={label} className="flex items-end gap-5">
+    <div role="tablist" aria-label={label} className={`flex items-end ${large ? 'gap-8' : 'gap-5'}`}>
       {tabs.map((tab, index) => {
         const selected = tab.id === value
         return (
@@ -63,8 +70,8 @@ export function Tabs<Id extends string>({ tabs, value, onChange, label, panelId 
             tabIndex={selected ? 0 : -1}
             onClick={() => select(index)}
             onKeyDown={(event) => onKeyDown(event, index)}
-            className={`cursor-pointer border-b-2 px-2 pb-2 text-16 font-semibold transition ${
-              selected ? 'border-primary text-primary' : 'border-transparent text-ink-2 hover:text-ink'
+            className={`cursor-pointer border-b-2 text-16 font-semibold transition ${large ? 'px-3 pb-3.5' : 'px-2 pb-2'} ${
+              selected ? 'border-primary text-primary' : `border-transparent ${large ? 'text-subtle' : 'text-ink-2'} hover:text-ink`
             }`}
           >
             {tab.label}

@@ -57,6 +57,22 @@ describe('TextInput', () => {
     expect(screen.getByLabelText('Full name')).toHaveClass('h-12', 'px-6')
   })
 
+  it('gives the borderless variant an ink-2 label 12px above a subtle value (111. Settings)', () => {
+    render(<TextInput label="Full name" variant="borderless" defaultValue="Tanzir Rahman" />)
+    const label = screen.getByText('Full name')
+    expect(label).toHaveClass('text-ink-2', 'mb-3')
+    expect(label).not.toHaveClass('text-ink', 'mb-2')
+    const input = screen.getByLabelText('Full name')
+    expect(input).toHaveClass('text-subtle')
+    expect(input).not.toHaveClass('text-ink-2')
+  })
+
+  it('keeps the default variant label 8px above an ink-2 value', () => {
+    render(<TextInput label="Email" />)
+    expect(screen.getByText('Email')).toHaveClass('mb-2', 'text-ink')
+    expect(screen.getByLabelText('Email')).toHaveClass('text-ink-2')
+  })
+
   it('lets a caller placeholder win', () => {
     render(<TextInput label="Email" placeholder="johndoe@email.com" />)
     expect(screen.getByLabelText('Email')).toHaveAttribute('placeholder', 'johndoe@email.com')

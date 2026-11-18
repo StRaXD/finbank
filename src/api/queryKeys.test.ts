@@ -52,7 +52,19 @@ describe('invalidationMap', () => {
       removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions(), qk.categorySummaries(), qk.comparison()],
       updateSavingsGoal: [qk.savingsGoal(), qk.savingSummary()],
       updateCategoryLimit: [qk.categoryLimits()],
+      updateProfile: [qk.profile()],
     })
+  })
+
+  it('invalidates the profile, and nothing else, on updateProfile', async () => {
+    const client = new QueryClient()
+    client.setQueryData(qk.profile(), {})
+    client.setQueryData(qk.session(), { userId: 'usr_1', persistent: true })
+    client.setQueryData(qk.accounts(), [])
+    await applyInvalidation(client, 'updateProfile')
+    expect(client.getQueryState(qk.profile())?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.session())?.isInvalidated).toBe(false)
+    expect(client.getQueryState(qk.accounts())?.isInvalidated).toBe(false)
   })
 
   it('invalidates the category limits, and nothing else, on updateCategoryLimit', async () => {

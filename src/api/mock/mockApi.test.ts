@@ -1380,6 +1380,323 @@ describe('updateCategoryLimit', () => {
   })
 })
 
+describe('updateProfile', () => {
+  const edited = {
+    fullName: '  Jane Doe ',
+    email: ' jane.doe@email.com ',
+    username: ' jane.doe',
+    phoneCountryCode: '+44 ',
+    phoneNumber: ' 7700 900123 ',
+  }
+  const trimmed = {
+    fullName: 'Jane Doe',
+    email: 'jane.doe@email.com',
+    username: 'jane.doe',
+    phoneCountryCode: '+44',
+    phoneNumber: '7700 900123',
+  }
+
+  it('trims and stores the fields, keeps avatarUrl, returns a copy and persists for a fresh adapter', async () => {
+    const api = make()
+    const saved = await api.updateProfile(edited)
+    expect(saved).toEqual({ ...trimmed, avatarUrl: seed.profile.avatarUrl })
+    saved.fullName = 'mutated'
+    await expect(api.getProfile()).resolves.toEqual({ ...trimmed, avatarUrl: seed.profile.avatarUrl })
+    await expect(make().getProfile()).resolves.toEqual({ ...trimmed, avatarUrl: seed.profile.avatarUrl })
+    expect(stored().profile).toEqual({ ...trimmed, avatarUrl: seed.profile.avatarUrl })
+  })
+
+  it('keeps a stored avatarUrl unchanged', async () => {
+    localStorage.setItem(
+      MOCK_STORAGE_KEY,
+      JSON.stringify({ ...seedJson(), profile: { ...seed.profile, avatarUrl: 'data:image/jpeg;base64,AAAA' } }),
+    )
+    const saved = await make().updateProfile(trimmed)
+    expect(saved.avatarUrl).toBe('data:image/jpeg;base64,AAAA')
+    expect(stored().profile.avatarUrl).toBe('data:image/jpeg;base64,AAAA')
+  })
+
+  it('never touches the session stores', async () => {
+    const api = make()
+    await api.login({ email: 'tanzir.rahman@email.com', password: 'pw', persistent: true })
+    await api.getToday()
+    const session = await api.getSession()
+    const local = localStorage.getItem(SESSION_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem')
+    await api.updateProfile(trimmed)
+    // One write, to the mock state key only: no session key is written or removed in either store.
+    expect(setItem.mock.calls.map(([key]) => key)).toEqual([MOCK_STORAGE_KEY])
+    expect(setItem.mock.contexts).toEqual([localStorage])
+    expect(removeItem).not.toHaveBeenCalled()
+    expect(localStorage.getItem(SESSION_STORAGE_KEY)).toBe(local)
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull()
+    await expect(api.getSession()).resolves.toEqual(session)
+  })
+
+  it('keeps login decoupled from the profile and logout keeps the profile', async () => {
+    const api = make()
+    await api.updateProfile(trimmed)
+    await api.logout()
+    await expect(api.getProfile()).resolves.toMatchObject(trimmed)
+    await expect(api.login({ email: seed.profile.email, password: 'pw', persistent: false })).resolves.toEqual({
+      userId: 'usr_1',
+      persistent: false,
+    })
+    await expect(api.login({ email: trimmed.email, password: 'pw', persistent: false })).resolves.toEqual({
+      userId: 'usr_1',
+      persistent: false,
+    })
+    await expect(api.getProfile()).resolves.toMatchObject(trimmed)
+  })
+
+  it('rejects blank fields and a bad email with VALIDATION fieldErrors and does not write', async () => {
+    const api = make()
+    await api.getToday()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const error = await rejection(
+      api.updateProfile({ fullName: ' ', email: 'foo@', username: '', phoneCountryCode: '', phoneNumber: '  ' }),
+    )
+    expect(error.code).toBe('VALIDATION')
+    expect(error.fieldErrors).toEqual({
+      fullName: 'Full name is required.',
+      email: 'Enter a valid email address.',
+      username: 'Username is required.',
+      phoneCountryCode: 'Country code is required.',
+      phoneNumber: 'Phone number is required.',
+    })
+    expect(setItem).not.toHaveBeenCalled()
+    await expect(api.getProfile()).resolves.toEqual(seed.profile)
+  })
+
+  it('rejects with STORAGE_FULL on a full store and leaves memory and storage unchanged', async () => {
+    const api = make()
+    await api.getToday()
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError')
+    })
+    const error = await rejection(api.updateProfile(trimmed))
+    setItem.mockRestore()
+    expect(error.code).toBe('STORAGE_FULL')
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+    await expect(api.getProfile()).resolves.toEqual(seed.profile)
+  })
+
+  describe('avatar', () => {
+    const encoded = 'data:image/jpeg;base64,ENCODED'
+    const oldAvatar = 'data:image/jpeg;base64,OLD'
+    const png = (size = 16) => new File([new Uint8Array(size)], 'photo.png', { type: 'image/png' })
+    const encoder = (result: () => Promise<string> = () => Promise.resolve(encoded)) => vi.fn((_image: Blob) => result())
+    const withOldAvatar = () =>
+      localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), profile: { ...seed.profile, avatarUrl: oldAvatar } }))
+
+    it('stores the encoder output with the fields and persists it for a fresh adapter', async () => {
+      const encodeAvatar = encoder()
+      const image = png()
+      const saved = await make({ encodeAvatar }).updateProfile({ ...trimmed, avatar: image })
+      expect(encodeAvatar).toHaveBeenCalledWith(image)
+      expect(saved).toEqual({ ...trimmed, avatarUrl: encoded })
+      expect(stored().profile).toEqual({ ...trimmed, avatarUrl: encoded })
+      expect(stored().profile).not.toHaveProperty('avatar')
+      await expect(make().getProfile()).resolves.toEqual({ ...trimmed, avatarUrl: encoded })
+    })
+
+    it.each(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])('accepts %s', async (type) => {
+      const saved = await make({ encodeAvatar: encoder() }).updateProfile({
+        ...trimmed,
+        avatar: new Blob(['x'], { type }),
+      })
+      expect(saved.avatarUrl).toBe(encoded)
+    })
+
+    it('accepts exactly 5 MB', async () => {
+      const saved = await make({ encodeAvatar: encoder() }).updateProfile({ ...trimmed, avatar: png(5 * 1024 * 1024) })
+      expect(saved.avatarUrl).toBe(encoded)
+    })
+
+    it.each([
+      ['a non-image', () => new File(['%PDF'], 'notes.pdf', { type: 'application/pdf' }), 'Choose a JPEG, PNG, WebP or GIF image.'],
+      ['an SVG', () => new File(['<svg/>'], 'a.svg', { type: 'image/svg+xml' }), 'Choose a JPEG, PNG, WebP or GIF image.'],
+      ['an untyped blob', () => new Blob(['x']), 'Choose a JPEG, PNG, WebP or GIF image.'],
+      ['not a blob', () => 'data:image/png;base64,AAAA' as unknown as Blob, 'Choose a JPEG, PNG, WebP or GIF image.'],
+      ['over 5 MB', () => png(5 * 1024 * 1024 + 1), 'Choose an image under 5 MB.'],
+    ])('rejects %s with VALIDATION fieldErrors.avatar, without encoding or writing', async (_name, avatar, message) => {
+      withOldAvatar()
+      const encodeAvatar = encoder()
+      const api = make({ encodeAvatar })
+      await api.getToday()
+      const setItem = vi.spyOn(Storage.prototype, 'setItem')
+      const error = await rejection(api.updateProfile({ ...trimmed, avatar: avatar() }))
+      expect(error.code).toBe('VALIDATION')
+      expect(error.fieldErrors).toEqual({ avatar: message })
+      expect(encodeAvatar).not.toHaveBeenCalled()
+      expect(setItem).not.toHaveBeenCalled()
+      await expect(api.getProfile()).resolves.toEqual({ ...seed.profile, avatarUrl: oldAvatar })
+    })
+
+    it('checks the fields before the avatar', async () => {
+      const encodeAvatar = encoder()
+      const error = await rejection(
+        make({ encodeAvatar }).updateProfile({ ...trimmed, fullName: ' ', avatar: new Blob(['x'], { type: 'text/plain' }) }),
+      )
+      expect(error.fieldErrors).toEqual({ fullName: 'Full name is required.' })
+      expect(encodeAvatar).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['the encoder rejects', () => Promise.reject(new Error('decode failed'))],
+      ['the encoder returns no data URL', () => Promise.resolve('')],
+    ])('rejects with the VALIDATION decode error when %s, keeping the old avatar', async (_name, result) => {
+      withOldAvatar()
+      const api = make({ encodeAvatar: encoder(result) })
+      await api.getToday()
+      const before = localStorage.getItem(MOCK_STORAGE_KEY)
+      const error = await rejection(api.updateProfile({ ...trimmed, avatar: png() }))
+      expect(error.code).toBe('VALIDATION')
+      expect(error.fieldErrors).toEqual({ avatar: "We couldn't read that image." })
+      expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+      await expect(api.getProfile()).resolves.toEqual({ ...seed.profile, avatarUrl: oldAvatar })
+    })
+
+    it('treats an undecodable image as VALIDATION with the default (browser) encoder', async () => {
+      // jsdom has no image decoding, which is what a garbage `.png` meets in a browser.
+      const error = await rejection(make().updateProfile({ ...trimmed, avatar: png() }))
+      expect(error.code).toBe('VALIDATION')
+      expect(error.fieldErrors).toEqual({ avatar: "We couldn't read that image." })
+    })
+
+    it('rejects with STORAGE_FULL and keeps the old avatar in memory and storage', async () => {
+      withOldAvatar()
+      const api = make({ encodeAvatar: encoder() })
+      await api.getToday()
+      const before = localStorage.getItem(MOCK_STORAGE_KEY)
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('quota', 'QuotaExceededError')
+      })
+      const error = await rejection(api.updateProfile({ ...trimmed, avatar: png() }))
+      vi.restoreAllMocks()
+      expect(error.code).toBe('STORAGE_FULL')
+      expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+      await expect(api.getProfile()).resolves.toEqual({ ...seed.profile, avatarUrl: oldAvatar })
+    })
+
+    it('does not overwrite a write made while the avatar is being encoded', async () => {
+      let finishEncoding: (url: string) => void = () => {}
+      const encodeAvatar = encoder(() => new Promise<string>((resolve) => (finishEncoding = resolve)))
+      const api = make({ encodeAvatar })
+      const saving = api.updateProfile({ ...trimmed, avatar: png() })
+      await vi.waitFor(() => expect(encodeAvatar).toHaveBeenCalled())
+      await api.updateCategoryLimit('food', 65_000)
+      finishEncoding(encoded)
+      await saving
+      const limits = seed.categoryLimits.map((limit) =>
+        limit.category === 'food' ? { category: 'food', limitCents: 65_000 } : limit,
+      )
+      await expect(api.getProfile()).resolves.toEqual({ ...trimmed, avatarUrl: encoded })
+      await expect(api.listCategoryLimits()).resolves.toEqual(limits)
+      expect(stored().profile).toEqual({ ...trimmed, avatarUrl: encoded })
+      expect(stored().categoryLimits).toEqual(limits)
+      await expect(make().getProfile()).resolves.toEqual({ ...trimmed, avatarUrl: encoded })
+      await expect(make().listCategoryLimits()).resolves.toEqual(limits)
+    })
+
+    it('keeps avatarUrl when no avatar is sent', async () => {
+      withOldAvatar()
+      const encodeAvatar = encoder()
+      const saved = await make({ encodeAvatar }).updateProfile(trimmed)
+      expect(saved.avatarUrl).toBe(oldAvatar)
+      expect(encodeAvatar).not.toHaveBeenCalled()
+    })
+
+    it('keeps the avatar over logout and login', async () => {
+      const api = make({ encodeAvatar: encoder() })
+      await api.login({ email: seed.profile.email, password: 'pw', persistent: true })
+      await api.updateProfile({ ...trimmed, avatar: png() })
+      await api.logout()
+      await expect(api.getProfile()).resolves.toMatchObject({ avatarUrl: encoded })
+      await api.login({ email: trimmed.email, password: 'pw', persistent: true })
+      await expect(make().getProfile()).resolves.toMatchObject({ avatarUrl: encoded })
+    })
+  })
+})
+
+describe('changePassword', () => {
+  const valid = { oldPassword: 'old-secret', newPassword: 'new-secret-1', confirmPassword: 'new-secret-1' }
+
+  it('resolves for valid input and writes or removes no storage key', async () => {
+    const api = make()
+    await api.login({ email: 'tanzir.rahman@email.com', password: 'pw', persistent: true })
+    await api.getToday()
+    const session = await api.getSession()
+    const profile = await api.getProfile()
+    const localBefore = { ...localStorage }
+    const sessionBefore = { ...sessionStorage }
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem')
+    await expect(api.changePassword(valid)).resolves.toBeUndefined()
+    expect(setItem).not.toHaveBeenCalled()
+    expect(removeItem).not.toHaveBeenCalled()
+    expect({ ...localStorage }).toEqual(localBefore)
+    expect({ ...sessionStorage }).toEqual(sessionBefore)
+    await expect(api.getSession()).resolves.toEqual(session)
+    await expect(api.getProfile()).resolves.toEqual(profile)
+  })
+
+  it('stores no password anywhere and leaves the stored items byte-identical', async () => {
+    const api = make()
+    await api.login({ email: 'tanzir.rahman@email.com', password: 'pw', persistent: true })
+    await api.getToday()
+    const stateBefore = localStorage.getItem(MOCK_STORAGE_KEY)
+    const sessionBefore = localStorage.getItem(SESSION_STORAGE_KEY)
+    expect(stateBefore).not.toBeNull()
+    expect(sessionBefore).not.toBeNull()
+    await api.changePassword(valid)
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(stateBefore)
+    expect(localStorage.getItem(SESSION_STORAGE_KEY)).toBe(sessionBefore)
+    const everything = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage })
+    for (const value of Object.values(valid)) expect(everything).not.toContain(value)
+  })
+
+  it('keeps spaces: eight spaces is a valid new password', async () => {
+    const spaces = '        '
+    await expect(
+      make().changePassword({ oldPassword: 'old-secret', newPassword: spaces, confirmPassword: spaces }),
+    ).resolves.toBeUndefined()
+  })
+
+  it.each([
+    ['a blank old password', { ...valid, oldPassword: '' }, { oldPassword: 'Old password is required.' }],
+    ['a blank new password', { ...valid, newPassword: '', confirmPassword: '' }, {
+      newPassword: 'New password is required.',
+      confirmPassword: 'Retype your new password.',
+    }],
+    ['a short new password', { ...valid, newPassword: 'short7!', confirmPassword: 'short7!' }, {
+      newPassword: 'Use at least 8 characters.',
+    }],
+    ['a blank new password with a filled retype', { ...valid, newPassword: '' }, {
+      newPassword: 'New password is required.',
+    }],
+    ['a blank retype', { ...valid, confirmPassword: '' }, { confirmPassword: 'Retype your new password.' }],
+    ['a mismatch', { ...valid, confirmPassword: 'new-secret-2' }, { confirmPassword: "Passwords don't match." }],
+    ['a retype that differs only by trailing spaces', { ...valid, confirmPassword: 'new-secret-1 ' }, {
+      confirmPassword: "Passwords don't match.",
+    }],
+  ])('rejects %s with VALIDATION on the right field, without the passwords', async (_name, input, fieldErrors) => {
+    const api = make()
+    await api.getToday()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const error = await rejection(api.changePassword(input))
+    expect(error.code).toBe('VALIDATION')
+    expect(error.fieldErrors).toEqual(fieldErrors)
+    const text = error.message + JSON.stringify(error.fieldErrors)
+    for (const value of [input.oldPassword, input.newPassword, input.confirmPassword].filter((v) => v.trim())) {
+      expect(text).not.toContain(value)
+    }
+    expect(setItem).not.toHaveBeenCalled()
+  })
+})
+
 describe('getSavingSummary', () => {
   const ym = (value: string) => value as YearMonth
   const iso = (value: string) => value as IsoDate

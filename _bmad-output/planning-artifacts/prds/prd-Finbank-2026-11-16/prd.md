@@ -255,11 +255,20 @@ The Account tab has Full name, Email, Username and Phone Number fields. Phone Nu
 - "Update Profile" validates required fields and email format, then saves the fields to mock data. `[ASSUMPTION: all four fields required]`
 - The saved name and avatar then appear in the sidebar user block and the Overview greeting.
 - The phone field uses the plain "+code | number" layout from screen 111, not the flag-and-dropdown variant on the component sheet. Both parts are editable. `[ASSUMPTION]`
+- Profile edits never touch the session. Login does not depend on the profile's email or username: the mock signs in with any well-formed email, including both the old and the new one. The edits survive a reload and a logout followed by a login. *(Decided in Story 5.1, 2026-11-18.)*
 
 #### FR-31: Profile picture upload [scr 111]
 The "Your Profile Picture" dashed box ("Upload your photo") opens a file picker for images.
 - The chosen image shows as a preview and is saved with "Update Profile". `[ASSUMPTION]`
 - In v1, the image is stored only on the client.
+- *(Decided in Story 5.2, 2026-11-18)* Accepted files are JPEG, PNG, WebP or GIF of at most 5 MB. They are checked on pick and again before storage.
+  - Invalid type: "Choose a JPEG, PNG, WebP or GIF image."
+  - Too large: "Choose an image under 5 MB."
+  - Unreadable image: "We couldn't read that image."
+  - A full store: the storage-full message.
+  - Each error shows inline and keeps the existing photo; the picked preview is kept so the user can retry.
+  - The stored photo is a JPEG of at most 256px (GIFs keep their first frame, and transparent areas become white).
+  - There is no remove-photo control in v1.
 
 #### FR-32: Change password [scr 112]
 The Security tab has Old Password, New Password and Retype Password fields. All three are masked.
@@ -267,6 +276,10 @@ The Security tab has Old Password, New Password and Retype Password fields. All 
 - On success, the form clears and a confirmation appears. `[ASSUMPTION: no success state is designed]`
 - No password-strength rules are designed. v1 enforces only a minimum length of 8. `[ASSUMPTION]`
 - The Phone Number field appears on this tab as designed. It shows the profile phone number read-only, and "Update Password" does not save it. `[ASSUMPTION]`
+- *(Decided in Story 5.3, 2026-11-18)* The v1 mock does not check Old Password against a stored credential, because mock login and signup never store one. Old Password is still required.
+  - No password or hash is stored, logged or put in an error message.
+  - The change keeps the session: the user stays signed in on the Security tab.
+  - The three fields keep the show/hide eye toggle. Screen 112 shows none; this deviation is accepted.
 
 ### 4.10 Cross-cutting Requirements
 
@@ -390,7 +403,7 @@ These flows are not designed:
 - FR-28: Present may exceed Target.
 - FR-29: the active tab is reflected in the URL.
 - FR-30: all profile fields are required. The phone field uses the plain prefix layout, and both parts are editable.
-- FR-31: the photo is saved with "Update Profile" and stored on the client only.
-- FR-32: success clears the form, and the minimum password length is 8. The Security-tab phone field is read-only.
+- FR-31: the photo is saved with "Update Profile" and stored on the client only. It must be a JPEG, PNG, WebP or GIF of at most 5 MB, and is stored as a JPEG of at most 256px.
+- FR-32: success clears the form, and the minimum password length is 8. The Security-tab phone field is read-only. The mock does not check Old Password, stores no password, and keeps the session.
 - FR-33: user changes persist in `localStorage`.
 - NFR-1: the font is Inter.

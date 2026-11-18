@@ -1,18 +1,35 @@
 import { useState, type ComponentPropsWithRef } from 'react'
 import { Field } from './Field.tsx'
-import { emptyPlaceholder, fieldBase, fieldBorder } from './fieldStyles.ts'
+import { emptyPlaceholder, fieldBase, fieldBorder, fieldText } from './fieldStyles.ts'
 import { icons } from './icons.ts'
 
 export type PasswordInputProps = Omit<ComponentPropsWithRef<'input'>, 'className' | 'type'> & {
   label: string
   error?: string
+  /**
+   * `borderless`: no border box, as on the Settings Security tab (112): an ink-2 label 12px above
+   * a `subtle` value, like `TextInput`'s borderless variant. The eye toggle stays.
+   */
+  variant?: 'default' | 'borderless'
 }
 
-export function PasswordInput({ label, error, id, placeholder, ...rest }: PasswordInputProps) {
+export function PasswordInput({ label, error, variant = 'default', id, placeholder, ...rest }: PasswordInputProps) {
   const [visible, setVisible] = useState(false)
   const Icon = visible ? icons.eyeOff : icons.eye
+  // Borderless keeps a transparent border (same box size), turning danger only with an error.
+  const borderless = variant === 'borderless'
+  const look = borderless
+    ? `pl-6 ${error ? 'border-danger' : 'border-transparent'}`
+    : `pl-4 ${fieldBorder(Boolean(error))}`
   return (
-    <Field label={label} error={error} id={id} describedBy={rest['aria-describedby']}>
+    <Field
+      label={label}
+      error={error}
+      id={id}
+      describedBy={rest['aria-describedby']}
+      labelTone={borderless ? 'ink-2' : 'ink'}
+      labelGap={borderless ? 'md' : 'sm'}
+    >
       {(control) => (
         <div className="relative">
           <input
@@ -20,7 +37,7 @@ export function PasswordInput({ label, error, id, placeholder, ...rest }: Passwo
             {...rest}
             {...control}
             type={visible ? 'text' : 'password'}
-            className={`${fieldBase} h-12 pr-14 pl-4 ${fieldBorder(Boolean(error))}`}
+            className={`${fieldBase} ${fieldText(variant)} h-12 pr-14 ${look}`}
           />
           <button
             type="button"

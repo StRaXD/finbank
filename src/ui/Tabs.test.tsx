@@ -43,6 +43,32 @@ describe('Tabs', () => {
     expect(tab('Revenue')).toHaveAttribute('aria-controls', 'panel')
   })
 
+  it('uses the larger Settings look with size="lg" (111. Settings)', () => {
+    render(
+      <Tabs
+        tabs={[
+          { id: 'account', label: 'Account' },
+          { id: 'security', label: 'Security' },
+        ]}
+        value="account"
+        onChange={() => {}}
+        label="Settings"
+        size="lg"
+      />,
+    )
+    expect(screen.getByRole('tablist')).toHaveClass('gap-8')
+    expect(tab('Account')).toHaveClass('px-3', 'pb-3.5', 'text-primary', 'border-primary')
+    expect(tab('Security')).toHaveClass('px-3', 'pb-3.5', 'text-subtle', 'border-transparent')
+    expect(tab('Security')).not.toHaveClass('text-ink-2', 'px-2', 'pb-2')
+  })
+
+  it('keeps the default (md) look of 107. Transactions', () => {
+    render(<Harness />)
+    expect(screen.getByRole('tablist')).toHaveClass('gap-5')
+    expect(tab('Revenue')).toHaveClass('px-2', 'pb-2')
+    expect(tab('Revenue')).not.toHaveClass('px-3', 'text-subtle')
+  })
+
   it('selects a tab on click', () => {
     const onChange = vi.fn()
     render(<Harness onChange={onChange} />)

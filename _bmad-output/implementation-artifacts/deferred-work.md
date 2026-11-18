@@ -61,3 +61,26 @@
 - source_spec: `_bmad-output/implementation-artifacts/epic-4-final-review.md`
   summary: Resolved: the spec-1-9 item above ("`Modal` without a `title` has no accessible name") was fixed by Story 4.2's `Modal` `label` prop (rendered as `aria-label`). Both Adjust modals are named, e.g. "Adjust savings goal" and "Adjust Food limit".
   evidence: `src/ui/Modal.tsx` `label`; `Modal.test.tsx` "takes its accessible name from label when there is no title".
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-1-settings-tabs-and-the-profile-form.md`
+  summary: Consolidate the three copies of the ApiError fieldErrors → setError mapping (auth `applyApiError`, goals `showSubmitError`, settings `ProfileForm`) into one tested shared helper, and cover the unmapped/mixed-key branch for the settings form.
+  evidence: The verification-gap review found the unmapped/mixed `fieldErrors` branch in `ProfileForm.showSubmitError` is untested, and only the auth copy has tests. It is unreachable today, because the mock emits only the five known keys and the http adapter is `notImplemented`. The copies can drift once a real adapter arrives.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-profile-picture-upload.md`
+  summary: Add a mock adapter test, or a write queue, proving `updateProfile` re-reads state after the async avatar encode, so a write committed during the encode is not overwritten.
+  evidence: The verification-gap review found that moving `const prev = state()` above the encode would bring back a lost update, and no test would fail. It is only reachable when another mutation hits the same adapter instance during a real-browser encode. The cost is unverified, but would be medium.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-3-change-password.md`
+  summary: `PasswordForm.showSubmitError` is a fourth copy of the fieldErrors → setError mapping, and its unknown-key branch is untested. Fold it into the shared helper proposed under the Story 5.1 deferral.
+  evidence: The verification-gap review found that deleting `unmapped.push` would not fail any test. It is unreachable today, because the mock emits only `oldPassword`, `newPassword` and `confirmPassword` and the http adapter is `notImplemented`.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-5-final-review.md`
+  summary: Add a ProfileForm test that a submit fired while `updateProfile` is pending is ignored (`updateProfile` called once), mirroring PasswordForm's "ignores a second submit while the change is in flight".
+  evidence: The verification-gap review (chunk 2) found that deleting ProfileForm's `if (busy)` guard fails no test. Low exposure: the disabled submit button already blocks clicks and implicit Enter; only scripted or assistive-tech submit paths reach it.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-5-final-review.md`
+  summary: Cap the decoded pixel area of a picked avatar (or decode with `resizeWidth`/`resizeHeight`) so a small, highly compressed image with huge dimensions cannot exhaust memory in `downscaleToJpegDataUrl`.
+  evidence: Raised by the edge-case and general reviewers in Story 5.2 and again in the final review. A 5 MB PNG of 20000×20000 decodes to about 1.6 GB before the 256px downscale. Rare (it needs a crafted or unusual file), but a crash rather than an inline error. Unverified in a browser.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-5-final-review.md`
+  summary: Two items carried forward. The production JS chunk is now 999 kB (300 kB gzip), up from 986 kB at Epic 4, which adds to the existing bundle-size item. The `fieldErrors` → `setError` mapping now has four copies (auth, goals, ProfileForm, PasswordForm), which adds to the shared-helper deferrals from Stories 5.1 and 5.3.
+  evidence: `npm run build` output at `81e965b`. The final review's blind hunter (chunk 2) and verification-gap layers. The 5.2 deferral "re-read of state after the async encode is untested" is resolved by the final-review test "does not overwrite a write made while the avatar is being encoded".

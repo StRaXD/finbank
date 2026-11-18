@@ -10,11 +10,25 @@ import { createQueryClient } from '../api/queryClient.ts'
 import { SessionProvider } from '../api/SessionProvider.tsx'
 import { routeObjects } from './routeObjects.tsx'
 
+/**
+ * Stands in for the browser avatar downscaler, since jsdom cannot decode images: a fake JPEG data
+ * URL that depends only on the image's size, so tests can predict it.
+ */
+export function stubEncodeAvatar(image: Blob): Promise<string> {
+  return Promise.resolve(stubAvatarUrl(image.size))
+}
+
+/** What `stubEncodeAvatar` stores for an image of `size` bytes. */
+export function stubAvatarUrl(size: number) {
+  return `data:image/jpeg;base64,${btoa(`stub-avatar-${size}`)}`
+}
+
 export function createTestApi(overrides: Partial<FinbankApi> = {}): FinbankApi {
   const api = createMockApi({
     storage: localStorage,
     sessionStores: { local: localStorage, session: sessionStorage },
     delayMs: 0,
+    encodeAvatar: stubEncodeAvatar,
   })
   return { ...api, ...overrides }
 }
