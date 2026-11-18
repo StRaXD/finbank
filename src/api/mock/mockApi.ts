@@ -19,6 +19,8 @@ import {
   AVATAR_SIZE_MESSAGE,
   AVATAR_TYPE_MESSAGE,
   type BalanceSummary,
+  CONFIRM_PASSWORD_MISMATCH_MESSAGE,
+  CONFIRM_PASSWORD_REQUIRED_MESSAGE,
   type Bill,
   type BillingCycle,
   type BillLogo,
@@ -33,6 +35,11 @@ import {
   type ListBillsInput,
   type ListTransactionsInput,
   type LoginInput,
+  NEW_PASSWORD_LENGTH_MESSAGE,
+  NEW_PASSWORD_REQUIRED_MESSAGE,
+  OLD_PASSWORD_REQUIRED_MESSAGE,
+  PASSWORD_MIN_LENGTH,
+  type PasswordInput,
   type ProfileInput,
   type SavingSummaryPoint,
   type SavingsGoal,
@@ -115,6 +122,23 @@ function checkEmail(email: unknown, errors: FieldErrors) {
 
 function checkRequired(value: unknown, field: string, label: string, errors: FieldErrors) {
   if (typeof value !== 'string' || value.trim() === '') errors[field] = `${label} is required.`
+}
+
+/**
+ * The password change rules, by length only: passwords are never trimmed, and no message ever
+ * contains a password.
+ */
+function checkPasswordChange(input: PasswordInput | undefined, errors: FieldErrors) {
+  const text = (value: unknown) => (typeof value === 'string' ? value : '')
+  const oldPassword = text(input?.oldPassword)
+  const newPassword = text(input?.newPassword)
+  const confirmPassword = text(input?.confirmPassword)
+  if (oldPassword.length === 0) errors.oldPassword = OLD_PASSWORD_REQUIRED_MESSAGE
+  if (newPassword.length === 0) errors.newPassword = NEW_PASSWORD_REQUIRED_MESSAGE
+  else if (newPassword.length < PASSWORD_MIN_LENGTH) errors.newPassword = NEW_PASSWORD_LENGTH_MESSAGE
+  if (confirmPassword.length === 0) errors.confirmPassword = CONFIRM_PASSWORD_REQUIRED_MESSAGE
+  // A blank new password gets only its own message, as in the form.
+  else if (newPassword.length > 0 && confirmPassword !== newPassword) errors.confirmPassword = CONFIRM_PASSWORD_MISMATCH_MESSAGE
 }
 
 const AVATAR_DECODE_MESSAGE = "We couldn't read that image."
@@ -838,6 +862,15 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
         writeItem(storage, MOCK_STORAGE_KEY, JSON.stringify(next))
         current = next
         return structuredClone(profile)
+      }),
+
+    changePassword: (input: PasswordInput) =>
+      call(() => {
+        const errors: FieldErrors = {}
+        checkPasswordChange(input, errors)
+        throwIfInvalid(errors)
+        // Mock sign-in stores no credential, so the old password is not checked, and the new one
+        // is not stored: no state, storage or session is touched.
       }),
 
     listAccounts: () => call(() => structuredClone(state().accounts)),

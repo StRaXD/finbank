@@ -12,6 +12,7 @@ import type {
   ListBillsInput,
   ListTransactionsInput,
   LoginInput,
+  PasswordInput,
   ProfileInput,
   SavingSummaryPoint,
   SavingsGoal,
@@ -45,6 +46,16 @@ export interface FinbankApi {
    * failure). Every rejection leaves the stored profile, avatar included, unchanged.
    */
   updateProfile(input: ProfileInput): Promise<UserProfile>
+  /**
+   * Changes the signed-in user's password. `oldPassword` is required, `newPassword` is required
+   * and at least `PASSWORD_MIN_LENGTH` characters, and `confirmPassword` is required and equal to
+   * `newPassword`; passwords are never trimmed. A failed rule rejects with `VALIDATION` and
+   * `fieldErrors` keyed `oldPassword` / `newPassword` / `confirmPassword`, whose messages never
+   * contain a password. The mock does not check `oldPassword` against a stored credential (mock
+   * sign-in stores none) and stores no password; it resolves once the rules pass. It never touches
+   * the session or the profile.
+   */
+  changePassword(input: PasswordInput): Promise<void>
   /** Every account, in stored (seed) order. */
   listAccounts(): Promise<Account[]>
   /** One account (a copy), or `null` for an unknown id. */
@@ -129,6 +140,7 @@ export const FINBANK_API_METHODS = [
   'getSession',
   'getProfile',
   'updateProfile',
+  'changePassword',
   'listAccounts',
   'getAccount',
   'getBalanceSummary',

@@ -91,4 +91,39 @@ describe('PasswordInput', () => {
     toggle.focus()
     expect(toggle).toHaveFocus()
   })
+
+  it('keeps the default look: an ink label 8px above a bordered ink-2 field', () => {
+    render(<PasswordInput label="Password" />)
+    expect(screen.getByText('Password')).toHaveClass('mb-2', 'text-ink')
+    const input = screen.getByLabelText('Password')
+    expect(input).toHaveClass('h-12', 'pl-4', 'pr-14', 'text-ink-2', 'border-border')
+    expect(input).not.toHaveClass('pl-6', 'border-transparent', 'text-subtle')
+  })
+
+  describe('borderless variant (112. Settings)', () => {
+    it('has an ink-2 label 12px above a subtle value, a transparent border and 24px left padding', () => {
+      render(<PasswordInput label="Old Password" variant="borderless" />)
+      const label = screen.getByText('Old Password')
+      expect(label).toHaveClass('text-ink-2', 'mb-3')
+      expect(label).not.toHaveClass('text-ink', 'mb-2')
+      const input = screen.getByLabelText('Old Password')
+      expect(input).toHaveClass('h-12', 'pl-6', 'pr-14', 'text-subtle', 'border-transparent')
+      expect(input).not.toHaveClass('pl-4', 'text-ink-2', 'border-border', 'focus:border-ink-2')
+    })
+
+    it('turns the border danger with an error', () => {
+      render(<PasswordInput label="Old Password" variant="borderless" error="Old password is required." />)
+      const input = screen.getByLabelText('Old Password')
+      expect(input).toHaveClass('border-danger')
+      expect(input).not.toHaveClass('border-transparent')
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+    })
+
+    it('keeps the eye toggle', () => {
+      render(<PasswordInput label="Old Password" variant="borderless" />)
+      const input = screen.getByLabelText('Old Password')
+      fireEvent.click(screen.getByRole('button', { name: 'Show password' }))
+      expect(input).toHaveAttribute('type', 'text')
+    })
+  })
 })

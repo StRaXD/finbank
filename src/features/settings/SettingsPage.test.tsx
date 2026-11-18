@@ -4,7 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiProvider } from '../../api/ApiProvider.tsx'
 import type { FinbankApi } from '../../api/port.ts'
-import { ApiError, type ProfileInput, type UserProfile } from '../../api/types.ts'
+import { ApiError, type PasswordInput, type ProfileInput, type UserProfile } from '../../api/types.ts'
 import { SettingsPage } from './SettingsPage.tsx'
 
 const seeded: UserProfile = {
@@ -25,8 +25,9 @@ function createFakeApi(overrides: Partial<FinbankApi> = {}) {
     profile = { ...profile, ...fields, ...(avatar && { avatarUrl: savedAvatarUrl }) }
     return Promise.resolve(structuredClone(profile))
   })
-  const api = { getProfile, updateProfile, ...overrides } as FinbankApi
-  return { api, getProfile, updateProfile }
+  const changePassword = vi.fn<FinbankApi['changePassword']>((_input: PasswordInput) => Promise.resolve())
+  const api = { getProfile, updateProfile, changePassword, ...overrides } as FinbankApi
+  return { api, getProfile, updateProfile, changePassword }
 }
 
 function renderAt(path: string, api: FinbankApi) {
@@ -70,11 +71,12 @@ describe('SettingsPage tabs', () => {
     },
   )
 
-  it('deep-links ?tab=security to the Security placeholder', () => {
+  it('deep-links ?tab=security to the password form', async () => {
     renderAt('/settings?tab=security', createFakeApi().api)
     expect(tab('Security')).toHaveAttribute('aria-selected', 'true')
     const panel = screen.getByRole('tabpanel', { name: 'Security' })
-    expect(within(panel).queryByRole('textbox')).not.toBeInTheDocument()
+    expect(await within(panel).findByLabelText('Old Password')).toBeInTheDocument()
+    expect(within(panel).queryByLabelText('Full name')).not.toBeInTheDocument()
   })
 
   it('keeps the tab in the URL on click and arrow keys, pushing history so Back returns', async () => {
@@ -467,5 +469,221 @@ describe('ProfileForm profile picture', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Your browser storage is full. Free some space and try again.')
     expect(boxImage()).toHaveAttribute('src', 'blob:preview-1')
     expect(screen.getByRole('status')).toBeEmptyDOMElement()
+  })
+})
+
+describe('PasswordForm', () => {
+  const oldPassword = () => screen.getByLabelText('Old Password')
+  const newPassword = () => screen.getByLabelText('New Password')
+  const retype = () => screen.getByLabelText('Retype Password')
+  const update = () => fireEvent.click(screen.getByRole('button', { name: 'Update Password' }))
+  const passwordsLoaded = () => screen.findByLabelText('Old Password')
+  const fill = (old: string, next: string, again: string) => {
+    type(oldPassword(), old)
+    type(newPassword(), next)
+    type(retype(), again)
+  }
+  const valid = { oldPassword: 'old-secret', newPassword: 'new-secret-1', confirmPassword: 'new-secret-1' }
+  const fieldMessages = [
+    'Old password is required.',
+    'New password is required.',
+    'Use at least 8 characters.',
+    'Retype your new password.',
+    "Passwords don't match.",
+  ]
+
+  it('shows empty, masked, borderless password fields and the profile phone read-only', async () => {
+    renderAt('/settings?tab=security', createFakeApi().api)
+    await passwordsLoaded()
+    for (const input of [oldPassword(), newPassword(), retype()]) {
+      expect(input).toHaveAttribute('type', 'password')
+      expect(input).toHaveValue('')
+      expect(input).toHaveClass('border-transparent', 'text-subtle')
+    }
+    // The eye toggle stays on all three (human decision).
+    expect(screen.getAllByRole('button', { name: 'Show password' })).toHaveLength(3)
+    await waitFor(() => expect(phoneCode()).toHaveValue('+880'))
+    expect(phoneNumber()).toHaveValue('51547 58868')
+    for (const input of [phoneCode(), phoneNumber()]) {
+      expect(input).toHaveAttribute('readonly')
+      input.focus()
+      expect(input).toHaveFocus()
+    }
+    expect(screen.getByTestId('phone-input')).toHaveClass('border-transparent')
+  })
+
+  it('changes the password: one call with the three values, cleared fields and "Password updated."', async () => {
+    const { api, changePassword, updateProfile } = createFakeApi()
+    const { router } = renderAt('/settings?tab=security', api)
+    await passwordsLoaded()
+    fill(valid.oldPassword, valid.newPassword, valid.confirmPassword)
+    update()
+    expect(await screen.findByText('Password updated.')).toBeInTheDocument()
+    expect(changePassword).toHaveBeenCalledTimes(1)
+    expect(changePassword).toHaveBeenCalledWith(valid)
+    for (const input of [oldPassword(), newPassword(), retype()]) expect(input).toHaveValue('')
+    expect(updateProfile).not.toHaveBeenCalled()
+    expect(router.state.location.search).toBe('?tab=security')
+    expect(phoneNumber()).toHaveValue('51547 58868')
+  })
+
+  it('hides the confirmation once a field is edited again', async () => {
+    renderAt('/settings?tab=security', createFakeApi().api)
+    await passwordsLoaded()
+    fill(valid.oldPassword, valid.newPassword, valid.confirmPassword)
+    update()
+    expect(await screen.findByText('Password updated.')).toBeInTheDocument()
+    type(oldPassword(), 'x')
+    expect(screen.queryByText('Password updated.')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['a blank old password', ['', valid.newPassword, valid.confirmPassword], 'Old Password', 'Old password is required.'],
+    ['a blank new password', [valid.oldPassword, '', valid.confirmPassword], 'New Password', 'New password is required.'],
+    ['a blank retype', [valid.oldPassword, valid.newPassword, ''], 'Retype Password', 'Retype your new password.'],
+    ['a short new password', [valid.oldPassword, 'short7!', 'short7!'], 'New Password', 'Use at least 8 characters.'],
+    ['a mismatch', [valid.oldPassword, 'new-secret-1', 'new-secret-2'], 'Retype Password', "Passwords don't match."],
+  ] as const)('rejects %s on its field and sends nothing', async (_name, [old, next, again], label, message) => {
+    const { api, changePassword } = createFakeApi()
+    renderAt('/settings?tab=security', api)
+    await passwordsLoaded()
+    fill(old, next, again)
+    update()
+    const error = await screen.findByText(message)
+    const input = screen.getByLabelText(label)
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(error.id)
+    // Only that field errs.
+    expect(fieldMessages.filter((m) => screen.queryByText(m))).toEqual([message])
+    expect(changePassword).not.toHaveBeenCalled()
+    expect(screen.queryByText('Password updated.')).not.toBeInTheDocument()
+  })
+
+  it('shows every required message at once on an empty submit', async () => {
+    const { api, changePassword } = createFakeApi()
+    renderAt('/settings?tab=security', api)
+    await passwordsLoaded()
+    update()
+    expect(await screen.findByText('Old password is required.')).toBeInTheDocument()
+    expect(screen.getByText('New password is required.')).toBeInTheDocument()
+    expect(screen.getByText('Retype your new password.')).toBeInTheDocument()
+    expect(changePassword).not.toHaveBeenCalled()
+  })
+
+  it('keeps spaces: eight spaces is accepted and sent unchanged', async () => {
+    const { api, changePassword } = createFakeApi()
+    renderAt('/settings?tab=security', api)
+    await passwordsLoaded()
+    const spaces = '        '
+    fill(valid.oldPassword, spaces, spaces)
+    update()
+    expect(await screen.findByText('Password updated.')).toBeInTheDocument()
+    expect(changePassword).toHaveBeenCalledWith({ oldPassword: valid.oldPassword, newPassword: spaces, confirmPassword: spaces })
+  })
+
+  it('maps adapter fieldErrors onto the fields and keeps the typed values', async () => {
+    const { api } = createFakeApi({
+      changePassword: () =>
+        Promise.reject(new ApiError('VALIDATION', 'Please correct the highlighted fields.', { oldPassword: 'Old password is wrong.' })),
+    })
+    renderAt('/settings?tab=security', api)
+    await passwordsLoaded()
+    fill(valid.oldPassword, valid.newPassword, valid.confirmPassword)
+    update()
+    expect(await screen.findByText('Old password is wrong.')).toBeInTheDocument()
+    expect(oldPassword()).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(oldPassword()).toHaveValue(valid.oldPassword)
+    expect(newPassword()).toHaveValue(valid.newPassword)
+    expect(retype()).toHaveValue(valid.confirmPassword)
+  })
+
+  it('shows any other error as an alert without password text and keeps the typed values', async () => {
+    const { api } = createFakeApi({
+      changePassword: () => Promise.reject(new ApiError('UNKNOWN', 'Something went wrong. Please try again.')),
+    })
+    renderAt('/settings?tab=security', api)
+    await passwordsLoaded()
+    fill(valid.oldPassword, valid.newPassword, valid.confirmPassword)
+    update()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Something went wrong. Please try again.')
+    for (const value of Object.values(valid)) expect(alert).not.toHaveTextContent(value)
+    expect(oldPassword()).toHaveValue(valid.oldPassword)
+    expect(newPassword()).toHaveValue(valid.newPassword)
+    expect(retype()).toHaveValue(valid.confirmPassword)
+    expect(screen.queryByText('Password updated.')).not.toBeInTheDocument()
+  })
+
+  it('shows a STORAGE_FULL message exactly as the alert, without password text', async () => {
+    const message = 'Your browser storage is full. Free some space and try again.'
+    const { api } = createFakeApi({ changePassword: () => Promise.reject(new ApiError('STORAGE_FULL', message)) })
+    renderAt('/settings?tab=security', api)
+    await passwordsLoaded()
+    fill(valid.oldPassword, valid.newPassword, valid.confirmPassword)
+    update()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe(message)
+    for (const value of Object.values(valid)) expect(alert).not.toHaveTextContent(value)
+  })
+
+  it('does not wait for a pending profile: the change works, and the phone fills in once it loads', async () => {
+    let resolve!: (profile: UserProfile) => void
+    const { api, changePassword } = createFakeApi({ getProfile: () => new Promise((r) => (resolve = r)) })
+    renderAt('/settings?tab=security', api)
+    expect(oldPassword()).toBeInTheDocument()
+    expect(newPassword()).toBeInTheDocument()
+    expect(retype()).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Update Password' })).toBeInTheDocument()
+    expect(phoneNumber()).toHaveValue('')
+    fill(valid.oldPassword, valid.newPassword, valid.confirmPassword)
+    update()
+    expect(await screen.findByText('Password updated.')).toBeInTheDocument()
+    expect(changePassword).toHaveBeenCalledWith(valid)
+    await act(async () => resolve(structuredClone(seeded)))
+    await waitFor(() => expect(phoneNumber()).toHaveValue('51547 58868'))
+    expect(phoneCode()).toHaveValue('+880')
+  })
+
+  it('still changes the password when the profile fails to load', async () => {
+    const { api, changePassword } = createFakeApi({
+      getProfile: () => Promise.reject(new ApiError('UNKNOWN', 'Something went wrong. Please try again.')),
+    })
+    renderAt('/settings?tab=security', api)
+    expect(screen.getByRole('button', { name: 'Update Password' })).toBeInTheDocument()
+    fill(valid.oldPassword, valid.newPassword, valid.confirmPassword)
+    update()
+    expect(await screen.findByText('Password updated.')).toBeInTheDocument()
+    expect(changePassword).toHaveBeenCalledWith(valid)
+    expect(phoneCode()).toHaveValue('')
+    expect(phoneNumber()).toHaveValue('')
+  })
+
+  it('does not keep the passwords in the mutation cache after a success', async () => {
+    const { api } = createFakeApi()
+    const { queryClient } = renderAt('/settings?tab=security', api)
+    await passwordsLoaded()
+    fill(valid.oldPassword, valid.newPassword, valid.confirmPassword)
+    update()
+    expect(await screen.findByText('Password updated.')).toBeInTheDocument()
+    await waitFor(() => {
+      const variables = queryClient.getMutationCache().getAll().map((m) => m.state.variables)
+      expect(JSON.stringify(variables ?? [])).not.toContain(valid.newPassword)
+    })
+  })
+
+  it('ignores a second submit while the change is in flight', async () => {
+    let resolve!: () => void
+    const changePassword = vi.fn<FinbankApi['changePassword']>(() => new Promise<void>((r) => (resolve = r)))
+    const { api } = createFakeApi({ changePassword })
+    renderAt('/settings?tab=security', api)
+    await passwordsLoaded()
+    fill(valid.oldPassword, valid.newPassword, valid.confirmPassword)
+    update()
+    await waitFor(() => expect(changePassword).toHaveBeenCalledTimes(1))
+    fireEvent.submit(screen.getByRole('button', { name: 'Update Password' }).closest('form')!)
+    await act(async () => resolve())
+    expect(await screen.findByText('Password updated.')).toBeInTheDocument()
+    expect(changePassword).toHaveBeenCalledTimes(1)
   })
 })

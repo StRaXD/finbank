@@ -1,7 +1,8 @@
 // Full-app Settings flow over one shared mock storage (localStorage / sessionStorage): profile
 // edits refresh the shell without a reload, persist across a reload, and survive logout + login
 // with either the new or the old email, while the session stays untouched. A picked photo is
-// saved with "Update Profile" and shows in the sidebar the same way.
+// saved with "Update Profile" and shows in the sidebar the same way. A password change keeps the
+// user signed in and stores nothing.
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MOCK_STORAGE_KEY, SESSION_STORAGE_KEY } from '../api/mock/mockApi.ts'
@@ -82,6 +83,50 @@ describe('Settings profile flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
     await logInWith(email)
     await expect(createTestApi().getProfile()).resolves.toMatchObject(edited)
+  })
+})
+
+describe('Settings password flow', () => {
+  const passwords = { old: 'old-secret', next: 'new-secret-1' }
+
+  it('changes the password while staying signed in, then logout and login still work', async () => {
+    const api = await signIn()
+    const sessionStored = localStorage.getItem(SESSION_STORAGE_KEY)
+    const { router } = renderAt(`${routes.settings}?tab=security`, api)
+    await screen.findByLabelText('Old Password')
+    await waitFor(() => expect(userName()).toHaveTextContent(seed.profile.fullName))
+    const stateStored = localStorage.getItem(MOCK_STORAGE_KEY)
+    expect(screen.getByLabelText('Phone Number number')).toHaveValue(seed.profile.phoneNumber)
+
+    type('Old Password', passwords.old)
+    type('New Password', passwords.next)
+    type('Retype Password', passwords.next)
+    fireEvent.click(screen.getByRole('button', { name: 'Update Password' }))
+    expect(await screen.findByText('Password updated.')).toBeInTheDocument()
+    for (const label of ['Old Password', 'New Password', 'Retype Password']) {
+      expect(screen.getByLabelText(label)).toHaveValue('')
+    }
+
+    // Still signed in on the Security tab, with the same session and an unchanged profile.
+    expect(router.state.location.pathname).toBe(routes.settings)
+    expect(router.state.location.search).toBe('?tab=security')
+    expect(localStorage.getItem(SESSION_STORAGE_KEY)).toBe(sessionStored)
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull()
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(stateStored)
+    await expect(api.getSession()).resolves.toEqual({ userId: 'usr_1', persistent: true })
+    await expect(api.getProfile()).resolves.toEqual(seed.profile)
+    expect(userName()).toHaveTextContent(seed.profile.fullName)
+    // No password reaches storage.
+    const everything = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage })
+    expect(everything).not.toContain(passwords.old)
+    expect(everything).not.toContain(passwords.next)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+    await screen.findByRole('heading', { level: 1, name: 'Log in' })
+    fireEvent.change(screen.getByLabelText('Email Address'), { target: { value: seed.profile.email } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: passwords.next } })
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }))
+    expect(await within(await screen.findByRole('banner')).findByText('Hello Tanzir')).toBeInTheDocument()
   })
 })
 

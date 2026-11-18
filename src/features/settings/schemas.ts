@@ -4,7 +4,13 @@ import {
   AVATAR_MIME_TYPES,
   AVATAR_SIZE_MESSAGE,
   AVATAR_TYPE_MESSAGE,
+  CONFIRM_PASSWORD_MISMATCH_MESSAGE,
+  CONFIRM_PASSWORD_REQUIRED_MESSAGE,
   isAvatarMimeType,
+  NEW_PASSWORD_LENGTH_MESSAGE,
+  NEW_PASSWORD_REQUIRED_MESSAGE,
+  OLD_PASSWORD_REQUIRED_MESSAGE,
+  PASSWORD_MIN_LENGTH,
 } from '../../api/types.ts'
 
 const required = (message: string) => z.string().trim().min(1, message)
@@ -29,3 +35,25 @@ export function avatarPickError(file: File): string | undefined {
   if (file.size > AVATAR_MAX_BYTES) return AVATAR_SIZE_MESSAGE
   return undefined
 }
+
+/**
+ * The Security tab's password form: the adapter's rules and messages. Passwords are never trimmed;
+ * a mismatch is reported on `confirmPassword`, only once both are filled in (a blank
+ * New Password shows just its own required message).
+ */
+export const passwordSchema = z
+  .object({
+    oldPassword: z.string().min(1, OLD_PASSWORD_REQUIRED_MESSAGE),
+    newPassword: z
+      .string()
+      .min(1, NEW_PASSWORD_REQUIRED_MESSAGE)
+      .min(PASSWORD_MIN_LENGTH, NEW_PASSWORD_LENGTH_MESSAGE),
+    confirmPassword: z.string().min(1, CONFIRM_PASSWORD_REQUIRED_MESSAGE),
+  })
+  .superRefine((values, ctx) => {
+    if (values.newPassword !== '' && values.confirmPassword !== '' && values.confirmPassword !== values.newPassword) {
+      ctx.addIssue({ code: 'custom', path: ['confirmPassword'], message: CONFIRM_PASSWORD_MISMATCH_MESSAGE })
+    }
+  })
+
+export type PasswordFormValues = z.infer<typeof passwordSchema>

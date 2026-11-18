@@ -23,6 +23,7 @@ import { useLogout } from './useLogout.ts'
 import { useProfile } from './useProfile.ts'
 import { useRemoveAccount } from './useRemoveAccount.ts'
 import { useRequestPasswordReset } from './useRequestPasswordReset.ts'
+import { useChangePassword } from './useChangePassword.ts'
 import { useSavingSummary } from './useSavingSummary.ts'
 import { useSavingsGoal } from './useSavingsGoal.ts'
 import { useUpdateCategoryLimit } from './useUpdateCategoryLimit.ts'
@@ -301,6 +302,11 @@ describe('mutation hooks', () => {
     ['useSignup', () => useSignup(), { name: 'Jane', email: 'a@b.co', password: 'secret' }],
     ['useLoginWithGoogle', () => useLoginWithGoogle(), { persistent: true }],
     ['useRequestPasswordReset', () => useRequestPasswordReset(), 'a@b.co'],
+    [
+      'useChangePassword',
+      () => useChangePassword(),
+      { oldPassword: 'old-secret', newPassword: 'new-secret-1', confirmPassword: 'new-secret-1' },
+    ],
   ])('%s does not keep its variables in the mutation cache once unmounted', async (_name, useHook, input) => {
     const { wrapper, queryClient } = setup()
     const { result, unmount } = renderHook(() => useHook(), { wrapper })
@@ -315,6 +321,31 @@ describe('mutation hooks', () => {
     await act(() => result.current.mutateAsync('a@b.co'))
     await act(() => result.current.mutateAsync('bad').catch(() => {}))
     await waitFor(() => expect(result.current.error).toMatchObject({ code: 'VALIDATION' }))
+  })
+
+  it('useChangePassword invalidates neither the profile nor the session', async () => {
+    localStorage.setItem('finbank:session', JSON.stringify({ userId: 'usr_1', persistent: true }))
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(
+      () => ({ session: useSession(), profile: useProfile(), change: useChangePassword() }),
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.session.data).toEqual({ userId: 'usr_1', persistent: true }))
+    await waitFor(() => expect(result.current.profile.data).toEqual(seed.profile))
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const sessionUpdates = queryClient.getQueryState(qk.session())?.dataUpdateCount
+    const profileUpdates = queryClient.getQueryState(qk.profile())?.dataUpdateCount
+
+    await act(() =>
+      result.current.change.mutateAsync({ oldPassword: 'old-secret', newPassword: 'new-secret-1', confirmPassword: 'new-secret-1' }),
+    )
+
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(queryClient.getQueryState(qk.session())?.isInvalidated).toBe(false)
+    expect(queryClient.getQueryState(qk.profile())?.isInvalidated).toBe(false)
+    expect(queryClient.getQueryState(qk.session())?.dataUpdateCount).toBe(sessionUpdates)
+    expect(queryClient.getQueryState(qk.profile())?.dataUpdateCount).toBe(profileUpdates)
+    expect(result.current.session.data).toEqual({ userId: 'usr_1', persistent: true })
   })
 
   it('useRemoveAccount refetches accounts and the balance summary before it settles', async () => {

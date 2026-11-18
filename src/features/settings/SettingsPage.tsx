@@ -4,6 +4,7 @@ import { useProfile } from '../../api/hooks/useProfile.ts'
 import { AsyncSection } from '../../ui/AsyncSection.tsx'
 import { Card } from '../../ui/Card.tsx'
 import { Tabs } from '../../ui/Tabs.tsx'
+import { PasswordForm } from './components/PasswordForm.tsx'
 import { ProfileForm } from './components/ProfileForm.tsx'
 
 type SettingsTab = 'account' | 'security'
@@ -29,7 +30,7 @@ function AccountPanel() {
 }
 
 /**
- * Settings (111. Settings.png): one white card with Account and Security tabs and no page heading.
+ * Settings (111. and 112. Settings.png): one white card with Account and Security tabs and no page heading.
  * The active tab lives only in `?tab=`; switching pushes a history entry, so Back returns to the
  * previous tab.
  */
@@ -53,11 +54,7 @@ export function SettingsPage() {
       <div className="px-2 pt-4 pb-6">
         <Tabs tabs={tabs} value={tab} onChange={selectTab} label="Settings" panelId={panelId} size="lg" />
         <div role="tabpanel" id={panelId} aria-label={label} className="mt-8">
-          {tab === 'account' ? (
-            <AccountPanel />
-          ) : (
-            <p className="text-16 text-subtle">Password settings are coming soon.</p>
-          )}
+          {tab === 'account' ? <AccountPanel /> : <PasswordForm />}
         </div>
       </div>
     </Card>

@@ -68,3 +68,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-2-profile-picture-upload.md`
   summary: Add a mock adapter test, or a write queue, proving `updateProfile` re-reads state after the async avatar encode, so a write committed during the encode is not overwritten.
   evidence: The verification-gap review found that moving `const prev = state()` above the encode would bring back a lost update, and no test would fail. It is only reachable when another mutation hits the same adapter instance during a real-browser encode. The cost is unverified, but would be medium.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-3-change-password.md`
+  summary: `PasswordForm.showSubmitError` is a fourth copy of the fieldErrors → setError mapping, and its unknown-key branch is untested. Fold it into the shared helper proposed under the Story 5.1 deferral.
+  evidence: The verification-gap review found that deleting `unmapped.push` would not fail any test. It is unreachable today, because the mock emits only `oldPassword`, `newPassword` and `confirmPassword` and the http adapter is `notImplemented`.

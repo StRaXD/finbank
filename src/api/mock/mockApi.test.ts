@@ -1601,6 +1601,82 @@ describe('updateProfile', () => {
   })
 })
 
+describe('changePassword', () => {
+  const valid = { oldPassword: 'old-secret', newPassword: 'new-secret-1', confirmPassword: 'new-secret-1' }
+
+  it('resolves for valid input and writes or removes no storage key', async () => {
+    const api = make()
+    await api.login({ email: 'tanzir.rahman@email.com', password: 'pw', persistent: true })
+    await api.getToday()
+    const session = await api.getSession()
+    const profile = await api.getProfile()
+    const localBefore = { ...localStorage }
+    const sessionBefore = { ...sessionStorage }
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem')
+    await expect(api.changePassword(valid)).resolves.toBeUndefined()
+    expect(setItem).not.toHaveBeenCalled()
+    expect(removeItem).not.toHaveBeenCalled()
+    expect({ ...localStorage }).toEqual(localBefore)
+    expect({ ...sessionStorage }).toEqual(sessionBefore)
+    await expect(api.getSession()).resolves.toEqual(session)
+    await expect(api.getProfile()).resolves.toEqual(profile)
+  })
+
+  it('stores no password anywhere and leaves the stored items byte-identical', async () => {
+    const api = make()
+    await api.login({ email: 'tanzir.rahman@email.com', password: 'pw', persistent: true })
+    await api.getToday()
+    const stateBefore = localStorage.getItem(MOCK_STORAGE_KEY)
+    const sessionBefore = localStorage.getItem(SESSION_STORAGE_KEY)
+    expect(stateBefore).not.toBeNull()
+    expect(sessionBefore).not.toBeNull()
+    await api.changePassword(valid)
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(stateBefore)
+    expect(localStorage.getItem(SESSION_STORAGE_KEY)).toBe(sessionBefore)
+    const everything = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage })
+    for (const value of Object.values(valid)) expect(everything).not.toContain(value)
+  })
+
+  it('keeps spaces: eight spaces is a valid new password', async () => {
+    const spaces = '        '
+    await expect(
+      make().changePassword({ oldPassword: 'old-secret', newPassword: spaces, confirmPassword: spaces }),
+    ).resolves.toBeUndefined()
+  })
+
+  it.each([
+    ['a blank old password', { ...valid, oldPassword: '' }, { oldPassword: 'Old password is required.' }],
+    ['a blank new password', { ...valid, newPassword: '', confirmPassword: '' }, {
+      newPassword: 'New password is required.',
+      confirmPassword: 'Retype your new password.',
+    }],
+    ['a short new password', { ...valid, newPassword: 'short7!', confirmPassword: 'short7!' }, {
+      newPassword: 'Use at least 8 characters.',
+    }],
+    ['a blank new password with a filled retype', { ...valid, newPassword: '' }, {
+      newPassword: 'New password is required.',
+    }],
+    ['a blank retype', { ...valid, confirmPassword: '' }, { confirmPassword: 'Retype your new password.' }],
+    ['a mismatch', { ...valid, confirmPassword: 'new-secret-2' }, { confirmPassword: "Passwords don't match." }],
+    ['a retype that differs only by trailing spaces', { ...valid, confirmPassword: 'new-secret-1 ' }, {
+      confirmPassword: "Passwords don't match.",
+    }],
+  ])('rejects %s with VALIDATION on the right field, without the passwords', async (_name, input, fieldErrors) => {
+    const api = make()
+    await api.getToday()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const error = await rejection(api.changePassword(input))
+    expect(error.code).toBe('VALIDATION')
+    expect(error.fieldErrors).toEqual(fieldErrors)
+    const text = error.message + JSON.stringify(error.fieldErrors)
+    for (const value of [input.oldPassword, input.newPassword, input.confirmPassword].filter((v) => v.trim())) {
+      expect(text).not.toContain(value)
+    }
+    expect(setItem).not.toHaveBeenCalled()
+  })
+})
+
 describe('getSavingSummary', () => {
   const ym = (value: string) => value as YearMonth
   const iso = (value: string) => value as IsoDate

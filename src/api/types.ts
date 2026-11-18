@@ -59,6 +59,26 @@ export function isAvatarMimeType(type: string): boolean {
   return (AVATAR_MIME_TYPES as readonly string[]).includes(type)
 }
 
+/**
+ * A password change. Passwords are never trimmed: only their length and the match between
+ * `newPassword` and `confirmPassword` are checked.
+ */
+export type PasswordInput = {
+  oldPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+/** The shortest new password accepted (checked by the form and again by the adapter). */
+export const PASSWORD_MIN_LENGTH = 8
+
+/** The password change errors, shared by the form and the adapter. */
+export const OLD_PASSWORD_REQUIRED_MESSAGE = 'Old password is required.'
+export const NEW_PASSWORD_REQUIRED_MESSAGE = 'New password is required.'
+export const NEW_PASSWORD_LENGTH_MESSAGE = `Use at least ${PASSWORD_MIN_LENGTH} characters.`
+export const CONFIRM_PASSWORD_REQUIRED_MESSAGE = 'Retype your new password.'
+export const CONFIRM_PASSWORD_MISMATCH_MESSAGE = "Passwords don't match."
+
 export type AccountType = 'creditCard' | 'checking' | 'savings' | 'investment' | 'loan'
 
 export type CardNetwork = 'mastercard' | 'visa'
