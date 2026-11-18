@@ -30,6 +30,8 @@ import {
   Search,
   Settings,
   ShoppingBag,
+  Target,
+  Trophy,
   Utensils,
   Wallet,
   X,
@@ -67,6 +69,9 @@ export const icons = {
   arrowDown: ArrowDown,
   // An Overview Expenses Breakdown tile's link to Expenses (104. Overview.png).
   arrowRight: ArrowRight,
+  // The Savings Goal card's Target Achieved and This month Target stats (110. Goals.png).
+  trophy: Trophy,
+  target: Target,
 } as const
 
 export type IconName = keyof typeof icons

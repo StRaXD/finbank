@@ -278,7 +278,7 @@ All screens read one seeded mock dataset through the provider.
 - Changes made by the user persist in `localStorage` across reloads: removed accounts, goal and limit edits, profile edits, the photo and the session. Clearing browser storage restores the seed data. `[ASSUMPTION]`
 
 #### FR-34: Currency and date formatting
-- Amounts use USD with thousands separators.
+- Amounts use USD with thousands separators. Exception: the Saving Summary y-axis ticks read "$500", "$2000", "$5000" as designed (FR-24), via an ungrouped whole-dollar format.
 - These amounts show no decimals ("$240,399", "$25,000", "$150"):
   - Total Balance
   - account card totals (carousel and Balances)

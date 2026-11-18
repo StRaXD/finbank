@@ -1,5 +1,5 @@
-import { toIsoDate } from '../../lib/dates.ts'
-import type { Account, Bill, IsoDate, Transaction, UserProfile } from '../types.ts'
+import { toIsoDate, toYearMonth } from '../../lib/dates.ts'
+import type { Account, Bill, CategoryLimit, IsoDate, SavingsGoal, Transaction, UserProfile } from '../types.ts'
 import { buildSeedTransactions } from './seedTransactions.ts'
 
 export const MOCK_STATE_VERSION = 2
@@ -15,6 +15,10 @@ export type MockState = {
   transactions: Transaction[]
   /** Stored in any order; `listBills` sorts them by due date. */
   bills: Bill[]
+  /** At most one goal per month, in any order. A month without one reads as a zero goal. */
+  savingsGoals: SavingsGoal[]
+  /** Exactly one limit per expense category, in the fixed category order. */
+  categoryLimits: CategoryLimit[]
 }
 
 /** The single signed-in user of the mock (single-user decision, 2026-11-16). */
@@ -109,10 +113,35 @@ const seedBills = Object.freeze([
   }),
 ] satisfies Bill[])
 
-export const seed: Readonly<Omit<MockState, 'accounts' | 'transactions' | 'bills'>> & {
+// One savings goal per month, January to May 2023 (110. Goals.png shows May: $12,500 of $20,000).
+// February's achieved amount is over its target, which exercises the gauge's 100% cap.
+const seedSavingsGoals = Object.freeze([
+  Object.freeze({ month: toYearMonth('2023-01'), targetCents: 1_500_000, achievedCents: 1_420_000 }),
+  Object.freeze({ month: toYearMonth('2023-02'), targetCents: 1_500_000, achievedCents: 1_560_000 }),
+  Object.freeze({ month: toYearMonth('2023-03'), targetCents: 1_800_000, achievedCents: 1_630_000 }),
+  Object.freeze({ month: toYearMonth('2023-04'), targetCents: 1_800_000, achievedCents: 1_710_000 }),
+  Object.freeze({ month: toYearMonth('2023-05'), targetCents: 2_000_000, achievedCents: 1_250_000 }),
+] satisfies SavingsGoal[])
+
+// One monthly spending limit per category, in the fixed category order. The values vary on
+// purpose: 110. Goals.png's uniform $250.00 is placeholder copy.
+const seedCategoryLimits = Object.freeze([
+  Object.freeze({ category: 'housing', limitCents: 100_000 }),
+  Object.freeze({ category: 'food', limitCents: 50_000 }),
+  Object.freeze({ category: 'transportation', limitCents: 30_000 }),
+  Object.freeze({ category: 'entertainment', limitCents: 25_000 }),
+  Object.freeze({ category: 'shopping', limitCents: 40_000 }),
+  Object.freeze({ category: 'others', limitCents: 20_000 }),
+] satisfies CategoryLimit[])
+
+export const seed: Readonly<
+  Omit<MockState, 'accounts' | 'transactions' | 'bills' | 'savingsGoals' | 'categoryLimits'>
+> & {
   readonly accounts: readonly Readonly<Account>[]
   readonly transactions: readonly Readonly<Transaction>[]
   readonly bills: readonly Readonly<Bill>[]
+  readonly savingsGoals: readonly Readonly<SavingsGoal>[]
+  readonly categoryLimits: readonly Readonly<CategoryLimit>[]
 } = Object.freeze({
   version: MOCK_STATE_VERSION,
   today: toIsoDate('2023-05-19'),
@@ -127,6 +156,8 @@ export const seed: Readonly<Omit<MockState, 'accounts' | 'transactions' | 'bills
   accounts: seedAccounts,
   transactions: Object.freeze(buildSeedTransactions(seedAccounts).map((t) => Object.freeze(t))),
   bills: seedBills,
+  savingsGoals: seedSavingsGoals,
+  categoryLimits: seedCategoryLimits,
 })
 
 /** A deep, mutable copy of the seed. */

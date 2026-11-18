@@ -7,6 +7,8 @@ export type ModalProps = {
   open: boolean
   onClose: () => void
   title?: string
+  /** The dialog's accessible name when it has no visible `title` (rendered as `aria-label`). */
+  label?: string
   children: ReactNode
 }
 
@@ -34,7 +36,7 @@ export function Modal({ open, ...rest }: ModalProps) {
   return <OpenModal {...rest} />
 }
 
-function OpenModal({ onClose, title, children }: Omit<ModalProps, 'open'>) {
+function OpenModal({ onClose, title, label, children }: Omit<ModalProps, 'open'>) {
   const { container, acquireInert } = useOverlayHost()
   const panelRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
@@ -119,6 +121,7 @@ function OpenModal({ onClose, title, children }: Omit<ModalProps, 'open'>) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={title !== undefined ? titleId : undefined}
+        aria-label={title === undefined ? label : undefined}
         tabIndex={-1}
         className="relative w-122 max-w-full shrink-0 rounded-modal bg-card px-16 pt-16 pb-12 focus-visible:outline-none"
       >

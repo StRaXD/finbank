@@ -1,6 +1,7 @@
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import { applyInvalidation, invalidationMap, qk } from './queryKeys.ts'
+import type { YearMonth } from './types.ts'
 
 describe('qk', () => {
   it('builds hierarchical keys under one root', () => {
@@ -23,6 +24,11 @@ describe('qk', () => {
     expect(qk.comparison()).toEqual(['finbank', 'comparison'])
     expect(qk.comparison('year')).toEqual(['finbank', 'comparison', 'year'])
     expect(qk.comparison('week')).toEqual(['finbank', 'comparison', 'week'])
+    expect(qk.savingsGoal()).toEqual(['finbank', 'savingsGoal'])
+    expect(qk.savingsGoal('2023-05' as YearMonth)).toEqual(['finbank', 'savingsGoal', '2023-05'])
+    expect(qk.savingSummary()).toEqual(['finbank', 'savingSummary'])
+    expect(qk.savingSummary('2023-05' as YearMonth)).toEqual(['finbank', 'savingSummary', '2023-05'])
+    expect(qk.categoryLimits()).toEqual(['finbank', 'categoryLimits'])
   })
 
   it('never puts the cursor in a transactions key', () => {
@@ -44,7 +50,35 @@ describe('invalidationMap', () => {
       signup: 'all',
       logout: 'all',
       removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions(), qk.categorySummaries(), qk.comparison()],
+      updateSavingsGoal: [qk.savingsGoal(), qk.savingSummary()],
+      updateCategoryLimit: [qk.categoryLimits()],
     })
+  })
+
+  it('invalidates the category limits, and nothing else, on updateCategoryLimit', async () => {
+    const client = new QueryClient()
+    client.setQueryData(qk.categoryLimits(), [])
+    client.setQueryData(qk.savingsGoal('2023-05' as YearMonth), { month: '2023-05', targetCents: 1, achievedCents: 0 })
+    client.setQueryData(qk.categorySummaries(), [])
+    await applyInvalidation(client, 'updateCategoryLimit')
+    expect(client.getQueryState(qk.categoryLimits())?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.savingsGoal('2023-05' as YearMonth))?.isInvalidated).toBe(false)
+    expect(client.getQueryState(qk.categorySummaries())?.isInvalidated).toBe(false)
+  })
+
+  it('invalidates every month of the savings goal and saving summary, and nothing else, on updateSavingsGoal', async () => {
+    const client = new QueryClient()
+    client.setQueryData(qk.savingSummary('2023-05' as YearMonth), [])
+    client.setQueryData(qk.savingSummary('2023-04' as YearMonth), [])
+    client.setQueryData(qk.savingsGoal('2023-05' as YearMonth), { month: '2023-05', targetCents: 1, achievedCents: 0 })
+    client.setQueryData(qk.savingsGoal('2022-06' as YearMonth), { month: '2022-06', targetCents: 0, achievedCents: 0 })
+    client.setQueryData(qk.accounts(), [])
+    await applyInvalidation(client, 'updateSavingsGoal')
+    expect(client.getQueryState(qk.savingsGoal('2023-05' as YearMonth))?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.savingsGoal('2022-06' as YearMonth))?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.savingSummary('2023-05' as YearMonth))?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.savingSummary('2023-04' as YearMonth))?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.accounts())?.isInvalidated).toBe(false)
   })
 
   it('invalidates accounts, the balance summary and every transaction list on removeAccount', async () => {

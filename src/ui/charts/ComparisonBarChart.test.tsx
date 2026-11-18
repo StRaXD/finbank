@@ -84,5 +84,11 @@ describe('ChartLegend', () => {
     expect(screen.getByTestId('swatch-current')).toHaveClass('h-2', 'w-4', 'bg-chart-current')
     expect(screen.getByTestId('swatch-previous')).toHaveClass('h-2', 'w-4', 'bg-chart-previous')
     expect(screen.getByTestId('swatch-current')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByRole('list')).toHaveClass('gap-6')
+  })
+
+  it('spaces items 34px apart with the wide spacing', () => {
+    render(<ChartLegend items={[{ label: 'This month', tone: 'current' }]} spacing="wide" />)
+    expect(screen.getByRole('list')).toHaveClass('gap-[34px]')
   })
 })

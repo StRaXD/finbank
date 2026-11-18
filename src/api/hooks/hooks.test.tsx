@@ -6,6 +6,7 @@ import { ApiProvider } from '../ApiProvider.tsx'
 import { createMockApi } from '../mock/mockApi.ts'
 import { seed } from '../mock/seed.ts'
 import { qk } from '../queryKeys.ts'
+import type { YearMonth } from '../types.ts'
 import { SessionProvider } from '../SessionProvider.tsx'
 import { useSessionContext } from '../sessionContext.ts'
 import { useAccount } from './useAccount.ts'
@@ -13,6 +14,7 @@ import { useAccounts } from './useAccounts.ts'
 import { useApi } from './useApi.ts'
 import { useBalanceSummary } from './useBalanceSummary.ts'
 import { useBills } from './useBills.ts'
+import { useCategoryLimits } from './useCategoryLimits.ts'
 import { useCategorySummaries } from './useCategorySummaries.ts'
 import { useComparison } from './useComparison.ts'
 import { useLogin } from './useLogin.ts'
@@ -21,6 +23,10 @@ import { useLogout } from './useLogout.ts'
 import { useProfile } from './useProfile.ts'
 import { useRemoveAccount } from './useRemoveAccount.ts'
 import { useRequestPasswordReset } from './useRequestPasswordReset.ts'
+import { useSavingSummary } from './useSavingSummary.ts'
+import { useSavingsGoal } from './useSavingsGoal.ts'
+import { useUpdateCategoryLimit } from './useUpdateCategoryLimit.ts'
+import { useUpdateSavingsGoal } from './useUpdateSavingsGoal.ts'
 import { useSession } from './useSession.ts'
 import { useSignup } from './useSignup.ts'
 import { useToday } from './useToday.ts'
@@ -147,6 +153,49 @@ describe('query hooks', () => {
     expect(result.current.week.data![0]!.label).toBe('14 Sun')
     expect(queryClient.getQueryData(qk.comparison('year'))).toEqual(result.current.year.data)
     expect(queryClient.getQueryData(qk.comparison('week'))).toEqual(result.current.week.data)
+  })
+
+  it('useSavingsGoal resolves each month under its own key', async () => {
+    const { wrapper, queryClient } = setup()
+    const may = '2023-05' as YearMonth
+    const apr = '2023-04' as YearMonth
+    const { result } = renderHook(() => ({ may: useSavingsGoal(may), apr: useSavingsGoal(apr) }), { wrapper })
+    await waitFor(() => expect(result.current.may.data).toEqual({ month: may, targetCents: 2_000_000, achievedCents: 1_250_000 }))
+    await waitFor(() => expect(result.current.apr.data).toMatchObject({ targetCents: 1_800_000, achievedCents: 1_710_000 }))
+    expect(queryClient.getQueryData(qk.savingsGoal(may))).toEqual(result.current.may.data)
+    expect(queryClient.getQueryData(qk.savingsGoal(apr))).toEqual(result.current.apr.data)
+  })
+
+  it('useSavingSummary resolves a month and refetches after useUpdateSavingsGoal', async () => {
+    const { wrapper, queryClient } = setup()
+    const may = '2023-05' as YearMonth
+    const { result } = renderHook(() => ({ summary: useSavingSummary(may), update: useUpdateSavingsGoal() }), { wrapper })
+    await waitFor(() => expect(result.current.summary.data).toHaveLength(31))
+    expect(queryClient.getQueryData(qk.savingSummary(may))).toEqual(result.current.summary.data)
+    const total = () => (result.current.summary.data ?? []).reduce((a, p) => a + (p.currentCents ?? 0), 0)
+    expect(total()).toBe(1_250_000)
+    await act(() => result.current.update.mutateAsync({ month: may, targetCents: 1, achievedCents: 400_000 }))
+    // The mutation resolves only after the active query has refetched: the cache already holds
+    // the new series, synchronously. The hook then sees it after TanStack's one setTimeout(0)
+    // notify batch (flushed once, not polled).
+    const cached = queryClient.getQueryData<{ currentCents: number | null }[]>(qk.savingSummary(may)) ?? []
+    expect(cached.reduce((a, p) => a + (p.currentCents ?? 0), 0)).toBe(400_000)
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(total()).toBe(400_000)
+  })
+
+  it('useCategoryLimits lists the six limits and refetches after useUpdateCategoryLimit', async () => {
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => ({ limits: useCategoryLimits(), update: useUpdateCategoryLimit() }), { wrapper })
+    await waitFor(() => expect(result.current.limits.data).toHaveLength(6))
+    expect(queryClient.getQueryData(qk.categoryLimits())).toEqual(result.current.limits.data)
+    await act(() => result.current.update.mutateAsync({ category: 'food', limitCents: 65_000 }))
+    // The mutation resolves only after the active query has refetched.
+    const cached = queryClient.getQueryData<{ category: string; limitCents: number }[]>(qk.categoryLimits())
+    expect(cached?.[1]).toEqual({ category: 'food', limitCents: 65_000 })
+    // The hook sees it after TanStack's one setTimeout(0) notify batch (flushed once, not polled).
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(result.current.limits.data?.[1]).toEqual({ category: 'food', limitCents: 65_000 })
   })
 
   it('useSession is null when signed out', async () => {

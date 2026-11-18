@@ -1139,7 +1139,7 @@ So that I know whether I'm on track.
 **Then** that month's goal loads into the card.
 **And** the selector lists the months returned by `selectableMonths`.
 
-**And** "Adjust Goal" has no action yet; Story 4.2 wires it up.
+**And** "Adjust Goal" has no action yet; Story 4.2 wires it up. *(Superseded by Story 4.2, which opens `AdjustSavingsGoalModal` from it.)*
 **And** the card matches the design (NFR-1).
 
 ### Story 4.2: Adjust Savings Goal modal
@@ -1194,7 +1194,7 @@ So that I can see whether I'm saving faster or slower.
 
 **Given** `getSavingSummary(month: YearMonth)`
 **When** it is called
-**Then** it returns daily points for the selected month and the previous month, from the seeded history.
+**Then** it returns daily points for the selected month and the previous month, from the seeded history. *(Superseded by the Story 4.3 human decision, 2026-11-18: each series is that month's stored `achievedCents` ("Present") split by day with deterministic weights, so the chart follows goal edits. The two month selectors on Goals are linked to one month.)*
 **And** points after mock today are `null`.
 
 **Given** `/goals`
@@ -1208,7 +1208,7 @@ So that I can see whether I'm saving faster or slower.
 - the current series as a smooth teal line with a gradient fill
 - the comparison series as a grey dashed line
 - x ticks on day 1 and every 5th day ("May 01" … "May 30"), with vertical gridlines
-- y ticks at $0, $500, $2000 and $5000, using `createTickScale(SAVING_TICKS)`. This story adds the `SAVING_TICKS` constant to `lib/chartScale` (FR24, AD-16)
+- y ticks at $0, $500, $2000 and $5000, using `createTickScale(SAVING_TICKS)`. `SAVING_TICKS` already exists in `lib/chartScale` (added in Story 3.2) (FR24, AD-16)
 
 **Given** the user picks another month
 **When** the chart updates

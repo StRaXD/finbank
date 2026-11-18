@@ -76,6 +76,17 @@ describe('Button', () => {
     expect(screen.getByRole('button', { name: 'Small' })).not.toHaveClass('w-full')
   })
 
+  it('supports the compact size (36px, 14px text, 16px icon) of the card actions', () => {
+    render(
+      <Button variant="outline" size="compact" trailingIcon="pencil">
+        Adjust Goal
+      </Button>,
+    )
+    const button = screen.getByRole('button', { name: 'Adjust Goal' })
+    expect(button).toHaveClass('h-9', 'px-5', 'gap-2', 'text-14', 'border-primary')
+    expect(button.querySelector('[data-icon="pencil"]')).toHaveAttribute('width', '16')
+  })
+
   it('renders leading and trailing icons from the icon map', () => {
     const { container } = render(
       <>
@@ -92,6 +103,8 @@ describe('Button', () => {
     const details = screen.getByRole('button', { name: 'Details' })
     const icons = [...details.querySelectorAll('[data-icon]')].map((el) => el.getAttribute('data-icon'))
     expect(icons).toEqual(['check', 'chevronRight'])
+    // Icons keep their size when the label crowds a fixed-width slot (the 99px category "Adjust").
+    for (const icon of container.querySelectorAll('[data-icon]')) expect(icon).toHaveClass('shrink-0')
   })
 
   it('is focusable, and not when disabled', () => {

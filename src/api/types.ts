@@ -1,5 +1,5 @@
 // The only home of domain types (AD-2). Later epics add their entities here.
-import type { IsoDate } from '../lib/dates.ts'
+import type { IsoDate, YearMonth } from '../lib/dates.ts'
 
 export type { IsoDate, YearMonth } from '../lib/dates.ts'
 
@@ -182,4 +182,43 @@ export type ComparisonPoint = {
 export type ListBillsInput = {
   /** At most this many bills, an integer from 1 to 50. Omitted: every bill. */
   limit?: number
+}
+
+/**
+ * One calendar month's savings goal. Both amounts are stored and user-editable: `achievedCents` is
+ * the "Present" amount, and may exceed the target. A month with no stored goal reads as a zero goal.
+ */
+export type SavingsGoal = {
+  month: YearMonth
+  targetCents: number
+  achievedCents: number
+}
+
+/** The editable amounts of one month's savings goal, in integer cents. */
+export type SavingsGoalAmounts = {
+  targetCents: number
+  achievedCents: number
+}
+
+/**
+ * One expense category's stored monthly spending limit, in integer cents. Not compared with actual
+ * spending: there is no over-limit state.
+ */
+export type CategoryLimit = {
+  category: ExpenseCategoryId
+  limitCents: number
+}
+
+/**
+ * One day of the Saving Summary chart, derived by the adapter from the stored savings goals: the
+ * selected month's day `date`, that month's share of `achievedCents` for the day, and the previous
+ * month's share for the same day of the month. Components display these numbers as given.
+ */
+export type SavingSummaryPoint = {
+  /** A day of the selected month, day 1 first. */
+  date: IsoDate
+  /** This month's saving on `date`, or `null` after today. */
+  currentCents: number | null
+  /** The previous month's saving on the same day of the month, or `null` when it has no such day. */
+  previousCents: number | null
 }

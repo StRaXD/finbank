@@ -2,18 +2,24 @@ import type {
   Account,
   BalanceSummary,
   Bill,
+  CategoryLimit,
   CategorySummary,
   ComparisonGranularity,
   ComparisonPoint,
+  ExpenseCategoryId,
   GoogleLoginInput,
   IsoDate,
   ListBillsInput,
   ListTransactionsInput,
   LoginInput,
+  SavingSummaryPoint,
+  SavingsGoal,
+  SavingsGoalAmounts,
   Session,
   SignupInput,
   TransactionPage,
   UserProfile,
+  YearMonth,
 } from './types.ts'
 
 /** The single data port (AD-2/AD-3). Every adapter implements all of it. Later epics extend it. */
@@ -60,6 +66,43 @@ export interface FinbankApi {
    * today. An unknown granularity rejects with `VALIDATION`.
    */
   getComparison(granularity: ComparisonGranularity): Promise<ComparisonPoint[]>
+  /**
+   * The savings goal of `month` (a copy). A month with no stored goal resolves as a zero goal
+   * (`targetCents` and `achievedCents` 0), not an error. A malformed month rejects with `VALIDATION`.
+   */
+  getSavingsGoal(month: YearMonth): Promise<SavingsGoal>
+  /**
+   * Stores `month`'s savings goal (creating it for a month that had none), persists it and resolves
+   * with a copy. Both amounts must be non-negative safe integer cents; `achievedCents` may exceed
+   * the target. Bad amounts reject with `VALIDATION` and `fieldErrors` keyed `targetCents` /
+   * `achievedCents`; a malformed month rejects with `VALIDATION`. A failed write rejects with
+   * `STORAGE_FULL` when storage is full (`UNKNOWN` for any other write failure) and leaves the
+   * stored goals unchanged.
+   */
+  updateSavingsGoal(month: YearMonth, amounts: SavingsGoalAmounts): Promise<SavingsGoal>
+  /**
+   * The Saving Summary series of `month`, one point per day of that month, derived from the stored
+   * savings goals. `currentCents` splits `month`'s `achievedCents` over days 1 to min(today, month
+   * end) and is `null` after today; over those days it sums exactly to `achievedCents`.
+   * `previousCents` is the previous month's `achievedCents` split over all of its days, but shown
+   * only on the days `month` has (`null` on a day the previous month lacks), so when the previous
+   * month is longer it sums to less than its `achievedCents`. A month with no stored goal gives
+   * zeros. A malformed month rejects with `VALIDATION`.
+   */
+  getSavingSummary(month: YearMonth): Promise<SavingSummaryPoint[]>
+  /**
+   * The six category spending limits (copies), always in the fixed category order Housing, Food,
+   * Transportation, Entertainment, Shopping, Others.
+   */
+  listCategoryLimits(): Promise<CategoryLimit[]>
+  /**
+   * Stores `category`'s limit, persists it and resolves with a copy. Only that category changes.
+   * An unknown category rejects with `VALIDATION`; `limitCents` must be non-negative safe integer
+   * cents, otherwise it rejects with `VALIDATION` and `fieldErrors.limitCents`. A failed write
+   * rejects with `STORAGE_FULL` when storage is full (`UNKNOWN` for any other write failure) and
+   * leaves the stored limits unchanged.
+   */
+  updateCategoryLimit(category: ExpenseCategoryId, limitCents: number): Promise<CategoryLimit>
 }
 
 /** Every port method name, for tests that must cover the whole port. */
@@ -80,6 +123,11 @@ export const FINBANK_API_METHODS = [
   'listBills',
   'listCategorySummaries',
   'getComparison',
+  'getSavingsGoal',
+  'updateSavingsGoal',
+  'getSavingSummary',
+  'listCategoryLimits',
+  'updateCategoryLimit',
 ] as const satisfies readonly (keyof FinbankApi)[]
 
 // Compile-time guard: adding a port method without listing it above fails `tsc`.

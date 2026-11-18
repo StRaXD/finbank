@@ -17,10 +17,12 @@ type FieldProps = {
   describedBy?: string
   /** `stacked`: label above the control. `inline`: label to the right (checkbox). */
   layout?: 'stacked' | 'inline'
+  /** Stacked label colour: `ink` (forms such as Login) or `ink-2` (the 110.2 Goals modals). */
+  labelTone?: 'ink' | 'ink-2'
   children: (control: FieldControlProps) => ReactNode
 }
 
-export function Field({ label, error, id, describedBy, layout = 'stacked', children }: FieldProps) {
+export function Field({ label, error, id, describedBy, layout = 'stacked', labelTone = 'ink', children }: FieldProps) {
   const generatedId = useId()
   // `||` so an empty-string id falls back too (keeps htmlFor and the error id valid).
   const controlId = id || generatedId
@@ -55,7 +57,7 @@ export function Field({ label, error, id, describedBy, layout = 'stacked', child
 
   return (
     <div className="flex flex-col">
-      <label htmlFor={controlId} className="mb-2 text-16 font-medium text-ink">
+      <label htmlFor={controlId} className={`mb-2 text-16 font-medium ${labelTone === 'ink-2' ? 'text-ink-2' : 'text-ink'}`}>
         {label}
       </label>
       {control}

@@ -45,3 +45,19 @@
 - source_spec: `_bmad-output/implementation-artifacts/epic-3-final-review.md`
   summary: Move the `YYYY-MM` and `YYYY-MM-DD` string construction in `comparisonSeries` (mockApi.ts) and the seed history (seedTransactions.ts) into `lib/dates.ts` helpers, such as the months of a year and the first day of a month.
   evidence: The Acceptance Auditor flagged template-literal date building outside `dates.ts`, against AD-9. The values are already validated by `toYearMonth`/`toIsoDate`, so behaviour is correct.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-4-final-review.md`
+  summary: The Goals Adjust modals (`GoalModalForm`) disable the focused Save button while a save is pending, so keyboard focus drops to `<body>`. This is the same pattern as the ConfirmDialog item above (spec 2.2); fix both together (`aria-disabled` instead of `disabled`, or refocus Save or the alert when pending ends).
+  evidence: Acceptance Auditor D10. `goalModalForm.tsx` renders `<Button disabled={pending}>`. Each save is pending for about 200ms with the mock.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-4-final-review.md`
+  summary: The production JS chunk is now 986 kB (296 kB gzip), up from 922 kB at Epic 3, after Epic 4's area chart and Goals screens. This adds to the bundle-size item above.
+  evidence: `npm run build` at 96c1570.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-4-final-review.md`
+  summary: `showSubmitError` in `features/goals/components/goalModalForm.tsx` duplicates the logic of `features/auth/applyApiError.ts` (map `ApiError.fieldErrors` onto form fields, otherwise one root message). Move one shared helper to a layer both features may import, and test it once.
+  evidence: Verification Gap reviewer (chunk 2). Features may not import each other's internals (AD-1), so the goals copy was written locally. Only the mapped keys are reachable today.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-4-final-review.md`
+  summary: Resolved: the spec-1-9 item above ("`Modal` without a `title` has no accessible name") was fixed by Story 4.2's `Modal` `label` prop (rendered as `aria-label`). Both Adjust modals are named, e.g. "Adjust savings goal" and "Adjust Food limit".
+  evidence: `src/ui/Modal.tsx` `label`; `Modal.test.tsx` "takes its accessible name from label when there is no title".

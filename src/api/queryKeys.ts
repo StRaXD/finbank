@@ -1,6 +1,6 @@
 // Hierarchical query keys and the single invalidation map (AD-7).
 import { hashKey, type QueryClient } from '@tanstack/react-query'
-import type { ComparisonGranularity, ListTransactionsInput, Session } from './types.ts'
+import type { ComparisonGranularity, ListTransactionsInput, Session, YearMonth } from './types.ts'
 
 /** The cache identity of a transaction list. The cursor is never part of the key. */
 export type TransactionsFilter = Omit<ListTransactionsInput, 'cursor'>
@@ -35,6 +35,14 @@ export const qk = {
     granularity === undefined
       ? ([...root, 'comparison'] as const)
       : ([...root, 'comparison', granularity] as const),
+  /** Without a month: the prefix of every month's savings goal. */
+  savingsGoal: (month?: YearMonth) =>
+    month === undefined ? ([...root, 'savingsGoal'] as const) : ([...root, 'savingsGoal', month] as const),
+  /** Without a month: the prefix of every month's saving summary series. */
+  savingSummary: (month?: YearMonth) =>
+    month === undefined ? ([...root, 'savingSummary'] as const) : ([...root, 'savingSummary', month] as const),
+  /** The six category spending limits. */
+  categoryLimits: () => [...root, 'categoryLimits'] as const,
 }
 
 /** `'all'` clears the whole cache; otherwise the listed key prefixes are invalidated. */
@@ -47,6 +55,8 @@ export const invalidationMap = {
   signup: 'all',
   logout: 'all',
   removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions(), qk.categorySummaries(), qk.comparison()],
+  updateSavingsGoal: [qk.savingsGoal(), qk.savingSummary()],
+  updateCategoryLimit: [qk.categoryLimits()],
 } as const satisfies Record<string, InvalidationTarget>
 
 export type InvalidatingMutation = keyof typeof invalidationMap

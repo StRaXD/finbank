@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FinbankApi } from '../port.ts'
-import { ApiError, type ListTransactionsInput, type Transaction } from '../types.ts'
+import { ApiError, type ExpenseCategoryId, type IsoDate, type ListTransactionsInput, type SavingsGoal, type Transaction, type YearMonth } from '../types.ts'
 import {
   createMemoryStorage,
   createMockApi,
   MOCK_STORAGE_KEY,
   SESSION_STORAGE_KEY,
   type MockApiOptions,
+  savingDayWeight,
+  savingSummarySeries,
   type StorageLike,
 } from './mockApi.ts'
 import { MOCK_STATE_VERSION, seed } from './seed.ts'
@@ -44,6 +46,8 @@ const seedJson = () => ({
   accounts: seed.accounts,
   transactions: seed.transactions,
   bills: seed.bills,
+  savingsGoals: seed.savingsGoals,
+  categoryLimits: seed.categoryLimits,
 })
 
 beforeEach(() => {
@@ -92,6 +96,8 @@ describe('persistence', () => {
       accounts: [seed.accounts[2]],
       transactions: seed.transactions.filter((t) => t.accountId === 'acc_3'),
       bills: [seed.bills[1]],
+      savingsGoals: [{ month: '2024-02', targetCents: 50_000, achievedCents: 60_000 }],
+      categoryLimits: seed.categoryLimits.map((limit) => ({ ...limit, limitCents: limit.limitCents + 1 })),
     }
     localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(custom))
     const api = make()
@@ -101,6 +107,8 @@ describe('persistence', () => {
     await expect(api.getBalanceSummary()).resolves.toEqual({
       totalBalanceCents: seed.accounts[2]!.balanceCents,
     })
+    await expect(api.getSavingsGoal('2024-02' as YearMonth)).resolves.toEqual(custom.savingsGoals[0])
+    await expect(api.listCategoryLimits()).resolves.toEqual(custom.categoryLimits)
     expect(stored()).toEqual(custom)
   })
 
@@ -1061,6 +1069,416 @@ describe('listBills', () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem')
     await make().listBills()
     expect(setItem).not.toHaveBeenCalled()
+  })
+})
+
+describe('getSavingsGoal', () => {
+  const withGoals = (savingsGoals: unknown) =>
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), savingsGoals }))
+  const goal = (patch: Record<string, unknown> = {}) => ({ ...seed.savingsGoals[4], ...patch })
+  const ym = (value: string) => value as YearMonth
+
+  it('seeds one goal per month from January to May 2023', () => {
+    expect(seed.savingsGoals.map((g) => [g.month, g.targetCents, g.achievedCents])).toEqual([
+      ['2023-01', 1_500_000, 1_420_000],
+      ['2023-02', 1_500_000, 1_560_000],
+      ['2023-03', 1_800_000, 1_630_000],
+      ['2023-04', 1_800_000, 1_710_000],
+      ['2023-05', 2_000_000, 1_250_000],
+    ])
+  })
+
+  it('returns the seeded goal of a month', async () => {
+    await expect(make().getSavingsGoal(ym('2023-05'))).resolves.toEqual({
+      month: '2023-05',
+      targetCents: 2_000_000,
+      achievedCents: 1_250_000,
+    })
+  })
+
+  it('returns a zero goal for a month without one', async () => {
+    await expect(make().getSavingsGoal(ym('2022-08'))).resolves.toEqual({
+      month: '2022-08',
+      targetCents: 0,
+      achievedCents: 0,
+    })
+  })
+
+  it.each(['2023-13', '2023-05-01', '', 'May'])('rejects the month %j with VALIDATION', async (month) => {
+    expect((await rejection(make().getSavingsGoal(ym(month)))).code).toBe('VALIDATION')
+  })
+
+  it('hands out copies, so callers cannot mutate adapter state', async () => {
+    const api = make()
+    const first = await api.getSavingsGoal(ym('2023-05'))
+    first.targetCents = 1
+    await expect(api.getSavingsGoal(ym('2023-05'))).resolves.toMatchObject({ targetCents: 2_000_000 })
+  })
+
+  it('backfills a stored state without goals from the seed and writes it back', async () => {
+    const old: Record<string, unknown> = seedJson()
+    delete old.savingsGoals
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(old))
+    await expect(make().getSavingsGoal(ym('2023-04'))).resolves.toMatchObject({ achievedCents: 1_710_000 })
+    expect(stored().savingsGoals).toEqual(seed.savingsGoals)
+  })
+
+  it.each([
+    ['a string', 'x'],
+    ['an object', { '2023-05': {} }],
+    ['null', null],
+  ])('replaces goals stored as %s with the seed', async (_name, value) => {
+    withGoals(value)
+    await make().getToday()
+    expect(stored().savingsGoals).toEqual(seed.savingsGoals)
+  })
+
+  it('drops invalid entries and repeated months, keeps the valid ones and writes the result back', async () => {
+    const good = goal()
+    withGoals([
+      good,
+      null,
+      'x',
+      goal({ month: '2023-13' }),
+      goal({ month: '2023-04-01' }),
+      goal({ month: '2023-03', targetCents: -1 }),
+      goal({ month: '2023-03', achievedCents: 1.5 }),
+      goal({ month: '2023-03', targetCents: '100' }),
+      goal({ month: '2023-03', achievedCents: Number.MAX_SAFE_INTEGER + 1 }),
+      goal({ targetCents: 1 }),
+    ])
+    await expect(make().getSavingsGoal(ym('2023-05'))).resolves.toEqual(good)
+    await expect(make().getSavingsGoal(ym('2023-03'))).resolves.toMatchObject({ targetCents: 0, achievedCents: 0 })
+    expect(stored().savingsGoals).toEqual([good])
+  })
+
+  it('does not rewrite clean stored goals on load', async () => {
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(seedJson()))
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await make().getSavingsGoal(ym('2023-05'))
+    expect(setItem).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateSavingsGoal', () => {
+  const ym = (value: string) => value as YearMonth
+
+  it('updates a seeded month, returns a copy and persists it for a fresh adapter', async () => {
+    const api = make()
+    const saved = await api.updateSavingsGoal(ym('2023-05'), { targetCents: 2_500_000, achievedCents: 1_300_050 })
+    expect(saved).toEqual({ month: '2023-05', targetCents: 2_500_000, achievedCents: 1_300_050 })
+    saved.targetCents = 1
+    await expect(api.getSavingsGoal(ym('2023-05'))).resolves.toEqual({
+      month: '2023-05',
+      targetCents: 2_500_000,
+      achievedCents: 1_300_050,
+    })
+    await expect(make().getSavingsGoal(ym('2023-05'))).resolves.toMatchObject({ targetCents: 2_500_000 })
+    expect(stored().savingsGoals).toHaveLength(seed.savingsGoals.length)
+    expect(stored().savingsGoals[4]).toEqual({ month: '2023-05', targetCents: 2_500_000, achievedCents: 1_300_050 })
+  })
+
+  it('accepts a present amount above the target', async () => {
+    await expect(
+      make().updateSavingsGoal(ym('2023-05'), { targetCents: 2_000_000, achievedCents: 3_000_000 }),
+    ).resolves.toMatchObject({ targetCents: 2_000_000, achievedCents: 3_000_000 })
+  })
+
+  it('creates the goal of a month that had none', async () => {
+    await make().updateSavingsGoal(ym('2022-06'), { targetCents: 100_000, achievedCents: 0 })
+    await expect(make().getSavingsGoal(ym('2022-06'))).resolves.toEqual({
+      month: '2022-06',
+      targetCents: 100_000,
+      achievedCents: 0,
+    })
+    expect(stored().savingsGoals).toHaveLength(seed.savingsGoals.length + 1)
+  })
+
+  it.each([
+    ['negative', -1],
+    ['non-integer', 1.5],
+    ['unsafe', Number.MAX_SAFE_INTEGER + 1],
+    ['NaN', Number.NaN],
+    ['a string', '100'],
+  ])('rejects %s cents with VALIDATION field errors and does not write', async (_name, bad) => {
+    const api = make()
+    await api.getToday()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const error = await rejection(
+      api.updateSavingsGoal(ym('2023-05'), { targetCents: bad as number, achievedCents: bad as number }),
+    )
+    expect(error.code).toBe('VALIDATION')
+    expect(Object.keys(error.fieldErrors ?? {}).sort()).toEqual(['achievedCents', 'targetCents'])
+    expect(setItem).not.toHaveBeenCalled()
+  })
+
+  it('names only the bad field', async () => {
+    const error = await rejection(make().updateSavingsGoal(ym('2023-05'), { targetCents: 100, achievedCents: -5 }))
+    expect(Object.keys(error.fieldErrors ?? {})).toEqual(['achievedCents'])
+  })
+
+  it.each(['2023-13', '2023-05-01', ''])('rejects the month %j with VALIDATION', async (month) => {
+    const error = await rejection(make().updateSavingsGoal(ym(month), { targetCents: 1, achievedCents: 1 }))
+    expect(error.code).toBe('VALIDATION')
+  })
+
+  it('rejects on a failed write and leaves memory and storage unchanged', async () => {
+    const api = make()
+    await api.getToday()
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError')
+    })
+    const error = await rejection(api.updateSavingsGoal(ym('2023-05'), { targetCents: 1, achievedCents: 1 }))
+    setItem.mockRestore()
+    expect(error.code).toBe('STORAGE_FULL')
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+    await expect(api.getSavingsGoal(ym('2023-05'))).resolves.toMatchObject({ targetCents: 2_000_000 })
+  })
+})
+
+describe('listCategoryLimits', () => {
+  const withLimits = (categoryLimits: unknown) =>
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify({ ...seedJson(), categoryLimits }))
+  const seeded = [
+    { category: 'housing', limitCents: 100_000 },
+    { category: 'food', limitCents: 50_000 },
+    { category: 'transportation', limitCents: 30_000 },
+    { category: 'entertainment', limitCents: 25_000 },
+    { category: 'shopping', limitCents: 40_000 },
+    { category: 'others', limitCents: 20_000 },
+  ]
+
+  it('lists the six seeded limits in the fixed category order', async () => {
+    expect(seed.categoryLimits).toEqual(seeded)
+    await expect(make().listCategoryLimits()).resolves.toEqual(seeded)
+  })
+
+  it('hands out copies, so callers cannot mutate adapter state', async () => {
+    const api = make()
+    const first = await api.listCategoryLimits()
+    first[0]!.limitCents = 1
+    first.pop()
+    await expect(api.listCategoryLimits()).resolves.toEqual(seeded)
+  })
+
+  it('backfills a stored state without limits from the seed and writes it back', async () => {
+    const old: Record<string, unknown> = seedJson()
+    delete old.categoryLimits
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(old))
+    await expect(make().listCategoryLimits()).resolves.toEqual(seeded)
+    expect(stored().categoryLimits).toEqual(seeded)
+  })
+
+  it.each([
+    ['a string', 'x'],
+    ['an object', { housing: 1 }],
+    ['null', null],
+    ['a number', 5],
+  ])('replaces limits stored as %s with the seed', async (_name, value) => {
+    withLimits(value)
+    await expect(make().listCategoryLimits()).resolves.toEqual(seeded)
+    expect(stored().categoryLimits).toEqual(seeded)
+  })
+
+  it('keeps valid entries, drops bad and repeated ones, restores the fixed order and seeds missing categories', async () => {
+    withLimits([
+      { category: 'others', limitCents: 7 },
+      null,
+      'x',
+      { category: 'unknown', limitCents: 1 },
+      { category: 'food', limitCents: -1 },
+      { category: 'food', limitCents: 1.5 },
+      { category: 'food', limitCents: '100' },
+      { category: 'shopping', limitCents: Number.MAX_SAFE_INTEGER + 1 },
+      { category: 'housing', limitCents: 0 },
+      { category: 'housing', limitCents: 999 },
+      { limitCents: 5 },
+    ])
+    const expected = [
+      { category: 'housing', limitCents: 0 },
+      { category: 'food', limitCents: 50_000 },
+      { category: 'transportation', limitCents: 30_000 },
+      { category: 'entertainment', limitCents: 25_000 },
+      { category: 'shopping', limitCents: 40_000 },
+      { category: 'others', limitCents: 7 },
+    ]
+    await expect(make().listCategoryLimits()).resolves.toEqual(expected)
+    expect(stored().categoryLimits).toEqual(expected)
+  })
+
+  it('writes an empty array back as the six seed limits', async () => {
+    withLimits([])
+    await expect(make().listCategoryLimits()).resolves.toEqual(seeded)
+    expect(stored().categoryLimits).toEqual(seeded)
+  })
+
+  it('does not rewrite clean stored limits on load', async () => {
+    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(seedJson()))
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await make().listCategoryLimits()
+    expect(setItem).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateCategoryLimit', () => {
+  it('changes only that category, returns a copy and persists it for a fresh adapter', async () => {
+    const api = make()
+    const saved = await api.updateCategoryLimit('food', 65_000)
+    expect(saved).toEqual({ category: 'food', limitCents: 65_000 })
+    saved.limitCents = 1
+    const expected = seed.categoryLimits.map((limit) =>
+      limit.category === 'food' ? { category: 'food', limitCents: 65_000 } : limit,
+    )
+    await expect(api.listCategoryLimits()).resolves.toEqual(expected)
+    await expect(make().listCategoryLimits()).resolves.toEqual(expected)
+    expect(stored().categoryLimits).toEqual(expected)
+  })
+
+  it('accepts a zero limit', async () => {
+    await expect(make().updateCategoryLimit('others', 0)).resolves.toEqual({ category: 'others', limitCents: 0 })
+  })
+
+  it.each([
+    ['negative', -1],
+    ['non-integer', 1.5],
+    ['unsafe', Number.MAX_SAFE_INTEGER + 1],
+    ['NaN', Number.NaN],
+    ['a string', '100'],
+  ])('rejects %s cents with VALIDATION and fieldErrors.limitCents, and does not write', async (_name, bad) => {
+    const api = make()
+    await api.getToday()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const error = await rejection(api.updateCategoryLimit('food', bad as number))
+    expect(error.code).toBe('VALIDATION')
+    expect(Object.keys(error.fieldErrors ?? {})).toEqual(['limitCents'])
+    expect(setItem).not.toHaveBeenCalled()
+  })
+
+  it.each(['unknown', '', 'Food'])('rejects the category %j with VALIDATION and does not write', async (category) => {
+    const api = make()
+    await api.getToday()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const error = await rejection(api.updateCategoryLimit(category as ExpenseCategoryId, 100))
+    expect(error.code).toBe('VALIDATION')
+    expect(error.fieldErrors?.limitCents).toBeUndefined()
+    expect(setItem).not.toHaveBeenCalled()
+  })
+
+  it('rejects on a failed write and leaves memory and storage unchanged', async () => {
+    const api = make()
+    await api.getToday()
+    const before = localStorage.getItem(MOCK_STORAGE_KEY)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError')
+    })
+    const error = await rejection(api.updateCategoryLimit('food', 1))
+    setItem.mockRestore()
+    expect(error.code).toBe('STORAGE_FULL')
+    expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
+    await expect(api.listCategoryLimits()).resolves.toEqual(seed.categoryLimits)
+  })
+})
+
+describe('getSavingSummary', () => {
+  const ym = (value: string) => value as YearMonth
+  const iso = (value: string) => value as IsoDate
+  const sum = (values: readonly (number | null)[]) => values.reduce<number>((a, b) => a + (b ?? 0), 0)
+
+  it('splits the current month over days 1 to today and leaves later days null', async () => {
+    const points = await make().getSavingSummary(ym('2023-05'))
+    expect(points).toHaveLength(31)
+    expect(points[0]!.date).toBe('2023-05-01')
+    expect(points[30]!.date).toBe('2023-05-31')
+    expect(points.slice(0, 19).every((p) => p.currentCents !== null)).toBe(true)
+    expect(points.slice(19).every((p) => p.currentCents === null)).toBe(true)
+    expect(sum(points.map((p) => p.currentCents))).toBe(1_250_000)
+  })
+
+  it('splits the previous month over all its days, null on a day it lacks', async () => {
+    const points = await make().getSavingSummary(ym('2023-05'))
+    expect(points.slice(0, 30).every((p) => p.previousCents !== null)).toBe(true)
+    expect(points[30]!.previousCents).toBeNull()
+    expect(sum(points.map((p) => p.previousCents))).toBe(1_710_000)
+  })
+
+  it('uses every day of a past month', async () => {
+    const points = await make().getSavingSummary(ym('2023-04'))
+    expect(points).toHaveLength(30)
+    expect(points.every((p) => p.currentCents !== null && p.previousCents !== null)).toBe(true)
+    expect(sum(points.map((p) => p.currentCents))).toBe(1_710_000)
+    // March has 31 days: its split is the same one March's own chart shows, minus March 31.
+    const march = await make().getSavingSummary(ym('2023-03'))
+    expect(sum(march.map((p) => p.currentCents))).toBe(1_630_000)
+    expect(points.map((p) => p.previousCents)).toEqual(march.slice(0, 30).map((p) => p.currentCents))
+  })
+
+  it('gives zeros for a month, or a previous month, without a stored goal', async () => {
+    const jan = await make().getSavingSummary(ym('2023-01'))
+    expect(jan.every((p) => p.previousCents === 0)).toBe(true)
+    expect(sum(jan.map((p) => p.currentCents))).toBe(1_420_000)
+    const june = await make().getSavingSummary(ym('2022-06'))
+    expect(june.every((p) => p.currentCents === 0 && p.previousCents === 0)).toBe(true)
+  })
+
+  it('gives every day a non-negative integer share', async () => {
+    const points = await make().getSavingSummary(ym('2023-05'))
+    for (const p of points) {
+      for (const v of [p.currentCents, p.previousCents]) {
+        if (v !== null) expect(Number.isSafeInteger(v) && v >= 0).toBe(true)
+      }
+    }
+  })
+
+  it.each(['2023-13', '2023-05-01', '', 'May'])('rejects the month %j with VALIDATION', async (month) => {
+    expect((await rejection(make().getSavingSummary(ym(month)))).code).toBe('VALIDATION')
+  })
+
+  it('follows updateSavingsGoal: the series rescales to the new stored Present', async () => {
+    const api = make()
+    const before = await api.getSavingSummary(ym('2023-05'))
+    await api.updateSavingsGoal(ym('2023-05'), { targetCents: 1, achievedCents: 2_500_000 })
+    const after = await api.getSavingSummary(ym('2023-05'))
+    expect(sum(after.map((p) => p.currentCents))).toBe(2_500_000)
+    expect(after.map((p) => p.previousCents)).toEqual(before.map((p) => p.previousCents))
+    await api.updateSavingsGoal(ym('2023-04'), { targetCents: 1, achievedCents: 300 })
+    expect(sum((await api.getSavingSummary(ym('2023-05'))).map((p) => p.previousCents))).toBe(300)
+  })
+
+  it('ignores the target', async () => {
+    const api = make()
+    const before = await api.getSavingSummary(ym('2023-05'))
+    await api.updateSavingsGoal(ym('2023-05'), { targetCents: 99_999_999, achievedCents: 1_250_000 })
+    expect(await api.getSavingSummary(ym('2023-05'))).toEqual(before)
+  })
+
+  it('keeps values above $5,000 a day as they are (the chart clamps, the data does not)', () => {
+    const goals: SavingsGoal[] = [{ month: ym('2023-04'), targetCents: 0, achievedCents: 100_000_000 }]
+    const points = savingSummarySeries(goals, iso('2023-05-19'), ym('2023-04'))
+    expect(Math.max(...points.map((p) => p.currentCents ?? 0))).toBeGreaterThan(500_000)
+    expect(sum(points.map((p) => p.currentCents))).toBe(100_000_000)
+  })
+
+  it('splits huge safe amounts exactly', () => {
+    const goals: SavingsGoal[] = [{ month: ym('2023-04'), targetCents: 0, achievedCents: Number.MAX_SAFE_INTEGER }]
+    const points = savingSummarySeries(goals, iso('2023-05-19'), ym('2023-04'))
+    expect(points.reduce((a, p) => a + BigInt(p.currentCents!), 0n)).toBe(BigInt(Number.MAX_SAFE_INTEGER))
+  })
+
+  it('is all null for the current series of a month after today', () => {
+    const points = savingSummarySeries([], iso('2023-05-19'), ym('2023-06'))
+    expect(points.every((p) => p.currentCents === null)).toBe(true)
+  })
+
+  it('weights each day deterministically within 0.4…1.6', () => {
+    for (const month of ['2023-02', '2023-04', '2023-05', '2024-02']) {
+      for (let d = 1; d <= 28; d++) {
+        const date = iso(`${month}-${String(d).padStart(2, '0')}`)
+        const w = savingDayWeight(date)
+        expect(w).toBe(savingDayWeight(date))
+        expect(Number.isInteger(w) && w >= 40 && w <= 160).toBe(true)
+      }
+    }
   })
 })
 

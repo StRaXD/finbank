@@ -5,7 +5,7 @@ import { seed } from '../api/mock/seed.ts'
 import { formatDate, formatMoney, formatPercent } from '../lib/format.ts'
 import { categoryLabels } from '../ui/categoryLabels.ts'
 import { qk } from '../api/queryKeys.ts'
-import { ApiError, type IsoDate } from '../api/types.ts'
+import { ApiError, type IsoDate, type YearMonth } from '../api/types.ts'
 import { routeObjects } from './routeObjects.tsx'
 import { RouteError } from './RouteError.tsx'
 import { routes } from './routes.ts'
@@ -64,6 +64,139 @@ describe('routing and session guard', () => {
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(6))
     const housing = screen.getByRole('article', { name: 'Housing' })
     expect(within(housing).getByText('$2,023.00')).toBeInTheDocument()
+  })
+
+  it('routes /goals to the Goals page with the seeded May savings goal', async () => {
+    renderAt(routes.goals, await signedInApi())
+    const card = await screen.findByTestId('savings-goal-card')
+    expect(await within(card).findByText('$12,500')).toBeInTheDocument()
+    expect(within(card).getByText('$20,000')).toBeInTheDocument()
+  })
+
+  it('adjusts the May savings goal on the real adapter: the card and the chart update in place and the goal persists', async () => {
+    renderAt(routes.goals, await signedInApi())
+    const card = await screen.findByTestId('savings-goal-card')
+    expect(await within(card).findByText('$12,500')).toBeInTheDocument()
+    const chartSummary = () => screen.getByTestId('saving-summary-card').querySelector('p.sr-only')?.textContent ?? ''
+    await waitFor(() => expect(chartSummary()).toContain('This month: $12,500 in total'))
+    fireEvent.click(within(card).getByRole('button', { name: 'Adjust Goal' }))
+    const dialog = screen.getByRole('dialog', { name: 'Adjust savings goal' })
+    const target = within(dialog).getByLabelText('Target Amounts')
+    const present = within(dialog).getByLabelText('Present Amounts')
+    expect(target).toHaveValue('$20,000.00')
+    expect(present).toHaveValue('$12,500.00')
+    fireEvent.change(target, { target: { value: '$25,000' } })
+    fireEvent.change(present, { target: { value: '13,000.5' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    // Already updated when the dialog disappears: no reload, no stale frame.
+    expect(within(card).getByText('$25,000')).toBeInTheDocument()
+    expect(within(card).getByText('$13,001')).toBeInTheDocument()
+    expect(within(card).getByText('13K')).toBeInTheDocument()
+    expect(within(card).getByText('$25k')).toBeInTheDocument()
+    // The Saving Summary refetched from the same stored goal: Present is split over May 1–19.
+    expect(chartSummary()).toContain('This month: $13,001 in total')
+    await expect(createTestApi().getSavingsGoal('2023-05' as YearMonth)).resolves.toEqual({
+      month: '2023-05',
+      targetCents: 2_500_000,
+      achievedCents: 1_300_050,
+    })
+  })
+
+  describe('Overview Goals and the Goals page share one savings goal', () => {
+    const overviewGoals = () => screen.getByRole('region', { name: 'Goals' })
+    const stat = (root: HTMLElement, label: string) => within(root).getByText(label).nextElementSibling?.textContent
+    const chartSummary = () => screen.getByTestId('saving-summary-card').querySelector('p.sr-only')?.textContent ?? ''
+
+    async function saveInDialog(targetValue: string, presentValue: string) {
+      const dialog = screen.getByRole('dialog', { name: 'Adjust savings goal' })
+      fireEvent.change(within(dialog).getByLabelText('Target Amounts'), { target: { value: targetValue } })
+      fireEvent.change(within(dialog).getByLabelText('Present Amounts'), { target: { value: presentValue } })
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    }
+
+    async function expectOverview(target: string, achieved: string, centre: string) {
+      expect(await within(await screen.findByRole('region', { name: 'Goals' })).findByTestId('goals-target')).toHaveTextContent(target)
+      await waitFor(() => expect(stat(overviewGoals(), 'Target Achieved')).toBe(achieved))
+      expect(stat(overviewGoals(), 'This month Target')).toBe(target)
+      expect(within(overviewGoals()).getByText('May, 2023')).toBeInTheDocument()
+      expect(within(within(overviewGoals()).getByTestId('goal-gauge')).getByText(centre)).toBeInTheDocument()
+    }
+
+    async function expectGoals(target: string, achieved: string, centre: string) {
+      const card = await screen.findByTestId('savings-goal-card')
+      await waitFor(() => expect(stat(card, 'Target Achieved')).toBe(achieved))
+      expect(stat(card, 'This month Target')).toBe(target)
+      expect(within(within(card).getByTestId('goal-gauge')).getByText(centre)).toBeInTheDocument()
+      await waitFor(() => expect(chartSummary()).toContain(`This month: ${achieved} in total`))
+    }
+
+    it('shows the seeded May goal on Overview', async () => {
+      renderAt(routes.overview, await signedInApi())
+      await expectOverview('$20,000', '$12,500', '12K')
+      expect(within(overviewGoals()).getByText('$20k')).toBeInTheDocument()
+    })
+
+    it('edits on Overview: the card updates before the dialog closes, Goals agrees, and a fresh app reads it back', async () => {
+      const { router, unmount } = renderAt(routes.overview, await signedInApi())
+      await expectOverview('$20,000', '$12,500', '12K')
+      fireEvent.click(within(overviewGoals()).getByRole('button', { name: 'Adjust savings goal' }))
+      await saveInDialog('$25,000', '13,000')
+      // Already updated when the dialog disappears: no reload, no stale frame.
+      expect(within(overviewGoals()).getByTestId('goals-target')).toHaveTextContent('$25,000')
+      expect(stat(overviewGoals(), 'Target Achieved')).toBe('$13,000')
+      expect(within(overviewGoals()).getByText('13K')).toBeInTheDocument()
+
+      await act(() => router.navigate(routes.goals))
+      await expectGoals('$25,000', '$13,000', '13K')
+
+      // Reload: a fresh adapter and query client on the same storage.
+      unmount()
+      const fresh = renderAt(routes.goals, createTestApi())
+      await expectGoals('$25,000', '$13,000', '13K')
+      await act(() => fresh.router.navigate(routes.overview))
+      await expectOverview('$25,000', '$13,000', '13K')
+    })
+
+    it('edits on Goals: Overview shows the new values without a reload, and a fresh app reads them back', async () => {
+      const { router, unmount } = renderAt(routes.goals, await signedInApi())
+      await expectGoals('$20,000', '$12,500', '12K')
+      fireEvent.click(within(screen.getByTestId('savings-goal-card')).getByRole('button', { name: 'Adjust Goal' }))
+      await saveInDialog('$30,000', '$15,500')
+
+      await act(() => router.navigate(routes.overview))
+      await expectOverview('$30,000', '$15,500', '15K')
+
+      unmount()
+      renderAt(routes.overview, createTestApi())
+      await expectOverview('$30,000', '$15,500', '15K')
+    })
+  })
+
+  it('adjusts the Food limit on the real adapter: only the Food card changes and the limit persists', async () => {
+    renderAt(routes.goals, await signedInApi())
+    await waitFor(() => expect(screen.getAllByTestId('category-limit-card')).toHaveLength(6))
+    const limits = () =>
+      screen.getAllByTestId('category-limit-card').map((el) => within(el).getByText(/^\$/).textContent)
+    expect(limits()).toEqual(['$1,000.00', '$500.00', '$300.00', '$250.00', '$400.00', '$200.00'])
+    fireEvent.click(screen.getByRole('button', { name: 'Adjust Food limit' }))
+    const dialog = screen.getByRole('dialog', { name: 'Adjust Food limit' })
+    const target = within(dialog).getByLabelText('Target Amounts')
+    expect(target).toHaveValue('$500.00')
+    fireEvent.change(target, { target: { value: '$650' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    // Already updated when the dialog disappears.
+    expect(limits()).toEqual(['$1,000.00', '$650.00', '$300.00', '$250.00', '$400.00', '$200.00'])
+    await expect(createTestApi().listCategoryLimits()).resolves.toEqual([
+      { category: 'housing', limitCents: 100_000 },
+      { category: 'food', limitCents: 65_000 },
+      { category: 'transportation', limitCents: 30_000 },
+      { category: 'entertainment', limitCents: 25_000 },
+      { category: 'shopping', limitCents: 40_000 },
+      { category: 'others', limitCents: 20_000 },
+    ])
   })
 
   it('shows the same category totals and % changes on the Overview tiles as on the Expenses cards', async () => {
