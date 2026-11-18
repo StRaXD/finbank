@@ -15,7 +15,9 @@ import {
   type IsoDate,
   type ListBillsInput,
   type ListTransactionsInput,
+  type SavingsGoal,
   type Transaction,
+  type YearMonth,
 } from '../../api/types.ts'
 import { formatDate, formatMoney } from '../../lib/format.ts'
 import { OverviewPage } from './index.ts'
@@ -132,8 +134,19 @@ const detailsPath = (id: string) => `/details/${id}`
 
 type OverviewApi = Pick<
   FinbankApi,
-  'listAccounts' | 'getBalanceSummary' | 'listBills' | 'listTransactions' | 'getComparison' | 'listCategorySummaries'
+  | 'listAccounts'
+  | 'getBalanceSummary'
+  | 'listBills'
+  | 'listTransactions'
+  | 'getComparison'
+  | 'listCategorySummaries'
+  | 'getToday'
+  | 'getSavingsGoal'
+  | 'updateSavingsGoal'
 >
+
+/** The seeded May 2023 goal, as the adapter returns it. */
+const mayGoal: SavingsGoal = { month: '2023-05' as YearMonth, targetCents: 2_000_000, achievedCents: 1_250_000 }
 
 const listBills = (list: Bill[] = bills) =>
   vi.fn(({ limit }: ListBillsInput = {}) => Promise.resolve(structuredClone(list.slice(0, limit))))
@@ -155,6 +168,11 @@ function seededApi(list: Account[] = accounts, totalBalanceCents = fixtureTotalC
     listTransactions: listTransactions(),
     getComparison: vi.fn((g: ComparisonGranularity) => Promise.resolve(structuredClone(comparison[g]))),
     listCategorySummaries: vi.fn(() => Promise.resolve(structuredClone(summaries))),
+    getToday: () => Promise.resolve('2023-05-19' as IsoDate),
+    getSavingsGoal: vi.fn((month: YearMonth) => Promise.resolve({ ...mayGoal, month })),
+    updateSavingsGoal: vi.fn((month: YearMonth, amounts: Pick<SavingsGoal, 'targetCents' | 'achievedCents'>) =>
+      Promise.resolve({ month, ...amounts }),
+    ),
   }
 }
 
@@ -186,6 +204,7 @@ function renderPage(overrides: Partial<OverviewApi> = {}) {
 
 const card = () => screen.getByRole('region', { name: 'Total Balance' })
 const billCard = () => screen.getByRole('region', { name: 'Upcoming Bill' })
+const goalsCard = () => screen.getByRole('region', { name: 'Goals' })
 const txnCard = () => screen.getByRole('region', { name: 'Recent Transaction' })
 const txnItems = () => within(txnCard()).getAllByRole('listitem').map((row) => row.textContent)
 const txnRow = (t: Transaction) =>
@@ -197,28 +216,31 @@ const next = () => within(carousel()).getByRole('button', { name: 'Next' })
 const prev = () => within(carousel()).getByRole('button', { name: 'Previous' })
 
 describe('OverviewPage', () => {
-  it('places Total Balance, Upcoming Bill, Recent Transaction, Statistics and Expenses Breakdown in the grid, leaving Goals empty', async () => {
+  it('places Total Balance, Goals, Upcoming Bill, Recent Transaction, Statistics and Expenses Breakdown in the grid', async () => {
     renderPage(seededApi())
     expect(screen.getByRole('heading', { level: 1, name: 'Overview' })).toHaveClass('sr-only')
     expect(screen.getByTestId('overview-grid')).toHaveClass('grid-cols-3')
     await screen.findByRole('region', { name: 'Accounts' })
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
       'Total Balance',
+      'Goals',
       'Upcoming Bill',
       'Recent Transaction',
       'Statistics',
       'Expenses Breakdown',
     ])
     expect(screen.getByTestId('slot-total-balance')).toHaveClass('col-start-1', 'row-start-1')
+    expect(screen.getByTestId('slot-goals')).toHaveClass('col-start-2', 'row-start-1')
+    expect(within(screen.getByTestId('slot-goals')).getByRole('region', { name: 'Goals' })).toBeInTheDocument()
     expect(screen.getByTestId('slot-upcoming-bill')).toHaveClass('col-start-3', 'row-start-1')
     expect(screen.getByTestId('slot-recent-transaction')).toHaveClass('col-start-1', 'row-start-2', 'row-span-2')
     expect(screen.getByTestId('slot-statistics')).toHaveClass('col-span-2', 'col-start-2', 'row-start-2')
     // Row-1 cards stretch to equal height.
     expect(billCard()).toHaveClass('h-full')
     expect(card()).toHaveClass('h-full')
+    expect(goalsCard()).toHaveClass('h-full')
     expect(screen.getByTestId('slot-expenses-breakdown')).toHaveClass('col-span-2', 'col-start-2', 'row-start-3')
-    // The Goals slot stays empty.
-    expect(screen.getByTestId('overview-grid').children).toHaveLength(5)
+    expect(screen.getByTestId('overview-grid').children).toHaveLength(6)
   })
 
   it('shows skeletons while loading', () => {
@@ -336,6 +358,72 @@ describe('OverviewPage', () => {
     fail = false
     fireEvent.click(within(card()).getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(dots()).toHaveLength(5))
+  })
+
+  describe('Goals', () => {
+    const pencil = () => within(goalsCard()).getByRole('button', { name: 'Adjust savings goal' })
+
+    it("shows this month's goal: target, pencil, month, both stats and the gauge, from useSavingsGoal(currentMonth)", async () => {
+      const { api } = renderPage()
+      const target = await within(goalsCard()).findByTestId('goals-target')
+      expect(target).toHaveTextContent(/^Target for May, 2023: \$20,000$/)
+      expect(within(target).getByText('Target for May, 2023:')).toHaveClass('sr-only')
+      expect(target).toHaveClass('text-22', 'font-extrabold')
+      expect(api.getSavingsGoal).toHaveBeenCalledWith('2023-05')
+      expect(api.getSavingsGoal).toHaveBeenCalledTimes(1)
+      expect(within(goalsCard()).getByText('May, 2023')).toBeInTheDocument()
+      expect(pencil()).toBeEnabled()
+      expect(pencil()).toHaveClass('size-8', 'bg-surface')
+      expect(pencil().querySelector('[data-icon="pencil"]')).not.toBeNull()
+      const stat = (label: string) => within(goalsCard()).getByText(label).nextElementSibling?.textContent
+      expect(stat('Target Achieved')).toBe('$12,500')
+      expect(stat('This month Target')).toBe('$20,000')
+      const gauge = within(goalsCard()).getByTestId('goal-gauge')
+      expect(within(gauge).getByText('12K')).toBeInTheDocument()
+      expect(within(gauge).getByText('$20k')).toBeInTheDocument()
+      expect(within(gauge).getByText('Savings goal for 01 May ~ 31 May: $12,500 achieved of a $20,000 target.')).toHaveClass('sr-only')
+      // No month selector on Overview.
+      expect(within(goalsCard()).queryByRole('button', { name: /period/i })).not.toBeInTheDocument()
+    })
+
+    it('opens the shared Adjust savings goal dialog from the pencil, prefilled, and saves through the port', async () => {
+      const { api } = renderPage()
+      await within(goalsCard()).findByTestId('goals-target')
+      fireEvent.click(pencil())
+      const dialog = screen.getByRole('dialog', { name: 'Adjust savings goal' })
+      expect(within(dialog).getByLabelText('Target Amounts')).toHaveValue('$20,000.00')
+      expect(within(dialog).getByLabelText('Present Amounts')).toHaveValue('$12,500.00')
+      fireEvent.change(within(dialog).getByLabelText('Target Amounts'), { target: { value: '$25,000' } })
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(api.updateSavingsGoal).toHaveBeenCalledWith('2023-05', { targetCents: 2_500_000, achievedCents: 1_250_000 })
+    })
+
+    it('disables the pencil while the goal loads', async () => {
+      renderPage({ getSavingsGoal: () => new Promise(() => {}) })
+      expect(await within(goalsCard()).findByText('May, 2023')).toBeInTheDocument()
+      expect(pencil()).toBeDisabled()
+      expect(within(goalsCard()).getByTestId('skeleton')).toBeInTheDocument()
+      expect(within(goalsCard()).queryByTestId('goals-target')).not.toBeInTheDocument()
+    })
+
+    it('shows its error with Retry and a disabled pencil, without affecting the other widgets, and recovers', async () => {
+      let fail = true
+      renderPage({
+        getSavingsGoal: (month) =>
+          fail ? Promise.reject(new ApiError('UNKNOWN', 'Could not load the goal.')) : Promise.resolve({ ...mayGoal, month }),
+      })
+      expect(await within(goalsCard()).findByRole('alert')).toHaveTextContent('Could not load the goal.')
+      expect(pencil()).toBeDisabled()
+      fireEvent.click(pencil())
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(await within(card()).findByText('$240,399')).toBeInTheDocument()
+      expect(within(card()).queryByRole('alert')).not.toBeInTheDocument()
+      fail = false
+      fireEvent.click(within(goalsCard()).getByRole('button', { name: 'Retry' }))
+      expect(await within(goalsCard()).findByTestId('goals-target')).toHaveTextContent('$20,000')
+      expect(pencil()).toBeEnabled()
+    })
   })
 
   describe('Upcoming Bill', () => {

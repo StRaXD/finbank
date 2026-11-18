@@ -103,6 +103,77 @@ describe('routing and session guard', () => {
     })
   })
 
+  describe('Overview Goals and the Goals page share one savings goal', () => {
+    const overviewGoals = () => screen.getByRole('region', { name: 'Goals' })
+    const stat = (root: HTMLElement, label: string) => within(root).getByText(label).nextElementSibling?.textContent
+    const chartSummary = () => screen.getByTestId('saving-summary-card').querySelector('p.sr-only')?.textContent ?? ''
+
+    async function saveInDialog(targetValue: string, presentValue: string) {
+      const dialog = screen.getByRole('dialog', { name: 'Adjust savings goal' })
+      fireEvent.change(within(dialog).getByLabelText('Target Amounts'), { target: { value: targetValue } })
+      fireEvent.change(within(dialog).getByLabelText('Present Amounts'), { target: { value: presentValue } })
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    }
+
+    async function expectOverview(target: string, achieved: string, centre: string) {
+      expect(await within(await screen.findByRole('region', { name: 'Goals' })).findByTestId('goals-target')).toHaveTextContent(target)
+      await waitFor(() => expect(stat(overviewGoals(), 'Target Achieved')).toBe(achieved))
+      expect(stat(overviewGoals(), 'This month Target')).toBe(target)
+      expect(within(overviewGoals()).getByText('May, 2023')).toBeInTheDocument()
+      expect(within(within(overviewGoals()).getByTestId('goal-gauge')).getByText(centre)).toBeInTheDocument()
+    }
+
+    async function expectGoals(target: string, achieved: string, centre: string) {
+      const card = await screen.findByTestId('savings-goal-card')
+      await waitFor(() => expect(stat(card, 'Target Achieved')).toBe(achieved))
+      expect(stat(card, 'This month Target')).toBe(target)
+      expect(within(within(card).getByTestId('goal-gauge')).getByText(centre)).toBeInTheDocument()
+      await waitFor(() => expect(chartSummary()).toContain(`This month: ${achieved} in total`))
+    }
+
+    it('shows the seeded May goal on Overview', async () => {
+      renderAt(routes.overview, await signedInApi())
+      await expectOverview('$20,000', '$12,500', '12K')
+      expect(within(overviewGoals()).getByText('$20k')).toBeInTheDocument()
+    })
+
+    it('edits on Overview: the card updates before the dialog closes, Goals agrees, and a fresh app reads it back', async () => {
+      const { router, unmount } = renderAt(routes.overview, await signedInApi())
+      await expectOverview('$20,000', '$12,500', '12K')
+      fireEvent.click(within(overviewGoals()).getByRole('button', { name: 'Adjust savings goal' }))
+      await saveInDialog('$25,000', '13,000')
+      // Already updated when the dialog disappears: no reload, no stale frame.
+      expect(within(overviewGoals()).getByTestId('goals-target')).toHaveTextContent('$25,000')
+      expect(stat(overviewGoals(), 'Target Achieved')).toBe('$13,000')
+      expect(within(overviewGoals()).getByText('13K')).toBeInTheDocument()
+
+      await act(() => router.navigate(routes.goals))
+      await expectGoals('$25,000', '$13,000', '13K')
+
+      // Reload: a fresh adapter and query client on the same storage.
+      unmount()
+      const fresh = renderAt(routes.goals, createTestApi())
+      await expectGoals('$25,000', '$13,000', '13K')
+      await act(() => fresh.router.navigate(routes.overview))
+      await expectOverview('$25,000', '$13,000', '13K')
+    })
+
+    it('edits on Goals: Overview shows the new values without a reload, and a fresh app reads them back', async () => {
+      const { router, unmount } = renderAt(routes.goals, await signedInApi())
+      await expectGoals('$20,000', '$12,500', '12K')
+      fireEvent.click(within(screen.getByTestId('savings-goal-card')).getByRole('button', { name: 'Adjust Goal' }))
+      await saveInDialog('$30,000', '$15,500')
+
+      await act(() => router.navigate(routes.overview))
+      await expectOverview('$30,000', '$15,500', '15K')
+
+      unmount()
+      renderAt(routes.overview, createTestApi())
+      await expectOverview('$30,000', '$15,500', '15K')
+    })
+  })
+
   it('adjusts the Food limit on the real adapter: only the Food card changes and the limit persists', async () => {
     renderAt(routes.goals, await signedInApi())
     await waitFor(() => expect(screen.getAllByTestId('category-limit-card')).toHaveLength(6))

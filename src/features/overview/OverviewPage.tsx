@@ -1,6 +1,7 @@
 import type { AccountDetailsPath } from '../balances/index.ts'
 import { ComparisonChartCard } from '../expenses/index.ts'
 import { ExpensesBreakdownCard } from './components/ExpensesBreakdownCard.tsx'
+import { GoalsCard } from './components/GoalsCard.tsx'
 import { RecentTransactionCard } from './components/RecentTransactionCard.tsx'
 import { TotalBalanceCard } from './components/TotalBalanceCard.tsx'
 import { UpcomingBillCard } from './components/UpcomingBillCard.tsx'
@@ -17,12 +18,12 @@ export type OverviewPageProps = {
 }
 
 /**
- * Overview (104. Overview.png): a 3-column grid. Row 1 holds Total Balance (column 1) and Upcoming
- * Bill (column 3) at equal height; Recent Transaction fills column 1 from row 2, spanning the rows
- * Statistics and Expenses Breakdown use. Statistics (columns 2–3, row 2) is the shared comparison
- * chart, Weekly by default; Expenses Breakdown (columns 2–3, row 3) holds the six category tiles.
- * The Goals slot stays empty until Epic 4. The greeting lives in the top bar, so the page's `h1` is
- * visually hidden.
+ * Overview (104. Overview.png): a 3-column grid. Row 1 holds Total Balance (column 1), Goals
+ * (column 2) and Upcoming Bill (column 3) at equal height; Recent Transaction fills column 1 from
+ * row 2, spanning the rows Statistics and Expenses Breakdown use. Statistics (columns 2–3, row 2) is
+ * the shared comparison chart, Weekly by default; Expenses Breakdown (columns 2–3, row 3) holds the
+ * six category tiles. Goals shows this month's savings goal from the goals feature. The greeting
+ * lives in the top bar, so the page's `h1` is visually hidden.
  */
 export function OverviewPage({ accountDetailsPath, billsPath, expensesPath, transactionsPath }: OverviewPageProps) {
   return (
@@ -31,6 +32,9 @@ export function OverviewPage({ accountDetailsPath, billsPath, expensesPath, tran
       <div data-testid="overview-grid" className="grid grid-cols-3 gap-x-6 gap-y-8">
         <div data-testid="slot-total-balance" className="col-start-1 row-start-1">
           <TotalBalanceCard accountDetailsPath={accountDetailsPath} />
+        </div>
+        <div data-testid="slot-goals" className="col-start-2 row-start-1">
+          <GoalsCard />
         </div>
         <div data-testid="slot-upcoming-bill" className="col-start-3 row-start-1">
           <UpcomingBillCard billsPath={billsPath} />
