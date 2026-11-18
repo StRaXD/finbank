@@ -73,10 +73,12 @@ describe('routing and session guard', () => {
     expect(within(card).getByText('$20,000')).toBeInTheDocument()
   })
 
-  it('adjusts the May savings goal on the real adapter: the card updates in place and the goal persists', async () => {
+  it('adjusts the May savings goal on the real adapter: the card and the chart update in place and the goal persists', async () => {
     renderAt(routes.goals, await signedInApi())
     const card = await screen.findByTestId('savings-goal-card')
     expect(await within(card).findByText('$12,500')).toBeInTheDocument()
+    const chartSummary = () => screen.getByTestId('saving-summary-card').querySelector('p.sr-only')?.textContent ?? ''
+    await waitFor(() => expect(chartSummary()).toContain('This month: $12,500 in total'))
     fireEvent.click(within(card).getByRole('button', { name: 'Adjust Goal' }))
     const dialog = screen.getByRole('dialog', { name: 'Adjust savings goal' })
     const target = within(dialog).getByLabelText('Target Amounts')
@@ -92,6 +94,8 @@ describe('routing and session guard', () => {
     expect(within(card).getByText('$13,001')).toBeInTheDocument()
     expect(within(card).getByText('13K')).toBeInTheDocument()
     expect(within(card).getByText('$25k')).toBeInTheDocument()
+    // The Saving Summary refetched from the same stored goal: Present is split over May 1–19.
+    expect(chartSummary()).toContain('This month: $13,001 in total')
     await expect(createTestApi().getSavingsGoal('2023-05' as YearMonth)).resolves.toEqual({
       month: '2023-05',
       targetCents: 2_500_000,

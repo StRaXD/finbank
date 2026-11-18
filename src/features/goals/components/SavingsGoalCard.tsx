@@ -42,8 +42,17 @@ function GoalBody({ goal, period }: { goal: SavingsGoal; period: string }) {
   )
 }
 
-function SavingsGoalContent({ today }: { today: IsoDate }) {
-  const [month, setMonth] = useState<YearMonth>(() => currentMonth(today))
+export type SavingsGoalCardProps = {
+  /** The selected month when the parent owns it (Goals links it to the Saving Summary). */
+  month?: YearMonth
+  /** Called with the picked month when the parent owns it. */
+  onMonthChange?: (month: YearMonth) => void
+}
+
+function SavingsGoalContent({ today, month: controlled, onMonthChange }: SavingsGoalCardProps & { today: IsoDate }) {
+  const [own, setOwn] = useState<YearMonth>(() => currentMonth(today))
+  const month = controlled ?? own
+  const setMonth = onMonthChange ?? setOwn
   const options = useMemo(
     () => selectableMonths(today).map((value) => ({ value, label: formatRange(value) })),
     [today],
@@ -87,15 +96,17 @@ function SavingsGoalContent({ today }: { today: IsoDate }) {
  * selector (the 12 months from `selectableMonths`, defaulting to the month containing today) over
  * a divider, then Target Achieved and This month Target beside the `GoalGauge`, and an outlined
  * "Adjust Goal" button that opens `AdjustSavingsGoalModal` for the selected month (disabled until
- * that month's goal has loaded). The selected month is local state; the amounts are the adapter's.
+ * that month's goal has loaded). The selected month is local state unless the parent passes
+ * `month` and `onMonthChange` (Goals does, so both of its cards show one month); the amounts are
+ * the adapter's.
  */
-export function SavingsGoalCard() {
+export function SavingsGoalCard({ month, onMonthChange }: SavingsGoalCardProps = {}) {
   const today = useToday()
   return (
     <Card>
       <div data-testid="savings-goal-card">
         <AsyncSection query={today} emptyMessage="Today's date is unavailable">
-          {(value) => <SavingsGoalContent today={value} />}
+          {(value) => <SavingsGoalContent today={value} month={month} onMonthChange={onMonthChange} />}
         </AsyncSection>
       </div>
     </Card>

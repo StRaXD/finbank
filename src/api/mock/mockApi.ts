@@ -1,5 +1,14 @@
 // The v1 adapter (AD-6): the only owner of mock state, written through to localStorage.
-import { addDays, addMonths, currentMonth, toIsoDate, toYearMonth, weekOf, yearMonthOf } from '../../lib/dates.ts'
+import {
+  addDays,
+  addMonths,
+  currentMonth,
+  monthRange,
+  toIsoDate,
+  toYearMonth,
+  weekOf,
+  yearMonthOf,
+} from '../../lib/dates.ts'
 import { formatDate } from '../../lib/format.ts'
 import type { FinbankApi } from '../port.ts'
 import {
@@ -20,6 +29,7 @@ import {
   type ListBillsInput,
   type ListTransactionsInput,
   type LoginInput,
+  type SavingSummaryPoint,
   type SavingsGoal,
   type SavingsGoalAmounts,
   type Session,
@@ -510,6 +520,83 @@ function normalizeSavingsGoals(value: unknown, fallback: SavingsGoal[]): Savings
   return goals
 }
 
+/** Every day of `month`, day 1 first. */
+function daysOf(month: YearMonth): IsoDate[] {
+  const { start, end } = monthRange(month)
+  const days: IsoDate[] = []
+  for (let day = start; day <= end; day = addDays(day, 1)) days.push(day)
+  return days
+}
+
+/** A 32-bit FNV-1a hash of `text`: a deterministic seed, never randomness. */
+function hash32(text: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h
+}
+
+/**
+ * The integer weight (40…160, i.e. 0.4…1.6 in hundredths) of one day's share of a month's saving.
+ * Deterministic in `date`: two sine waves over the day of the month, phased by the month, so the
+ * series reads as a smooth curve that differs from month to month.
+ */
+export function savingDayWeight(date: IsoDate): number {
+  const day = Number(date.slice(8, 10))
+  const seed = hash32(date.slice(0, 7))
+  const phaseA = (seed % 628) / 100
+  const phaseB = ((seed >>> 12) % 628) / 100
+  return Math.round(100 + 40 * Math.sin(day * 0.55 + phaseA) + 20 * Math.sin(day * 1.3 + phaseB))
+}
+
+/**
+ * Splits `totalCents` over `days` in proportion to their weights, exactly: each day gets the floor
+ * of its share and the leftover cents go to the largest remainders (earlier day first on a tie), so
+ * the parts sum to `totalCents`. BigInt keeps `total × weight` exact for any safe amount.
+ */
+function splitByDay(totalCents: number, days: readonly IsoDate[]): number[] {
+  if (days.length === 0) return []
+  const weights = days.map((day) => BigInt(savingDayWeight(day)))
+  const sum = weights.reduce((a, b) => a + b, 0n)
+  const total = BigInt(totalCents)
+  const parts = weights.map((w) => (total * w) / sum)
+  const remainders = weights.map((w, i) => ({ i, rest: (total * w) % sum }))
+  let left = Number(total - parts.reduce((a, b) => a + b, 0n))
+  remainders.sort((a, b) => (a.rest === b.rest ? a.i - b.i : a.rest > b.rest ? -1 : 1))
+  for (const { i } of remainders) {
+    if (left === 0) break
+    parts[i]! += 1n
+    left--
+  }
+  return parts.map(Number)
+}
+
+/**
+ * The Saving Summary series of `month` from the stored goals (the same ones `getSavingsGoal` reads).
+ * Current: `month`'s `achievedCents` split over days 1 to min(today, month end), `null` after
+ * today. Previous: the previous month's `achievedCents` split over all its days, `null` on a day
+ * of `month` it does not have. A month without a stored goal splits 0.
+ */
+export function savingSummarySeries(
+  goals: readonly SavingsGoal[],
+  today: IsoDate,
+  month: YearMonth,
+): SavingSummaryPoint[] {
+  const achieved = (ym: YearMonth) => goals.find((goal) => goal.month === ym)?.achievedCents ?? 0
+  const days = daysOf(month)
+  const elapsed = days.filter((day) => day <= today)
+  const current = splitByDay(achieved(month), elapsed)
+  const previousMonth = addMonths(month, -1)
+  const previous = splitByDay(achieved(previousMonth), daysOf(previousMonth))
+  return days.map((date, i) => ({
+    date,
+    currentCents: date > today ? null : current[i]!,
+    previousCents: previous[i] ?? null,
+  }))
+}
+
 /** Earliest due date first (stable, so equal dates keep stored order), truncated to `limit`. */
 function sortBills(all: readonly Bill[], input: ListBillsInput | undefined): Bill[] {
   const limit = input?.limit
@@ -751,6 +838,14 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
         writeItem(storage, MOCK_STORAGE_KEY, JSON.stringify(next))
         current = next
         return structuredClone(goal)
+      }),
+
+    getSavingSummary: (month: YearMonth) =>
+      call((): SavingSummaryPoint[] => {
+        const valid = validYearMonth(month)
+        if (!valid) throw new ApiError('VALIDATION', 'The month is not valid.')
+        const { savingsGoals, today } = state()
+        return savingSummarySeries(savingsGoals, today, valid)
       }),
   }
 }

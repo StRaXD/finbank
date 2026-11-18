@@ -54,6 +54,11 @@ describe('formatMoney', () => {
     [-149, 'whole', '-$1'],
     [-1, 'exact', '-$0.01'],
     [-49, 'whole', '$0'],
+    // ungrouped: whole dollars without separators (Saving Summary ticks)
+    [500000, 'ungrouped', '$5000'],
+    [0, 'ungrouped', '$0'],
+    [123456789, 'ungrouped', '$1234568'],
+    [-150, 'ungrouped', '-$2'],
   ] as const)('%i %s → %s', (cents, mode, expected) => {
     expect(formatMoney(cents, mode)).toBe(expected)
   })
@@ -136,6 +141,8 @@ describe('formatDate', () => {
     ['2023-05-20', 'weekday', '20 Sat'],
     ['2023-05-01', 'weekday', '01 Mon'],
     ['2023-12-31', 'month', 'Dec'],
+    ['2023-05-01', 'monthYear', 'May 2023'],
+    ['2022-03-31', 'monthYear', 'Mar 2022'],
     ['2023-05-25', 'day', '25'],
     ['2023-06-05', 'day', '5'],
   ] as const)('%s %s → %s', (date, mode, expected) => {

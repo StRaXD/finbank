@@ -21,6 +21,7 @@ function createFakeApi(overrides: Partial<FinbankApi> = {}) {
     getSavingsGoal: (month: YearMonth) =>
       Promise.resolve(structuredClone(store[month] ?? { month, targetCents: 0, achievedCents: 0 })),
     updateSavingsGoal,
+    getSavingSummary: () => Promise.resolve([]),
     ...overrides,
   } as FinbankApi
   return { api, store, updateSavingsGoal }

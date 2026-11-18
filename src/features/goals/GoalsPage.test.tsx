@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it, vi } from 'vitest'
 import { ApiProvider } from '../../api/ApiProvider.tsx'
 import type { FinbankApi } from '../../api/port.ts'
-import { ApiError, type IsoDate, type SavingsGoal, type YearMonth } from '../../api/types.ts'
+import { ApiError, type IsoDate, type SavingSummaryPoint, type SavingsGoal, type YearMonth } from '../../api/types.ts'
 import { GoalsPage } from './GoalsPage.tsx'
 
 const goals: Record<string, SavingsGoal> = {
@@ -14,11 +14,26 @@ const goals: Record<string, SavingsGoal> = {
 const fromFixture: FinbankApi['getSavingsGoal'] = (month) =>
   Promise.resolve(structuredClone(goals[month] ?? { month, targetCents: 0, achievedCents: 0 }))
 
-function renderWith(getSavingsGoal: FinbankApi['getSavingsGoal'] = fromFixture) {
+/** A tiny fixed series: two days of `month`, each value tagged by the month so tests can tell them apart. */
+const summaryFixture: FinbankApi['getSavingSummary'] = (month) =>
+  Promise.resolve<SavingSummaryPoint[]>([
+    { date: `${month}-01` as IsoDate, currentCents: month === '2023-05' ? 10_000 : 20_000, previousCents: 5_000 },
+    { date: `${month}-05` as IsoDate, currentCents: null, previousCents: 6_000 },
+  ])
+
+function renderWith(
+  getSavingsGoal: FinbankApi['getSavingsGoal'] = fromFixture,
+  getSavingSummary: FinbankApi['getSavingSummary'] = summaryFixture,
+) {
   const api = {
     getToday: () => Promise.resolve('2023-05-19' as IsoDate),
     getSavingsGoal,
+    getSavingSummary,
   } as FinbankApi
+  return renderApi(api)
+}
+
+function renderApi(api: FinbankApi) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <ApiProvider api={api}>
@@ -31,9 +46,12 @@ function renderWith(getSavingsGoal: FinbankApi['getSavingsGoal'] = fromFixture) 
 
 const card = () => screen.getByTestId('savings-goal-card')
 const periodTrigger = () => screen.getByRole('button', { name: /Savings goal period/ })
+const summaryCard = () => screen.getByTestId('saving-summary-card')
+const monthTrigger = () => screen.getByRole('button', { name: /Saving summary month/ })
+const chartSummary = () => summaryCard().querySelector('p.sr-only')?.textContent ?? ''
 
 describe('GoalsPage', () => {
-  it('shows the visible Goals title above a 368/712 row with the card in column 1', async () => {
+  it('shows the visible Goals title above a 368/712 row with the goal card and the Saving Summary', async () => {
     renderWith()
     const heading = screen.getByRole('heading', { level: 1, name: 'Goals' })
     expect(heading).toHaveClass('text-22', 'font-normal', 'text-subtle')
@@ -42,7 +60,72 @@ describe('GoalsPage', () => {
     const row = card().closest('.grid')
     expect(row).toHaveClass('grid-cols-[368fr_712fr]', 'gap-6')
     expect(row!.children).toHaveLength(2)
-    expect(screen.getByTestId('saving-summary-slot')).toBeEmptyDOMElement()
+    expect(row!.children[1]).toContainElement(summaryCard())
+  })
+
+  it('shows the Saving Summary card: bold title, "May 2023", the legend and the chart', async () => {
+    const getSavingSummary = vi.fn(summaryFixture)
+    renderWith(fromFixture, getSavingSummary)
+    await waitFor(() => expect(summaryCard().querySelector('[data-testid="comparison-area-chart"]')).not.toBeNull())
+    const body = within(summaryCard())
+    expect(body.getByRole('heading', { level: 2, name: 'Saving Summary' })).toHaveClass('text-16', 'font-bold', 'text-ink-2')
+    expect(monthTrigger()).toHaveTextContent('May 2023')
+    expect(body.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['This month', 'Same period last month'])
+    expect(body.getByRole('list')).toHaveClass('gap-[34px]')
+    expect(getSavingSummary).toHaveBeenCalledWith('2023-05')
+    expect(chartSummary()).toBe(
+      'Saving summary for May 2023, daily savings. This month: $100 in total, highest $100 on day 1. Same period last month: $110 in total, highest $60 on day 5.',
+    )
+    fireEvent.click(monthTrigger())
+    const options = within(screen.getByRole('listbox')).getAllByRole('option')
+    expect(options).toHaveLength(12)
+    expect(options[0]).toHaveTextContent('May 2023')
+    expect(options[11]).toHaveTextContent('Jun 2022')
+  })
+
+  it.each([
+    ['the Savings Goal card', () => periodTrigger(), '01 Apr ~ 30 Apr'],
+    ['the Saving Summary card', () => monthTrigger(), 'Apr 2023'],
+  ])('links both dropdowns: picking April in %s switches both cards', async (_name, trigger, option) => {
+    const getSavingSummary = vi.fn(summaryFixture)
+    renderWith(fromFixture, getSavingSummary)
+    await screen.findByText('$12,500')
+    fireEvent.click(trigger())
+    fireEvent.click(screen.getByRole('option', { name: option }))
+    expect(await screen.findByText('$17,100')).toBeInTheDocument()
+    expect(periodTrigger()).toHaveTextContent('01 Apr ~ 30 Apr')
+    expect(monthTrigger()).toHaveTextContent('Apr 2023')
+    expect(getSavingSummary).toHaveBeenCalledWith('2023-04')
+    await waitFor(() => expect(chartSummary()).toContain('Saving summary for Apr 2023'))
+    expect(chartSummary()).toContain('This month: $200 in total')
+  })
+
+  it('shows the inline error with a working Retry when the saving summary fails', async () => {
+    let fail = true
+    renderWith(fromFixture, (month) =>
+      fail ? Promise.reject(new ApiError('UNKNOWN', 'Could not load the summary.')) : summaryFixture(month),
+    )
+    await screen.findByTestId('saving-summary-card')
+    expect(await within(summaryCard()).findByRole('alert')).toHaveTextContent('Could not load the summary.')
+    fail = false
+    fireEvent.click(within(summaryCard()).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(chartSummary()).toContain('Saving summary for May 2023'))
+  })
+
+  it('says "no savings" for a month without a stored goal and keeps the flat chart', async () => {
+    renderWith(fromFixture, (month) =>
+      Promise.resolve<SavingSummaryPoint[]>([
+        { date: `${month}-01` as IsoDate, currentCents: 0, previousCents: 0 },
+        { date: `${month}-05` as IsoDate, currentCents: null, previousCents: 0 },
+      ]),
+    )
+    await screen.findByTestId('saving-summary-card')
+    await waitFor(() =>
+      expect(chartSummary()).toBe(
+        'Saving summary for May 2023, daily savings. This month: no savings. Same period last month: no savings.',
+      ),
+    )
+    expect(summaryCard().querySelector('[data-testid="comparison-area-chart"]')).not.toBeNull()
   })
 
   it("shows May's goal by default: period, both amounts, gauge, caption and Adjust Goal", async () => {

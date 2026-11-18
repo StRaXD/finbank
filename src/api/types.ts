@@ -199,3 +199,17 @@ export type SavingsGoalAmounts = {
   targetCents: number
   achievedCents: number
 }
+
+/**
+ * One day of the Saving Summary chart, derived by the adapter from the stored savings goals: the
+ * selected month's day `date`, that month's share of `achievedCents` for the day, and the previous
+ * month's share for the same day of the month. Components display these numbers as given.
+ */
+export type SavingSummaryPoint = {
+  /** A day of the selected month, day 1 first. */
+  date: IsoDate
+  /** This month's saving on `date`, or `null` after today. */
+  currentCents: number | null
+  /** The previous month's saving on the same day of the month, or `null` when it has no such day. */
+  previousCents: number | null
+}

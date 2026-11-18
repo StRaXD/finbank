@@ -10,6 +10,7 @@ import type {
   ListBillsInput,
   ListTransactionsInput,
   LoginInput,
+  SavingSummaryPoint,
   SavingsGoal,
   SavingsGoalAmounts,
   Session,
@@ -75,6 +76,16 @@ export interface FinbankApi {
    * `achievedCents`; a malformed month rejects with `VALIDATION`.
    */
   updateSavingsGoal(month: YearMonth, amounts: SavingsGoalAmounts): Promise<SavingsGoal>
+  /**
+   * The Saving Summary series of `month`, one point per day of that month, derived from the stored
+   * savings goals. `currentCents` splits `month`'s `achievedCents` over days 1 to min(today, month
+   * end) and is `null` after today; over those days it sums exactly to `achievedCents`.
+   * `previousCents` is the previous month's `achievedCents` split over all of its days, but shown
+   * only on the days `month` has (`null` on a day the previous month lacks), so when the previous
+   * month is longer it sums to less than its `achievedCents`. A month with no stored goal gives
+   * zeros. A malformed month rejects with `VALIDATION`.
+   */
+  getSavingSummary(month: YearMonth): Promise<SavingSummaryPoint[]>
 }
 
 /** Every port method name, for tests that must cover the whole port. */
@@ -97,6 +108,7 @@ export const FINBANK_API_METHODS = [
   'getComparison',
   'getSavingsGoal',
   'updateSavingsGoal',
+  'getSavingSummary',
 ] as const satisfies readonly (keyof FinbankApi)[]
 
 // Compile-time guard: adding a port method without listing it above fails `tsc`.

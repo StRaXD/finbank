@@ -3,6 +3,7 @@
 // Which money mode to use (FR-34):
 // - 'whole' (no decimals): Total Balance, account card totals (carousel and Balances),
 //   bill amounts, Savings Goal amounts.
+// - 'ungrouped' (whole dollars, no separators): the Saving Summary axis ticks ("$5000", 110).
 // - 'exact' (two decimals): everything else: transactions, expense items, category totals and
 //   limits, Account Details balance.
 //
@@ -12,9 +13,9 @@ import { parseIsoDate, toIsoDate, toYearMonth, monthRange } from './dates'
 import type { IsoDate, YearMonth } from './dates'
 import { assertCents } from './money'
 
-export type MoneyMode = 'whole' | 'exact'
+export type MoneyMode = 'whole' | 'exact' | 'ungrouped'
 export type CompactMode = 'gauge' | 'axis'
-export type DateMode = 'row' | 'badge' | 'header' | 'axisDay' | 'weekday' | 'month' | 'day'
+export type DateMode = 'row' | 'badge' | 'header' | 'axisDay' | 'weekday' | 'month' | 'monthYear' | 'day'
 export type MaskMode = 'groups' | 'tail4'
 
 const grouped = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0, useGrouping: true })
@@ -25,14 +26,15 @@ function signOf(cents: number, magnitude: number): string {
 
 /**
  * USD with thousands separators. 'whole' rounds half-up (away from zero) to dollars:
- * 24039900 → "$240,399". 'exact' keeps cents: 2505600 → "$25,056.00". Negatives are "-$…".
+ * 24039900 → "$240,399". 'exact' keeps cents: 2505600 → "$25,056.00". 'ungrouped' rounds like
+ * 'whole' without separators: 500000 → "$5000". Negatives are "-$…".
  */
 export function formatMoney(cents: number, mode: MoneyMode): string {
   assertCents(cents)
   const abs = Math.abs(cents)
-  if (mode === 'whole') {
+  if (mode === 'whole' || mode === 'ungrouped') {
     const dollars = Math.floor((abs + 50) / 100)
-    return `${signOf(cents, dollars)}$${grouped.format(dollars)}`
+    return `${signOf(cents, dollars)}$${mode === 'whole' ? grouped.format(dollars) : String(dollars)}`
   }
   if (mode === 'exact') {
     const dollars = Math.floor(abs / 100)
@@ -88,6 +90,7 @@ const DATE_PATTERNS: Record<DateMode, string> = {
   axisDay: 'MMM dd', // May 01
   weekday: 'dd EEE', // 14 Sun
   month: 'MMM', // Jan
+  monthYear: 'MMM yyyy', // May 2023
   day: 'd', // 5 (the day of the month, no padding)
 }
 

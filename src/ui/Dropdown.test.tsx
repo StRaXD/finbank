@@ -56,6 +56,13 @@ describe('Dropdown', () => {
     expect(trigger()).toHaveTextContent('Weekly Comparison')
   })
 
+  it('renders the subtle variant as a small grey label with a 16px chevron', () => {
+    render(<Harness variant="subtle" />)
+    expect(trigger()).toHaveClass('text-12', 'text-ink-2')
+    expect(trigger()).not.toHaveClass('font-bold', 'bg-surface', 'border')
+    expect(trigger().querySelector('svg')).toHaveAttribute('width', '16')
+  })
+
   it('opens on click, selects an option and closes', () => {
     const onChange = vi.fn()
     render(<Harness onChange={onChange} />)

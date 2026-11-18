@@ -6,7 +6,7 @@ import { useApi } from './useApi.ts'
 export type UpdateSavingsGoalVariables = SavingsGoalAmounts & { month: YearMonth }
 
 /**
- * Stores a month's savings goal. On success every savings-goal query is invalidated, and the
+ * Stores a month's savings goal. On success every savings-goal and saving-summary query is invalidated, and the
  * mutation stays pending until the active ones have refetched.
  */
 export function useUpdateSavingsGoal() {

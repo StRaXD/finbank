@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FinbankApi } from '../port.ts'
-import { ApiError, type ListTransactionsInput, type Transaction, type YearMonth } from '../types.ts'
+import { ApiError, type IsoDate, type ListTransactionsInput, type SavingsGoal, type Transaction, type YearMonth } from '../types.ts'
 import {
   createMemoryStorage,
   createMockApi,
   MOCK_STORAGE_KEY,
   SESSION_STORAGE_KEY,
   type MockApiOptions,
+  savingDayWeight,
+  savingSummarySeries,
   type StorageLike,
 } from './mockApi.ts'
 import { MOCK_STATE_VERSION, seed } from './seed.ts'
@@ -1229,6 +1231,108 @@ describe('updateSavingsGoal', () => {
     expect(error.code).toBe('STORAGE_FULL')
     expect(localStorage.getItem(MOCK_STORAGE_KEY)).toBe(before)
     await expect(api.getSavingsGoal(ym('2023-05'))).resolves.toMatchObject({ targetCents: 2_000_000 })
+  })
+})
+
+describe('getSavingSummary', () => {
+  const ym = (value: string) => value as YearMonth
+  const iso = (value: string) => value as IsoDate
+  const sum = (values: readonly (number | null)[]) => values.reduce<number>((a, b) => a + (b ?? 0), 0)
+
+  it('splits the current month over days 1 to today and leaves later days null', async () => {
+    const points = await make().getSavingSummary(ym('2023-05'))
+    expect(points).toHaveLength(31)
+    expect(points[0]!.date).toBe('2023-05-01')
+    expect(points[30]!.date).toBe('2023-05-31')
+    expect(points.slice(0, 19).every((p) => p.currentCents !== null)).toBe(true)
+    expect(points.slice(19).every((p) => p.currentCents === null)).toBe(true)
+    expect(sum(points.map((p) => p.currentCents))).toBe(1_250_000)
+  })
+
+  it('splits the previous month over all its days, null on a day it lacks', async () => {
+    const points = await make().getSavingSummary(ym('2023-05'))
+    expect(points.slice(0, 30).every((p) => p.previousCents !== null)).toBe(true)
+    expect(points[30]!.previousCents).toBeNull()
+    expect(sum(points.map((p) => p.previousCents))).toBe(1_710_000)
+  })
+
+  it('uses every day of a past month', async () => {
+    const points = await make().getSavingSummary(ym('2023-04'))
+    expect(points).toHaveLength(30)
+    expect(points.every((p) => p.currentCents !== null && p.previousCents !== null)).toBe(true)
+    expect(sum(points.map((p) => p.currentCents))).toBe(1_710_000)
+    // March has 31 days: its split is the same one March's own chart shows, minus March 31.
+    const march = await make().getSavingSummary(ym('2023-03'))
+    expect(sum(march.map((p) => p.currentCents))).toBe(1_630_000)
+    expect(points.map((p) => p.previousCents)).toEqual(march.slice(0, 30).map((p) => p.currentCents))
+  })
+
+  it('gives zeros for a month, or a previous month, without a stored goal', async () => {
+    const jan = await make().getSavingSummary(ym('2023-01'))
+    expect(jan.every((p) => p.previousCents === 0)).toBe(true)
+    expect(sum(jan.map((p) => p.currentCents))).toBe(1_420_000)
+    const june = await make().getSavingSummary(ym('2022-06'))
+    expect(june.every((p) => p.currentCents === 0 && p.previousCents === 0)).toBe(true)
+  })
+
+  it('gives every day a non-negative integer share', async () => {
+    const points = await make().getSavingSummary(ym('2023-05'))
+    for (const p of points) {
+      for (const v of [p.currentCents, p.previousCents]) {
+        if (v !== null) expect(Number.isSafeInteger(v) && v >= 0).toBe(true)
+      }
+    }
+  })
+
+  it.each(['2023-13', '2023-05-01', '', 'May'])('rejects the month %j with VALIDATION', async (month) => {
+    expect((await rejection(make().getSavingSummary(ym(month)))).code).toBe('VALIDATION')
+  })
+
+  it('follows updateSavingsGoal: the series rescales to the new stored Present', async () => {
+    const api = make()
+    const before = await api.getSavingSummary(ym('2023-05'))
+    await api.updateSavingsGoal(ym('2023-05'), { targetCents: 1, achievedCents: 2_500_000 })
+    const after = await api.getSavingSummary(ym('2023-05'))
+    expect(sum(after.map((p) => p.currentCents))).toBe(2_500_000)
+    expect(after.map((p) => p.previousCents)).toEqual(before.map((p) => p.previousCents))
+    await api.updateSavingsGoal(ym('2023-04'), { targetCents: 1, achievedCents: 300 })
+    expect(sum((await api.getSavingSummary(ym('2023-05'))).map((p) => p.previousCents))).toBe(300)
+  })
+
+  it('ignores the target', async () => {
+    const api = make()
+    const before = await api.getSavingSummary(ym('2023-05'))
+    await api.updateSavingsGoal(ym('2023-05'), { targetCents: 99_999_999, achievedCents: 1_250_000 })
+    expect(await api.getSavingSummary(ym('2023-05'))).toEqual(before)
+  })
+
+  it('keeps values above $5,000 a day as they are (the chart clamps, the data does not)', () => {
+    const goals: SavingsGoal[] = [{ month: ym('2023-04'), targetCents: 0, achievedCents: 100_000_000 }]
+    const points = savingSummarySeries(goals, iso('2023-05-19'), ym('2023-04'))
+    expect(Math.max(...points.map((p) => p.currentCents ?? 0))).toBeGreaterThan(500_000)
+    expect(sum(points.map((p) => p.currentCents))).toBe(100_000_000)
+  })
+
+  it('splits huge safe amounts exactly', () => {
+    const goals: SavingsGoal[] = [{ month: ym('2023-04'), targetCents: 0, achievedCents: Number.MAX_SAFE_INTEGER }]
+    const points = savingSummarySeries(goals, iso('2023-05-19'), ym('2023-04'))
+    expect(points.reduce((a, p) => a + BigInt(p.currentCents!), 0n)).toBe(BigInt(Number.MAX_SAFE_INTEGER))
+  })
+
+  it('is all null for the current series of a month after today', () => {
+    const points = savingSummarySeries([], iso('2023-05-19'), ym('2023-06'))
+    expect(points.every((p) => p.currentCents === null)).toBe(true)
+  })
+
+  it('weights each day deterministically within 0.4…1.6', () => {
+    for (const month of ['2023-02', '2023-04', '2023-05', '2024-02']) {
+      for (let d = 1; d <= 28; d++) {
+        const date = iso(`${month}-${String(d).padStart(2, '0')}`)
+        const w = savingDayWeight(date)
+        expect(w).toBe(savingDayWeight(date))
+        expect(Number.isInteger(w) && w >= 40 && w <= 160).toBe(true)
+      }
+    }
   })
 })
 
