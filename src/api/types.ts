@@ -193,3 +193,9 @@ export type SavingsGoal = {
   targetCents: number
   achievedCents: number
 }
+
+/** The editable amounts of one month's savings goal, in integer cents. */
+export type SavingsGoalAmounts = {
+  targetCents: number
+  achievedCents: number
+}

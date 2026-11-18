@@ -27,6 +27,36 @@ describe('TextInput', () => {
     expect(input.matches(':placeholder-shown')).toBe(true)
   })
 
+  it('is 48px with 16px padding by default, and 56px with 24px padding at fieldSize lg', () => {
+    render(
+      <>
+        <TextInput label="Small" />
+        <TextInput label="Large" fieldSize="lg" />
+      </>,
+    )
+    expect(screen.getByLabelText('Small')).toHaveClass('h-12', 'px-4')
+    expect(screen.getByLabelText('Large')).toHaveClass('h-14', 'px-6')
+    expect(screen.getByLabelText('Large')).not.toHaveClass('h-12')
+  })
+
+  it('keeps md labels ink and renders lg labels ink-2', () => {
+    render(
+      <>
+        <TextInput label="Small" />
+        <TextInput label="Large" fieldSize="lg" />
+      </>,
+    )
+    expect(screen.getByText('Small')).toHaveClass('text-ink')
+    expect(screen.getByText('Small')).not.toHaveClass('text-ink-2')
+    expect(screen.getByText('Large')).toHaveClass('text-ink-2')
+    expect(screen.getByText('Large')).not.toHaveClass('text-ink')
+  })
+
+  it('keeps the borderless variant at 48px with 24px padding', () => {
+    render(<TextInput label="Full name" variant="borderless" />)
+    expect(screen.getByLabelText('Full name')).toHaveClass('h-12', 'px-6')
+  })
+
   it('lets a caller placeholder win', () => {
     render(<TextInput label="Email" placeholder="johndoe@email.com" />)
     expect(screen.getByLabelText('Email')).toHaveAttribute('placeholder', 'johndoe@email.com')

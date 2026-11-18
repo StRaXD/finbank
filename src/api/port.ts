@@ -11,6 +11,7 @@ import type {
   ListTransactionsInput,
   LoginInput,
   SavingsGoal,
+  SavingsGoalAmounts,
   Session,
   SignupInput,
   TransactionPage,
@@ -67,6 +68,13 @@ export interface FinbankApi {
    * (`targetCents` and `achievedCents` 0), not an error. A malformed month rejects with `VALIDATION`.
    */
   getSavingsGoal(month: YearMonth): Promise<SavingsGoal>
+  /**
+   * Stores `month`'s savings goal (creating it for a month that had none), persists it and resolves
+   * with a copy. Both amounts must be non-negative safe integer cents; `achievedCents` may exceed
+   * the target. Bad amounts reject with `VALIDATION` and `fieldErrors` keyed `targetCents` /
+   * `achievedCents`; a malformed month rejects with `VALIDATION`.
+   */
+  updateSavingsGoal(month: YearMonth, amounts: SavingsGoalAmounts): Promise<SavingsGoal>
 }
 
 /** Every port method name, for tests that must cover the whole port. */
@@ -88,6 +96,7 @@ export const FINBANK_API_METHODS = [
   'listCategorySummaries',
   'getComparison',
   'getSavingsGoal',
+  'updateSavingsGoal',
 ] as const satisfies readonly (keyof FinbankApi)[]
 
 // Compile-time guard: adding a port method without listing it above fails `tsc`.

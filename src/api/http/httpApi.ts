@@ -34,5 +34,6 @@ export function createHttpApi(options: HttpApiOptions = {}): FinbankApi {
     listCategorySummaries: notImplemented('listCategorySummaries'),
     getComparison: notImplemented('getComparison'),
     getSavingsGoal: notImplemented('getSavingsGoal'),
+    updateSavingsGoal: notImplemented('updateSavingsGoal'),
   }
 }

@@ -5,7 +5,7 @@ import { seed } from '../api/mock/seed.ts'
 import { formatDate, formatMoney, formatPercent } from '../lib/format.ts'
 import { categoryLabels } from '../ui/categoryLabels.ts'
 import { qk } from '../api/queryKeys.ts'
-import { ApiError, type IsoDate } from '../api/types.ts'
+import { ApiError, type IsoDate, type YearMonth } from '../api/types.ts'
 import { routeObjects } from './routeObjects.tsx'
 import { RouteError } from './RouteError.tsx'
 import { routes } from './routes.ts'
@@ -71,6 +71,32 @@ describe('routing and session guard', () => {
     const card = await screen.findByTestId('savings-goal-card')
     expect(await within(card).findByText('$12,500')).toBeInTheDocument()
     expect(within(card).getByText('$20,000')).toBeInTheDocument()
+  })
+
+  it('adjusts the May savings goal on the real adapter: the card updates in place and the goal persists', async () => {
+    renderAt(routes.goals, await signedInApi())
+    const card = await screen.findByTestId('savings-goal-card')
+    expect(await within(card).findByText('$12,500')).toBeInTheDocument()
+    fireEvent.click(within(card).getByRole('button', { name: 'Adjust Goal' }))
+    const dialog = screen.getByRole('dialog', { name: 'Adjust savings goal' })
+    const target = within(dialog).getByLabelText('Target Amounts')
+    const present = within(dialog).getByLabelText('Present Amounts')
+    expect(target).toHaveValue('$20,000.00')
+    expect(present).toHaveValue('$12,500.00')
+    fireEvent.change(target, { target: { value: '$25,000' } })
+    fireEvent.change(present, { target: { value: '13,000.5' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    // Already updated when the dialog disappears: no reload, no stale frame.
+    expect(within(card).getByText('$25,000')).toBeInTheDocument()
+    expect(within(card).getByText('$13,001')).toBeInTheDocument()
+    expect(within(card).getByText('13K')).toBeInTheDocument()
+    expect(within(card).getByText('$25k')).toBeInTheDocument()
+    await expect(createTestApi().getSavingsGoal('2023-05' as YearMonth)).resolves.toEqual({
+      month: '2023-05',
+      targetCents: 2_500_000,
+      achievedCents: 1_300_050,
+    })
   })
 
   it('shows the same category totals and % changes on the Overview tiles as on the Expenses cards', async () => {

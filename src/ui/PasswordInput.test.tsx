@@ -11,6 +11,11 @@ describe('PasswordInput', () => {
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
   })
 
+  it('is a 48px field', () => {
+    render(<PasswordInput label="Password" />)
+    expect(screen.getByLabelText('Password')).toHaveClass('h-12')
+  })
+
   it('requires a label at the type level', () => {
     // @ts-expect-error label is required
     render(<PasswordInput />)

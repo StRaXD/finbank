@@ -109,6 +109,29 @@ describe('Modal', () => {
       </Modal>,
     )
     expect(screen.getByRole('dialog')).not.toHaveAttribute('aria-labelledby')
+    expect(screen.getByRole('dialog')).not.toHaveAttribute('aria-label')
+  })
+
+  it('takes its accessible name from label when there is no title', () => {
+    render(
+      <Modal open label="Adjust savings goal" onClose={() => {}}>
+        <button type="button">Inside</button>
+      </Modal>,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Adjust savings goal' })
+    expect(dialog).toHaveAttribute('aria-label', 'Adjust savings goal')
+    expect(dialog).not.toHaveAttribute('aria-labelledby')
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+  })
+
+  it('prefers a visible title over label', () => {
+    render(
+      <Modal open title="Edit goal" label="Ignored" onClose={() => {}}>
+        <button type="button">Inside</button>
+      </Modal>,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Edit goal' })
+    expect(dialog).not.toHaveAttribute('aria-label')
   })
 
   it('moves focus to the first focusable element (the X) on open', () => {

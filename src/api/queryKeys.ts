@@ -50,6 +50,7 @@ export const invalidationMap = {
   signup: 'all',
   logout: 'all',
   removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions(), qk.categorySummaries(), qk.comparison()],
+  updateSavingsGoal: [qk.savingsGoal()],
 } as const satisfies Record<string, InvalidationTarget>
 
 export type InvalidatingMutation = keyof typeof invalidationMap

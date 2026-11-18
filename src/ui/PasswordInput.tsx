@@ -20,7 +20,7 @@ export function PasswordInput({ label, error, id, placeholder, ...rest }: Passwo
             {...rest}
             {...control}
             type={visible ? 'text' : 'password'}
-            className={`${fieldBase} pr-14 pl-4 ${fieldBorder(Boolean(error))}`}
+            className={`${fieldBase} h-12 pr-14 pl-4 ${fieldBorder(Boolean(error))}`}
           />
           <button
             type="button"

@@ -47,7 +47,19 @@ describe('invalidationMap', () => {
       signup: 'all',
       logout: 'all',
       removeAccount: [qk.accounts(), qk.balanceSummary(), qk.transactions(), qk.categorySummaries(), qk.comparison()],
+      updateSavingsGoal: [qk.savingsGoal()],
     })
+  })
+
+  it('invalidates every month of the savings goal, and nothing else, on updateSavingsGoal', async () => {
+    const client = new QueryClient()
+    client.setQueryData(qk.savingsGoal('2023-05' as YearMonth), { month: '2023-05', targetCents: 1, achievedCents: 0 })
+    client.setQueryData(qk.savingsGoal('2022-06' as YearMonth), { month: '2022-06', targetCents: 0, achievedCents: 0 })
+    client.setQueryData(qk.accounts(), [])
+    await applyInvalidation(client, 'updateSavingsGoal')
+    expect(client.getQueryState(qk.savingsGoal('2023-05' as YearMonth))?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.savingsGoal('2022-06' as YearMonth))?.isInvalidated).toBe(true)
+    expect(client.getQueryState(qk.accounts())?.isInvalidated).toBe(false)
   })
 
   it('invalidates accounts, the balance summary and every transaction list on removeAccount', async () => {

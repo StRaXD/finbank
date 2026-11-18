@@ -93,12 +93,14 @@ describe('GoalsPage', () => {
     expect(screen.getAllByText('$0').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('does nothing when Adjust Goal is clicked', async () => {
+  it('opens the Adjust savings goal dialog from Adjust Goal, disabled until the goal loads', async () => {
+    const pending = renderWith(() => new Promise<SavingsGoal>(() => {}))
+    expect(await screen.findByRole('button', { name: 'Adjust Goal' })).toBeDisabled()
+    pending.unmount()
     renderWith()
     await screen.findByText('$12,500')
     fireEvent.click(screen.getByRole('button', { name: 'Adjust Goal' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByText('$12,500')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Adjust savings goal' })).toBeInTheDocument()
   })
 
   it('shows the inline error with a working Retry when the goal query fails', async () => {

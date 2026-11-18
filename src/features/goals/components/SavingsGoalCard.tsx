@@ -10,6 +10,7 @@ import { Card } from '../../../ui/Card.tsx'
 import { Dropdown } from '../../../ui/Dropdown.tsx'
 import { GoalGauge } from '../../../ui/GoalGauge.tsx'
 import { icons, type IconName } from '../../../ui/icons.ts'
+import { AdjustSavingsGoalModal } from './AdjustSavingsGoalModal.tsx'
 
 function Stat({ icon, label, cents }: { icon: IconName; label: string; cents: number }) {
   const Icon = icons[icon]
@@ -49,6 +50,8 @@ function SavingsGoalContent({ today }: { today: IsoDate }) {
   )
   const query = useSavingsGoal(month)
   const period = formatRange(month)
+  const [adjusting, setAdjusting] = useState(false)
+  const goal = query.data
   return (
     <>
       {/* 110's header sits 20px below the card's top edge, 4px above the shared 24px padding. */}
@@ -62,11 +65,19 @@ function SavingsGoalContent({ today }: { today: IsoDate }) {
         </AsyncSection>
       </div>
       <div className="mt-6 flex justify-center">
-        {/* Story 4.2 opens the Adjust Savings Goal modal from here. */}
-        <Button variant="outline" size="compact" trailingIcon="pencil">
+        <Button
+          variant="outline"
+          size="compact"
+          trailingIcon="pencil"
+          disabled={!goal}
+          onClick={() => setAdjusting(true)}
+        >
           Adjust Goal
         </Button>
       </div>
+      {goal && (
+        <AdjustSavingsGoalModal open={adjusting} onClose={() => setAdjusting(false)} month={month} goal={goal} />
+      )}
     </>
   )
 }
@@ -75,7 +86,8 @@ function SavingsGoalContent({ today }: { today: IsoDate }) {
  * The Savings Goal card (110. Goals.png): a bold "Savings Goal" header with the grey month
  * selector (the 12 months from `selectableMonths`, defaulting to the month containing today) over
  * a divider, then Target Achieved and This month Target beside the `GoalGauge`, and an outlined
- * "Adjust Goal" button. The selected month is local state; the amounts are the adapter's.
+ * "Adjust Goal" button that opens `AdjustSavingsGoalModal` for the selected month (disabled until
+ * that month's goal has loaded). The selected month is local state; the amounts are the adapter's.
  */
 export function SavingsGoalCard() {
   const today = useToday()

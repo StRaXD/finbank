@@ -21,6 +21,7 @@ import {
   type ListTransactionsInput,
   type LoginInput,
   type SavingsGoal,
+  type SavingsGoalAmounts,
   type Session,
   type SignupInput,
   type Transaction,
@@ -721,6 +722,35 @@ export function createMockApi(options: MockApiOptions = {}): FinbankApi {
         if (!valid) throw new ApiError('VALIDATION', 'The month is not valid.')
         const goal = state().savingsGoals.find((candidate) => candidate.month === valid)
         return goal ? structuredClone(goal) : { month: valid, targetCents: 0, achievedCents: 0 }
+      }),
+
+    updateSavingsGoal: (month: YearMonth, amounts: SavingsGoalAmounts) =>
+      call((): SavingsGoal => {
+        const valid = validYearMonth(month)
+        if (!valid) throw new ApiError('VALIDATION', 'The month is not valid.')
+        const errors: FieldErrors = {}
+        const targetCents: unknown = amounts?.targetCents
+        const achievedCents: unknown = amounts?.achievedCents
+        if (!isCents(targetCents)) errors.targetCents = 'Enter a target of zero or more.'
+        if (!isCents(achievedCents)) errors.achievedCents = 'Enter a present amount of zero or more.'
+        throwIfInvalid(errors)
+        const goal: SavingsGoal = {
+          month: valid,
+          targetCents: targetCents as number,
+          achievedCents: achievedCents as number,
+        }
+        const prev = state()
+        const exists = prev.savingsGoals.some((candidate) => candidate.month === valid)
+        const next: MockState = {
+          ...prev,
+          savingsGoals: exists
+            ? prev.savingsGoals.map((candidate) => (candidate.month === valid ? goal : candidate))
+            : [...prev.savingsGoals, goal],
+        }
+        // Write first: a failed write leaves both memory and storage unchanged.
+        writeItem(storage, MOCK_STORAGE_KEY, JSON.stringify(next))
+        current = next
+        return structuredClone(goal)
       }),
   }
 }
