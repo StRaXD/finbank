@@ -23,11 +23,19 @@ function GoalsContent({ today }: { today: IsoDate }) {
       {/* 104 sets the pencil square 20px below the card's top edge, 4px above the shared padding. */}
       <div className="-mt-1 flex items-center gap-4 border-b border-border pb-3">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          {goal && (
+          {goal ? (
             <p data-testid="goals-target" className="text-22 font-extrabold text-ink">
               <span className="sr-only">Target for {monthLabel}: </span>
               {formatMoney(goal.targetCents, 'whole')}
             </p>
+          ) : (
+            // Holds the amount's place (one 32px text-22 line, about "$20,000" wide) so the pencil
+            // does not jump right when the goal loads; it pulses only while loading.
+            <span
+              aria-hidden="true"
+              data-testid="goals-target-placeholder"
+              className={`h-8 w-24 shrink-0 rounded-button ${query.isPending ? 'animate-pulse bg-border' : ''}`}
+            />
           )}
           <button
             type="button"

@@ -75,7 +75,9 @@ export interface FinbankApi {
    * Stores `month`'s savings goal (creating it for a month that had none), persists it and resolves
    * with a copy. Both amounts must be non-negative safe integer cents; `achievedCents` may exceed
    * the target. Bad amounts reject with `VALIDATION` and `fieldErrors` keyed `targetCents` /
-   * `achievedCents`; a malformed month rejects with `VALIDATION`.
+   * `achievedCents`; a malformed month rejects with `VALIDATION`. A failed write rejects with
+   * `STORAGE_FULL` when storage is full (`UNKNOWN` for any other write failure) and leaves the
+   * stored goals unchanged.
    */
   updateSavingsGoal(month: YearMonth, amounts: SavingsGoalAmounts): Promise<SavingsGoal>
   /**

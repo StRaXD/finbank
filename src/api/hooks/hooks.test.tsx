@@ -175,7 +175,13 @@ describe('query hooks', () => {
     const total = () => (result.current.summary.data ?? []).reduce((a, p) => a + (p.currentCents ?? 0), 0)
     expect(total()).toBe(1_250_000)
     await act(() => result.current.update.mutateAsync({ month: may, targetCents: 1, achievedCents: 400_000 }))
-    await waitFor(() => expect(total()).toBe(400_000))
+    // The mutation resolves only after the active query has refetched: the cache already holds
+    // the new series, synchronously. The hook then sees it after TanStack's one setTimeout(0)
+    // notify batch (flushed once, not polled).
+    const cached = queryClient.getQueryData<{ currentCents: number | null }[]>(qk.savingSummary(may)) ?? []
+    expect(cached.reduce((a, p) => a + (p.currentCents ?? 0), 0)).toBe(400_000)
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(total()).toBe(400_000)
   })
 
   it('useCategoryLimits lists the six limits and refetches after useUpdateCategoryLimit', async () => {
@@ -187,7 +193,9 @@ describe('query hooks', () => {
     // The mutation resolves only after the active query has refetched.
     const cached = queryClient.getQueryData<{ category: string; limitCents: number }[]>(qk.categoryLimits())
     expect(cached?.[1]).toEqual({ category: 'food', limitCents: 65_000 })
-    await waitFor(() => expect(result.current.limits.data?.[1]).toEqual({ category: 'food', limitCents: 65_000 }))
+    // The hook sees it after TanStack's one setTimeout(0) notify batch (flushed once, not polled).
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(result.current.limits.data?.[1]).toEqual({ category: 'food', limitCents: 65_000 })
   })
 
   it('useSession is null when signed out', async () => {

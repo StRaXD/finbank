@@ -49,6 +49,10 @@ describe('GoalGauge', () => {
     expect(screen.getByTestId('gauge-track')).toHaveClass('stroke-chart-previous')
     expect(screen.getByTestId('gauge-fill')).toHaveClass('stroke-chart-current')
     expect(screen.getByTestId('gauge-needle')).toHaveClass('stroke-chart-current')
+    // The round caps reach CY + 7 = 70.5, past the 70px height: they must not be clipped.
+    const svg = screen.getByTestId('goal-gauge').querySelector('svg')!
+    expect(svg).toHaveAttribute('overflow', 'visible')
+    expect(svg).toHaveAttribute('height', '70')
     // 62.5% of the half turn: right of the pivot and above it.
     const angle = Math.PI * 0.375
     expect(needleEnd().x - pivot().x).toBeCloseTo(40 * Math.cos(angle), 2)

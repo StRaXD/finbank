@@ -166,6 +166,20 @@ describe('AdjustCategoryLimitModal', () => {
     expect(target()).toHaveValue(value)
   })
 
+  it('saves after a validation error once the amount is corrected', async () => {
+    const { api, updateCategoryLimit } = createFakeApi()
+    renderPage(api)
+    await openModal()
+    type(target(), 'abc')
+    save()
+    await waitFor(() => expect(target()).toHaveAttribute('aria-invalid', 'true'))
+    type(target(), '650')
+    save()
+    await dialogClosed()
+    expect(updateCategoryLimit).toHaveBeenCalledTimes(1)
+    expect(updateCategoryLimit).toHaveBeenCalledWith('food', 65_000)
+  })
+
   it.each([
     ['the X', () => fireEvent.click(screen.getByRole('button', { name: 'Close' }))],
     ['Esc', () => fireEvent.keyDown(document, { key: 'Escape' })],

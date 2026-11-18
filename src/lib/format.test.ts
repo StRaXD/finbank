@@ -59,6 +59,10 @@ describe('formatMoney', () => {
     [0, 'ungrouped', '$0'],
     [123456789, 'ungrouped', '$1234568'],
     [-150, 'ungrouped', '-$2'],
+    [50, 'ungrouped', '$1'],
+    [-50, 'ungrouped', '-$1'],
+    [49, 'ungrouped', '$0'],
+    [100000000, 'ungrouped', '$1000000'],
   ] as const)('%i %s → %s', (cents, mode, expected) => {
     expect(formatMoney(cents, mode)).toBe(expected)
   })

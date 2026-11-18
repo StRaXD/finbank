@@ -369,6 +369,7 @@ describe('OverviewPage', () => {
       expect(target).toHaveTextContent(/^Target for May, 2023: \$20,000$/)
       expect(within(target).getByText('Target for May, 2023:')).toHaveClass('sr-only')
       expect(target).toHaveClass('text-22', 'font-extrabold')
+      expect(within(goalsCard()).queryByTestId('goals-target-placeholder')).not.toBeInTheDocument()
       expect(api.getSavingsGoal).toHaveBeenCalledWith('2023-05')
       expect(api.getSavingsGoal).toHaveBeenCalledTimes(1)
       expect(within(goalsCard()).getByText('May, 2023')).toBeInTheDocument()
@@ -405,6 +406,11 @@ describe('OverviewPage', () => {
       expect(pencil()).toBeDisabled()
       expect(within(goalsCard()).getByTestId('skeleton')).toBeInTheDocument()
       expect(within(goalsCard()).queryByTestId('goals-target')).not.toBeInTheDocument()
+      // A placeholder of the amount's line height holds its place, so the pencil does not shift.
+      const placeholder = within(goalsCard()).getByTestId('goals-target-placeholder')
+      expect(placeholder).toHaveClass('h-8', 'w-24', 'animate-pulse')
+      expect(placeholder).toHaveAttribute('aria-hidden', 'true')
+      expect(placeholder.nextElementSibling).toBe(pencil())
     })
 
     it('shows its error with Retry and a disabled pencil, without affecting the other widgets, and recovers', async () => {

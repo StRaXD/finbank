@@ -105,6 +105,14 @@ describe('AdjustSavingsGoalModal', () => {
   it.each([
     ['the X', () => fireEvent.click(screen.getByRole('button', { name: 'Close' }))],
     ['Esc', () => fireEvent.keyDown(document, { key: 'Escape' })],
+    [
+      'an overlay click',
+      () => {
+        const layer = screen.getByTestId('modal-overlay')
+        fireEvent.mouseDown(layer)
+        fireEvent.click(layer)
+      },
+    ],
   ])('ignores %s while a save is pending, then shows a rejection', async (_name, close) => {
     let reject!: (error: unknown) => void
     const { api } = createFakeApi({
@@ -165,6 +173,20 @@ describe('AdjustSavingsGoalModal', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     // What the user typed survives the failed validation.
     expect(target()).toHaveValue(value)
+  })
+
+  it('saves after a validation error once the amount is corrected', async () => {
+    const { api, updateSavingsGoal } = createFakeApi()
+    renderPage(api)
+    await openModal()
+    type(target(), 'abc')
+    save()
+    await waitFor(() => expect(target()).toHaveAttribute('aria-invalid', 'true'))
+    type(target(), '21000')
+    save()
+    await dialogClosed()
+    expect(updateSavingsGoal).toHaveBeenCalledTimes(1)
+    expect(updateSavingsGoal).toHaveBeenCalledWith('2023-05', { targetCents: 2_100_000, achievedCents: 1_250_000 })
   })
 
   it('marks only the bad field', async () => {

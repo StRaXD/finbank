@@ -65,11 +65,11 @@ development_status:
   epic-3-retrospective: optional
 
   epic-4: in-progress
-  4-1-savings-goal-card-with-gauge-and-period-selector: review
-  4-2-adjust-savings-goal-modal: review
-  4-3-saving-summary-line-chart: review
-  4-4-category-spending-limits-with-the-adjust-modal: review
-  4-5-overview-goals-widget: review
+  4-1-savings-goal-card-with-gauge-and-period-selector: done
+  4-2-adjust-savings-goal-modal: done
+  4-3-saving-summary-line-chart: done
+  4-4-category-spending-limits-with-the-adjust-modal: done
+  4-5-overview-goals-widget: done
   epic-4-retrospective: optional
 
   epic-5: backlog

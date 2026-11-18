@@ -12,8 +12,8 @@ export type GoalGaugeProps = {
 
 // Measured from 110. Goals.png at 1x: a half ring 127px wide outside (stroke centres 113px apart)
 // with a 14px stroke, a 40px needle and a 10px pivot dot. The ring's top is the drawing's top
-// edge. The end labels sit centred under the ring's ends, and the right label ("$20k") ends
-// flush with the drawing's right edge.
+// edge. The end labels ("$0", "$20k") sit centred under the ring's ends. The round stroke caps
+// reach half a pixel below HEIGHT, so the svg draws with overflow visible rather than clip them.
 const WIDTH = 144
 const HEIGHT = 70
 const CX = 72
@@ -55,7 +55,7 @@ export function GoalGauge({ achievedCents, targetCents, summary }: GoalGaugeProp
     <div className="flex flex-col items-center" data-testid="goal-gauge" data-ratio={ratio}>
       <p className="sr-only">{summary}</p>
       <div aria-hidden="true" className="flex flex-col items-center">
-        <svg width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} fill="none">
+        <svg width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} fill="none" overflow="visible">
           <path data-testid="gauge-track" d={arcTo(0)} className="stroke-chart-previous" strokeWidth={STROKE} strokeLinecap="round" />
           {ratio > 0 && (
             <path data-testid="gauge-fill" d={arcTo(angle)} className="stroke-chart-current" strokeWidth={STROKE} strokeLinecap="round" />

@@ -102,7 +102,7 @@ context:
   - the needle follows achieved ÷ target as the spec requires (the design's needle is drawn at about 42°, not 62.5%);
   - the icons are the existing lucide set.
 - `SavingsGoalCard` gates its content on `useToday()` through `AsyncSection`, so the header renders once today resolves.
-- Verified: typecheck, lint, full test suite (78 files, 2311 passed, 6 skipped). Visual fidelity against 110. Goals.png not checked in a browser.
+- Verified: typecheck, lint, full test suite (78 files, 2311 passed, 6 skipped). (The visual check below was run afterwards.)
 
 ## Spec Change Log
 

@@ -138,7 +138,7 @@ graph TD
   - Query keys are hierarchical arrays from the `qk` factory in `src/api/queryKeys.ts`.
   - The same file exports `invalidationMap`, which maps each mutation to the key prefixes it invalidates. Mutation hooks invalidate only through this map. Seed:
     - `removeAccount` → `accounts`, `balanceSummary`, `transactions`
-    - `updateSavingsGoal` → `savingsGoal`
+    - `updateSavingsGoal` → `savingsGoal`, `savingSummary` (the saving summary is derived from the stored goals, Story 4.3)
     - `updateCategoryLimit` → `categoryLimits`
     - `updateProfile` → `profile`
     - `login` and `logout` → clear the whole cache
@@ -213,6 +213,8 @@ graph TD
 | `CategorySummaryCard` / `Tile` | `expenses` |
 | `SavingsGoalCard` | `goals` |
 | `AdjustSavingsGoalModal` | `goals` |
+| `AdjustCategoryLimitModal` | `goals` |
+| `SavingsGoalSummary` (stats + gauge, shared by Goals and Overview) | `goals` |
 
 ### AD-13: Modals render into the content area
 
@@ -280,7 +282,7 @@ graph TD
 | --- | --- |
 | File naming | Components: `PascalCase.tsx`, one component per file. Hooks: `useThing.ts`. Other modules: `camelCase.ts`. Tests sit next to the file as `*.test.ts(x)`. |
 | Feature folder | `features/<area>/` contains `index.ts` (public exports), `<Area>Page.tsx`, `components/` and, optionally, `schemas.ts`. |
-| Domain types | `Account`, `Transaction`, `Bill`, `ExpenseCategoryId` (union of 6), `CategorySummary`, `SavingsGoal`, `CategoryLimit`, `UserProfile`, `Session`, `IsoDate`, `YearMonth`. IDs are opaque strings such as `acc_1` or `txn_42`. |
+| Domain types | `Account`, `Transaction`, `Bill`, `ExpenseCategoryId` (union of 6), `CategorySummary`, `SavingsGoal`, `SavingSummaryPoint`, `CategoryLimit`, `UserProfile`, `Session`, `IsoDate`, `YearMonth`. IDs are opaque strings such as `acc_1` or `txn_42`. |
 | Port methods | `getX` / `listX` for reads, `updateX` / `removeX` for writes. Paginated lists take `{ cursor?, limit }` and return `{ items, nextCursor }`. The page size is 10. |
 | Ordering | Adapters return lists already sorted. Transactions: date descending. Bills: due date ascending. Accounts: seed order. |
 | Errors | Adapters throw only `ApiError { code, message, fieldErrors? }`. UI copy comes from `message`. |
@@ -362,7 +364,7 @@ interface FinbankApi {
   listCategorySummaries(): Promise<CategorySummary[]>;                       // month containing today; latest 2 items each
   getSavingsGoal(month: YearMonth): Promise<SavingsGoal>;
   updateSavingsGoal(month: YearMonth, i: { targetCents: number; achievedCents: number }): Promise<SavingsGoal>;
-  getSavingSummary(month: YearMonth): Promise<ComparisonPoint[]>;
+  getSavingSummary(month: YearMonth): Promise<SavingSummaryPoint[]>;          // derived from stored goals (Present split by day); amended in Story 4.3
   listCategoryLimits(): Promise<CategoryLimit[]>; updateCategoryLimit(id: ExpenseCategoryId, limitCents: number): Promise<CategoryLimit>;
   // settings
   getProfile(): Promise<UserProfile>; updateProfile(i: ProfileInput): Promise<UserProfile>; changePassword(i: PasswordInput): Promise<void>;
